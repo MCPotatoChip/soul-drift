@@ -4,3 +4,5 @@ node_modules/
 *.log
 .autopush.lock
 .autopush.pid
+.vercel
+.env*
