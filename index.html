@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07070b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Soul Drift">
+<meta name="description" content="Soul Drift: a Bleach-inspired metroidvania of Shinigami, Hollows and the spaces between. Plays on desktop and phones.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Soul Drift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+  /* One dark look: an ink-black stage with bone-white text and a single crimson accent */
+  :root {
+    --ink: #07070b;
+    --bone: #e9e4d8;
+    --muted: #8a8497;
+    --crimson: #d8343f;
+    --gold: #d9b35a;
+    --font-display: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+    --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; height: 100dvh; margin: 0; overscroll-behavior: none; }
+  body {
+    background: var(--ink);
+    color: var(--bone);
+    font-family: var(--font-body);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 12px;
+    gap: 10px;
+    overflow: hidden;
+  }
+  #game { flex: 1; min-height: 0; width: 100%; }
+  #game canvas { image-rendering: pixelated; outline: 1px solid rgba(233, 228, 216, 0.08); }
+  .keys {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 18px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .keys kbd {
+    font-family: var(--font-body);
+    font-weight: 700;
+    color: var(--gold);
+    margin-right: 4px;
+  }
+  .touch-note { display: none; }
+
+  /* ---- touch overlay (built by src/touch.js) ---- */
+  body.touch { padding: 0; gap: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+  body.touch .keys { display: none; }
+  body.touch #game canvas { outline: none; }
+  #touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; display: none; --top: 0.6; }
+  #touch.on { display: block; }
+  #touch .tbtn, #touch .tstick, #touch .tnb, #touch .tsys button { pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .tbtn { position: absolute; display: none; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 50%;
+    background: rgba(233, 228, 216, 0.12); border: 2px solid rgba(233, 228, 216, 0.55); color: var(--bone);
+    font: 700 12px/1 var(--font-body); letter-spacing: 0.05em; opacity: var(--top); }
+  .tbtn.hold { box-shadow: inset 0 0 0 3px rgba(7, 7, 11, 0.5), inset 0 0 0 4px rgba(233, 228, 216, 0.35); }
+  .tbtn.down { background: rgba(216, 52, 63, 0.6); border-color: #ff8a92; transform: scale(0.94); }
+  .tstick { position: absolute; display: none; opacity: var(--top); }
+  .tbase { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(233, 228, 216, 0.5);
+    background: radial-gradient(circle, rgba(233, 228, 216, 0.14), rgba(233, 228, 216, 0.04) 70%); }
+  .tknob { position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%; border-radius: 50%;
+    background: rgba(233, 228, 216, 0.4); border: 2px solid rgba(233, 228, 216, 0.8); transition: transform 40ms linear; }
+  .m-play .tbtn, .m-edit .tbtn { display: flex; }
+  .m-play .tstick, .m-edit .tstick { display: block; }
+  #touch.m-edit { pointer-events: auto; background: rgba(5, 5, 10, 0.55); }
+  .m-edit .tbtn, .m-edit .tstick { opacity: 0.9; outline: 2px dashed rgba(217, 179, 90, 0.7); outline-offset: 3px; }
+  .m-edit .tbtn.sel, .m-edit .tstick.sel { outline: 3px solid var(--gold); background-color: rgba(217, 179, 90, 0.25); }
+  .tsys { position: absolute; top: max(6px, env(safe-area-inset-top, 0px)); right: calc(max(54px, 12vmin) + env(safe-area-inset-right, 0px)); display: none; gap: 8px; }
+  .m-play .tsys, .m-menu .tsys, .m-title .tsys { display: flex; }
+  .tsys button { width: 38px; height: 30px; border-radius: 8px; border: 1px solid rgba(233, 228, 216, 0.3); background: rgba(7, 7, 11, 0.45);
+    color: rgba(233, 228, 216, 0.75); font: 16px/1 var(--font-body); padding: 0; }
+  .tnav { display: none; }
+  .m-menu .tnav { display: block; }
+  .tnb { position: absolute; display: flex; align-items: center; justify-content: center; width: 14vmin; height: 14vmin; border-radius: 22%;
+    background: rgba(233, 228, 216, 0.14); border: 2px solid rgba(233, 228, 216, 0.5); color: var(--bone); font: 700 5vmin/1 var(--font-body); opacity: 0.8; }
+  .tnb:active { background: rgba(216, 52, 63, 0.6); }
+  .tnb.nu { left: calc(3vmin + env(safe-area-inset-left, 0px)); bottom: 30vmin; }
+  .tnb.nd { left: calc(3vmin + env(safe-area-inset-left, 0px)); bottom: 12vmin; }
+  .tnb.nl, .tnb.nr { display: none; }
+  .tnb.ok { right: calc(3vmin + env(safe-area-inset-right, 0px)); bottom: 30vmin; width: 15vmin; height: 15vmin; border-radius: 50%; font-size: 4vmin; }
+  .tnb.bk { right: calc(3vmin + env(safe-area-inset-right, 0px)); bottom: 12vmin; width: 13vmin; height: 13vmin; border-radius: 50%; font-size: 3vmin; }
+  .tpanel { position: fixed; z-index: 40; top: max(8px, env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+    width: min(580px, 94vw); box-sizing: border-box; padding: 8px 10px; background: rgba(7, 7, 11, 0.94);
+    border: 1px solid rgba(233, 228, 216, 0.3); color: var(--bone); font: 12px/1.3 var(--font-body); display: flex; flex-direction: column; gap: 6px; }
+  .tp-title { font: 800 15px var(--font-display); } .tp-title small { font: 400 11px var(--font-body); color: var(--muted); margin-left: 6px; }
+  .tp-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+  .tp-name { color: var(--gold); font-weight: 700; min-width: 96px; }
+  .tpanel label { display: inline-flex; align-items: center; gap: 6px; }
+  .tpanel select, .tpanel button { font: 12px var(--font-body); color: var(--bone); background: #1a1824; border: 1px solid rgba(233, 228, 216, 0.3); border-radius: 6px; padding: 5px 9px; }
+  .tpanel button:disabled, .tpanel select:disabled { opacity: 0.4; }
+  .tpanel input[type=range] { width: 96px; accent-color: var(--crimson); }
+  .tp-done { background: var(--crimson) !important; border-color: var(--crimson) !important; font-weight: 700; }
+  #rotate { position: fixed; inset: 0; z-index: 60; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: var(--ink); color: var(--bone); font: 700 18px var(--font-display); text-align: center; padding: 24px; }
+  #rotate small { font: 400 14px var(--font-body); color: var(--muted); }
+  @media (orientation: portrait) { body.touch #rotate { display: flex; } }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="rotate">Turn your device sideways<small>Soul Drift plays in landscape. Add it to your home screen for full screen.</small></div>
+<p class="keys" id="keys" aria-label="Controls"></p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+<script src="src/config.js"></script>
+<script src="src/controls.js"></script>
+<script src="src/state.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/textures.js"></script>
+<script src="src/art.js"></script>
+<script src="src/rooms.js"></script>
+<script src="src/objects.js"></script>
+<script src="src/player.js"></script>
+<script src="src/enemies.js"></script>
+<script src="src/bosses.js"></script>
+<script src="src/scenes/game.js"></script>
+<script src="src/scenes/ui.js"></script>
+<script src="src/scenes/menu.js"></script>
+<script src="src/scenes/title.js"></script>
+<script src="src/touch.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
