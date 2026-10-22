@@ -20,7 +20,7 @@ These are the defaults. Every action can be rebound under **Controls** on the ti
 | X | Zanpakuto slash. Hold ↑ or ↓ to aim. A down-slash in the air pogos off enemies and spikes. ↓ + X while standing on cracked ground strikes down into it. Once you have Getsuga Tenshō, keep holding X and release to fire it |
 | A (hold) | Reiatsu Suppression: heals 1 mask for 33 Reiatsu. Moving or taking damage cancels it |
 | C | Black Step dash |
-| S | Kido: Hado. ↑ + S casts Kido: Bakudo |
+| S | Kido: Hado. ↑ + S casts Kido: Bakudo. ↓ + S casts Hado #63: Raikōhō (66 Reiatsu, learned from the Rogue Captain) |
 | D (hold) | Konso Blade |
 | V (hold, then release) | Senkaimon Burst |
 | F | Bankai (needs a full Reiatsu vessel) |
@@ -37,6 +37,10 @@ The game detects a touch screen and shows an on-screen stick and buttons. Turn y
 - **Menus**: tap an entry to pick it. A small pad (▲ ▼ OK BACK) appears for menus. In dialogs, tap anywhere to continue.
 - **Remap everything**: the ⚙ button (or Pause, then Controls, then Edit touch layout) opens the layout editor. Drag any button to move it, tap it to change what it does or how big it is, add or remove buttons, mirror the layout for left-handed play, and change size and opacity. The layout is saved on the device. Touch buttons press whatever key their action is bound to, so keyboard remapping and touch remapping work together.
 - Force the overlay on a desktop with `?touch=1`, or off with `?touch=0`.
+
+## Settings
+
+Pause menu or title screen, **Settings**: sound effects and music volume, screen shake, screen flashes, particle density and damage numbers. They save in your browser. Touch devices start with particles on low.
 
 ## What's in the game
 
@@ -64,6 +68,10 @@ The game detects a touch screen and shows an on-screen stick and buttons. Turn y
   - Adjuchas (telegraphed charge)
   - Shade Arrancars (invisible without Konso)
   - Gillians (lesser Menos that aim and fire a Cero)
+  - Kido Casters (keep their distance and fire aimed bala)
+  - Pale Hollow Divers (hang from ceilings, then drop on you)
+- **Hazards**: reishi geysers (warning rumble, then a blast upward) and stalactites that shake loose when you pass beneath
+- **Atmosphere**: each region has its own drifting particles and light, seals and gates glow, and the music, ambience and footsteps change with the region. Bosses add a pulse to the music and each ends in its own way
 - **5 bosses**, each with phase changes:
   - Menos Grande: stomp shockwaves, Cero, summons
   - Rogue Captain: Bankai preview at 50%
@@ -77,6 +85,9 @@ The game detects a touch screen and shows an on-screen stick and buttons. Turn y
   - A swordsmith in Rukongai who sharpens your Zanpakuto through three levels for reishi and Reishi Ore (3 ore in the optional regions)
   - A shop that takes reishi
   - Lingering Reiatsu: your reishi drops where you die and you can win it back
+  - Pin Compass (shop): marks every power, seal, fragment, ore and Lost Plus you have not found on the map
+  - A quest from the old man in Rukongai: bring him the memories of a thug, a Shinigami and a Hollow, read with the Konso Blade
+  - **New Game+** after the ending: keep your powers, seals and blade, face tougher foes that pay more
 - **Rest gates** save, heal and fast travel. Progress is saved to `localStorage`.
 
 ### The optional regions
@@ -97,12 +108,14 @@ index.html            page + script order
 src/config.js         tuning constants, abilities, seals, regions, bosses
 src/controls.js       remappable input (physical key codes), saved bindings, key-name formatting, virtual keys
 src/touch.js          touch overlay: stick, buttons, layout editor, saved layout
+src/settings.js       saved player settings (volumes, shake, flashes, particle density)
 src/state.js          GS: the single game-state object (saved data + per-life run state)
 src/rooms.js          room layouts as ASCII grids + doors, NPC lines, pickups
 src/textures.js       tilesets, backgrounds, effects and props
 src/art.js            pixel-art rig: characters, poses, animations, creatures
-src/audio.js          WebAudio synth sound effects
-src/objects.js        effects helper, pickups, rest gates, NPCs, platforms, projectiles
+src/audio.js          WebAudio synth: sound effects, footsteps, and the generated music
+src/objects.js        effects helper (Fx), pickups, rest gates, NPCs, platforms, projectiles, hazards
+src/ambience.js       per-region particles, light shafts, glows
 src/player.js         player state machine (movement, abilities, damage)
 src/enemies.js        enemy types
 src/bosses.js         bosses, scripted with generator coroutines

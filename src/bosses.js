@@ -30,6 +30,16 @@ class Boss extends Enemy {
     if (this.poseT > 0) { this.poseT -= dt; this.anim(this.poseName); return; }
     this.anim(this.defaultPose(), this.defaultPose() === 'run' ? 1.4 : 1);
   }
+  // The moment the doors lock: a held pose, a ring of force and a flash of white
+  intro() {
+    const s = this.scene;
+    s.fx.ring(this.x, this.y, 0xffffff, 80, 750, 3);
+    s.fx.ring(this.x, this.y, 0xd8343f, 50, 600, 2);
+    s.fx.dust(this.x, this.body.bottom, 16);
+    this.telegraph(0xffffff);
+    s.time.delayedCall(500, () => { if (this.alive) this.untelegraph(); });
+    if (this.introPose) this.setPose(this.introPose, 0.95);
+  }
   activate() {
     this.fighting = true;
     this.invulnerable = false;
@@ -45,7 +55,11 @@ class Boss extends Enemy {
   hit(dmg, dirX, o = {}) {
     if (!this.fighting) return 'none';
     const r = super.hit(dmg, dirX, Object.assign({}, o, { knock: false }));
-    if (r === 'hit') this.scene.game.events.emit('boss-hp', Math.max(0, this.hp / this.maxHp));
+    if (r === 'hit') {
+      this.scene.game.events.emit('boss-hp', Math.max(0, this.hp / this.maxHp));
+      // a brief flinch, but never over a held wind-up the player is meant to read
+      if (this.alive && this.poseT <= 0 && this.scene.anims.exists(this.sheet + ':hurt')) this.setPose('hurt', 0.1);
+    }
     return r;
   }
   bind(t) { super.bind(Math.min(t * 0.3, 1.2)); }
@@ -104,6 +118,35 @@ class Boss extends Enemy {
     }
     g.clear();
   }
+  // Each boss ends in its own way, on top of the shared bursts
+  deathFx() {
+    const s = this.scene, x = this.x, y = this.y, fx = s.fx;
+    const wisps = (n) => { for (let i = 0; i < n; i++) s.time.delayedCall(i * 110, () => fx.wisp(x + Phaser.Math.Between(-24, 24), y + Phaser.Math.Between(-30, 20), 0xbfe6ff, 80)); };
+    switch (this.id) {
+      case 'menos':   // a thousand faces break off and fall away
+        fx.shatter(x, y - 10, [0xf4f1ea, 0xf4f1ea, 0x17161f, 0xc8202c], 34, 110, 90, 1400);
+        s.time.delayedCall(260, () => fx.shatter(x, y - 30, [0xf4f1ea, 0x2c2636], 22, 90, 70, 1200));
+        wisps(10);
+        break;
+      case 'captain': case 'espada':   // the blade comes apart in a line of light
+        fx.shatter(x, y, [0xcdd4dc, 0xffffff, 0x8a7cff], 24, 100, 50, 1100);
+        fx.impact(x, y, 0, 0xffffff, 12, 44);
+        for (let i = 0; i < 3; i++) s.time.delayedCall(i * 180, () => fx.ring(x, y, this.id === 'espada' ? 0x7fe8ff : 0x8a7cff, 40 + i * 30, 500, 2));
+        wisps(6);
+        break;
+      case 'vasto':   // crumbles to sand
+        fx.shatter(x, y, [0xe0d8c0, 0xc8bea0, 0xffffff], 40, 120, 110, 1600);
+        fx.dust(x, y, 30);
+        fx.debris(x, y, 0xe0d8c0, 16);
+        wisps(8);
+        break;
+      case 'final':   // a mirror breaks: glass in every direction, and a long white silence
+        for (let i = 0; i < 3; i++) s.time.delayedCall(i * 220, () => fx.shatter(x, y - 4, [0xffffff, 0xbfe6ff, 0x7fd4ff, 0xc8202c], 30, 130 + i * 30, 70, 1500));
+        fx.ring(x, y, 0xffffff, 120, 900, 4);
+        wisps(14);
+        break;
+    }
+  }
   die(dirX) {
     this.alive = false;
     this.fighting = false;
@@ -117,6 +160,7 @@ class Boss extends Enemy {
     s.fx.shake(900, 0.015);
     s.fx.flash(0xffffff, 400, 0.7);
     this.onDie && this.onDie();
+    this.deathFx();
     let n = 0;
     s.time.addEvent({
       delay: 120, repeat: 8, callback: () => {
@@ -135,6 +179,7 @@ class Menos extends Boss {
   constructor(scene, x, feet) {
     super(scene, x, feet, 'menos', { id: 'menos', hp: 125, dmg: 1, drop: 20, bw: 40, bh: 100, kind: 'menos', frame: 'idle0', frameFeet: 120 });
     this.telePose = 'crouch';
+    this.introPose = 'cero';
     this.anim('idle');
     this.orb = scene.add.image(x, this.y, 'cero_orb').setDepth(29).setVisible(false);
   }
@@ -245,6 +290,7 @@ class SwordBoss extends Boss {
   constructor(scene, x, feet, cfg) {
     super(scene, x, feet, cfg.key, Object.assign({ bw: 12, bh: 26, dmg: 1, frame: 'idle0', frameFeet: HF.FEET }, cfg));
     this.telePose = 'windup';
+    this.introPose = 'windup';
     this.anim('idle');
     this.waveKey = cfg.waveKey || 'wave_w';
     this.moves = cfg.moves;
@@ -520,6 +566,7 @@ class Vasto extends Boss {
   constructor(scene, x, feet) {
     super(scene, x, feet, 'vasto', { id: 'vasto', hp: 320, dmg: 1, drop: 30, bw: 16, bh: 38, kind: 'vasto', fly: true, frame: 'float0', frameFeet: HF.FEET });
     this.telePose = 'cast';
+    this.introPose = 'cast';
     this.anim('float');
     this.orb = scene.add.image(x, this.y, 'cero_orb').setDepth(29).setVisible(false);
   }

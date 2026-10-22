@@ -17,9 +17,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, (fy - cfg.bh / 2) / this.height);
     this.body.setSize(cfg.bw, cfg.bh).setOffset((this.width - cfg.bw) / 2, fy - cfg.bh);
     this.body.reset(x, feetY - cfg.bh * sc / 2);
-    this.hp = this.maxHp = cfg.hp;
+    this.hp = this.maxHp = Math.round(cfg.hp * GS.hpMul());
     this.dmg = cfg.dmg ?? 1;
-    this.drop = cfg.drop ?? 2;
+    this.drop = Math.round((cfg.drop ?? 2) * GS.dropMul());
     this.kbRes = cfg.kb ?? 1;
     this.kind = cfg.kind;
     this.uid = scene.nextUid || null; scene.nextUid = null;
@@ -425,4 +425,112 @@ class Gillian extends Enemy {
   }
   afterTick() { this.anim(this.mode === 'aim' || this.mode === 'fire' ? 'cero' : 'idle'); }
   onDie() { this.gfx.destroy(); }
+}
+
+
+// Corrupted Kido master: it never closes in. It keeps its distance, backs away if you
+// come near, and every so often charges a blue bala and fires it at where you stand.
+class KidoCaster extends Enemy {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, 'caster', { hp: 34, dmg: 1, drop: 8, bw: 10, bh: 20, kind: 'caster', kb: 0.8, burst: 0x5a7ad8, frame: 'idle0', frameFeet: HF.FEET });
+    this.mode = 'watch'; this.mt = 0.9;
+    this.anim('idle');
+  }
+  afterTick() {
+    if (this.mode === 'aim' || this.mode === 'cool') this.anim('cast');
+    else this.moveAnim(70);
+  }
+  think(dt) {
+    const b = this.body, s = this.scene;
+    const { dx, dy } = this.playerDelta();
+    const d = Math.abs(dx);
+    this.mt -= dt;
+    this.faceTo(s.player.x);
+    switch (this.mode) {
+      case 'watch': {
+        let vx = 0;
+        if (d < 90 && this.groundAhead(-this.facing) && !this.wallAhead(-this.facing)) vx = -this.facing * 70;       // too close: back away
+        else if (d > 190 && d < 320 && this.groundAhead(this.facing) && !this.wallAhead(this.facing)) vx = this.facing * 35;   // too far: drift in
+        b.setVelocityX(b.blocked.down ? vx : b.velocity.x);
+        if (this.mt <= 0 && d < 290 && Math.abs(dy) < 80) {
+          this.mode = 'aim'; this.mt = 0.62; b.setVelocityX(0);
+          this.telegraph(0x7fa8ff); Sfx.play('telegraph');
+        }
+        break;
+      }
+      case 'aim':
+        b.setVelocityX(0);
+        if (Math.random() < 0.5) s.fx.motes(this.x + this.facing * 9, this.y - 4, 0x7fa8ff, 1);
+        if (this.mt <= 0) {
+          this.untelegraph();
+          const a = Math.atan2(s.player.body.center.y - (this.y - 4), s.player.x - this.x);
+          new EnemyShot(s, this.x + this.facing * 9, this.y - 4, 'bala', Math.cos(a) * 235, Math.sin(a) * 235, { dmg: 1, life: 2.4, tint: 0x8ab4ff, scale: 1.25, burst: 0x8ab4ff });
+          Sfx.play('hado');
+          this.mode = 'cool'; this.mt = 0.55;
+        }
+        break;
+      case 'cool':
+        b.setVelocityX(0);
+        if (this.mt <= 0) { this.mode = 'watch'; this.mt = 1.4; }
+        break;
+    }
+  }
+}
+
+// Pale Hollow that hangs from the ceiling. When you pass beneath it quivers, then drops
+// on you in a straight line, and afterwards crawls back up to hang again.
+class Diver extends Enemy {
+  constructor(scene, x, ceilY) {
+    super(scene, x, ceilY + 11, 'hollow', { hp: 12, dmg: 1, drop: 3, bw: 12, bh: 10, kind: 'diver', fly: true, kb: 0.8, burst: 0x6a78c8, frame: 'fly0', frameFeet: 17 });
+    this.baseTint = 0x9aa8ff;
+    this.tintState = this.baseTint; this.refreshTint();
+    this.home = { x, y: this.y };
+    this.mode = 'hang'; this.mt = 0;
+    this.anim('fly');
+    this.facing = -1;
+  }
+  untelegraph() { this.tintState = this.baseTint; if (this.flashT <= 0) this.refreshTint(); }
+  afterTick() {
+    if (this.anims.currentAnim) this.anims.timeScale = this.mode === 'hang' ? 0.15 : this.mode === 'dive' ? 1.8 : 1;
+  }
+  think(dt) {
+    const b = this.body, s = this.scene;
+    const { dx, dy } = this.playerDelta();
+    this.mt -= dt;
+    switch (this.mode) {
+      case 'hang':
+        b.setVelocity(0, 0);
+        this.facing = Math.sign(dx) || this.facing;
+        if (Math.abs(dx) < 34 && dy > 12 && dy < 200) { this.mode = 'shake'; this.mt = 0.42; this.telegraph(0xff6060); Sfx.play('telegraph'); }
+        break;
+      case 'shake':
+        b.setVelocity(0, 0);
+        this.x = this.home.x + (Math.random() - 0.5) * 3;
+        if (this.mt <= 0) {
+          this.untelegraph();
+          const a = Math.atan2(s.player.body.center.y - this.y, s.player.x - this.x);
+          b.setVelocity(Math.cos(a) * 300, Math.sin(a) * 300);
+          this.mode = 'dive'; this.mt = 1.0; Sfx.play('dash');
+        }
+        break;
+      case 'dive':
+        this.facing = Math.sign(b.velocity.x) || this.facing;
+        if (Math.random() < 0.5) s.fx.afterimage(this, 0x9aa8ff, 0.35, 180);
+        if (b.blocked.down || b.blocked.up || b.blocked.left || b.blocked.right || this.mt <= 0) {
+          b.setVelocity(0, 0); this.mode = 'rest'; this.mt = 0.6;
+          s.fx.dust(this.x, b.bottom, 4);
+        }
+        break;
+      case 'rest':
+        b.setVelocity(0, 0);
+        if (this.mt <= 0) this.mode = 'return';
+        break;
+      case 'return': {
+        const rx = this.home.x - this.x, ry = this.home.y - this.y, dist = Math.hypot(rx, ry);
+        if (dist < 4) { b.reset(this.home.x, this.home.y); this.mode = 'hang'; break; }
+        b.setVelocity(rx / dist * 85, ry / dist * 85);
+        break;
+      }
+    }
+  }
 }

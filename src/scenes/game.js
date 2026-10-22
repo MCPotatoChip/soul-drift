@@ -29,7 +29,7 @@ class GameScene extends Phaser.Scene {
     this.inp = {};
     this.enemies = []; this.pShots = []; this.eShots = []; this.hurtBoxes = [];
     this.interactables = []; this.pickups = []; this.platforms = []; this.shards = [];
-    this.doors = []; this.lockCells = []; this.collapseCells = []; this.bankaiCells = [];
+    this.doors = []; this.lockCells = []; this.collapseCells = []; this.bankaiCells = []; this.hazards = [];
     this.hinted = {};
     this.suppressed = new Set();
     this.carryP = null; this.lastP = new Set();
@@ -59,13 +59,15 @@ class GameScene extends Phaser.Scene {
 
     const dark = REGIONS[this.region].dark;
     this.dark = this.add.image(this.player.x, this.player.y, 'darkness').setScale(2).setDepth(40).setAlpha(dark).setVisible(dark > 0);
+    this.ambience = new Ambience(this, this.region);
+    Music.setRegion(this.region);
 
     this.events.on('resume', this.onResume, this);
     this.events.once('shutdown', () => {
       this.anims.globalTimeScale = 1;
       this.events.off('resume', this.onResume, this);
       this.game.events.emit('prompt', null);
-      if (this.bossStarted) this.game.events.emit('boss-end', { silent: true });
+      if (this.bossStarted) { this.game.events.emit('boss-end', { silent: true }); Music.setBoss(false); }
     });
 
     if (GS.run.region !== this.region) {
@@ -171,6 +173,10 @@ class GameScene extends Phaser.Scene {
         case 'g': this.uid(x, y); new Shinigami(this, cx, feet); break;
         case 'j': this.uid(x, y); new Adjuchas(this, cx, feet); break;
         case 'a': this.uid(x, y); new Arrancar(this, cx, feet); break;
+        case 'q': this.uid(x, y); new KidoCaster(this, cx, feet); break;
+        case 'v': this.uid(x, y); new Diver(this, cx, y * TILE); break;
+        case 'u': new Geyser(this, cx, feet); break;
+        case 'y': new Stalactite(this, cx, y * TILE); break;
         case 'h': for (let i = 0; i < 3; i++) { this.uid(x, y, i); new Hollow(this, cx + (i - 1) * 24, y * TILE + 8 - i * 6); } break;
         default:
           if (ch >= '1' && ch <= '9') {
@@ -253,7 +259,7 @@ class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, this.pxW, this.pxH);
     cam.startFollow(this.player, true, 0.14, 0.14);
     cam.setRoundPixels(true);
-    cam.fadeIn(180, 0, 0, 0);
+    cam.fadeIn(200, ...this.regionTint(this.region));
   }
 
   setupInput() {
@@ -314,6 +320,7 @@ class GameScene extends Phaser.Scene {
       const onTop = Math.abs(b.bottom - pb.top) < 4 && b.right > pb.left + 1 && b.left < pb.right - 1 && b.velocity.y >= -1 && p.t.drop <= 0;
       if (onTop && pb.velocity.y > 0) b.velocity.y = Math.max(b.velocity.y, pb.velocity.y);
     }
+    for (const h of this.hazards) if (h.active) h.tick(dt);
     this.updateShards(dt);
     this.updateHurtBoxes(dt);
     if (!this.transitioning && !this.respawning) {
@@ -327,6 +334,7 @@ class GameScene extends Phaser.Scene {
       this.handleMenus();
     }
     this.updateCamera(dt);
+    this.updateNpcs();
     this.updateBackground();
     if (this.dark.visible) this.dark.setPosition(p.x, p.y);
   }
@@ -362,6 +370,24 @@ class GameScene extends Phaser.Scene {
   updateBackground() {
     const sx = this.cameras.main.scrollX;
     this.bgLayers.forEach((l, i) => { l.tilePositionX = sx * this.bgFactors[i]; });
+  }
+
+  // A dark wash of a region's colour, used for the fade between rooms
+  regionTint(region, k = 0.2) {
+    const c = Phaser.Display.Color.IntegerToColor(REGIONS[region].color);
+    return [Math.round(c.red * k), Math.round(c.green * k), Math.round(c.blue * k)];
+  }
+
+  // Townsfolk turn to face you as you come near, and shopkeepers greet you
+  updateNpcs() {
+    const p = this.player;
+    for (const it of this.interactables) {
+      if (!it.active || !it.faces) continue;
+      const dx = p.x - it.x, near = Math.abs(dx) < 170 && Math.abs(p.y - it.y) < 60;
+      if (near) it.setFlipX(dx < 0);
+      if (near && Math.abs(dx) < 70 && !it.greeted && it.greet) { it.greeted = true; it.greet(); }
+      else if (Math.abs(dx) > 220) it.greeted = false;
+    }
   }
 
   hitStop(t) { this.hitStopT = Math.max(this.hitStopT, t); }
@@ -523,6 +549,7 @@ class GameScene extends Phaser.Scene {
     const color = { [T.KIDO]: 0xc8a8ff, [T.GATE]: 0xff8a3a, [T.CRACK]: 0x8a7a6a, [T.BANKAI]: 0xc8202c }[index] || 0xffffff;
     cells.forEach(([x, y]) => {
       this.solid.removeTileAt(x, y);
+      if (this.ambience) this.ambience.clearCell(x, y);
       GS.markBroken(this.roomId, x, y);
       this.fx.debris(x * TILE + 8, y * TILE + 8, color, 5);
     });
@@ -539,6 +566,39 @@ class GameScene extends Phaser.Scene {
     new PlayerShot(this, p.x + p.facing * 12, p.body.center.y - 3, 'hado', p.facing * 480, { dmg: COMBAT.hadoDamage * p.spellMul(), life: 1.3, kind: 'hado', w: 12, h: 12 });
     Sfx.play('hado');
     this.fx.ring(p.x + p.facing * 10, p.y, 0xff7a4a, 18, 200);
+  }
+
+  // Hado #63: a heavy bolt that bursts on the first thing it meets
+  castRaiko(p) {
+    const shot = new PlayerShot(this, p.x + p.facing * 14, p.body.center.y - 3, 'hado', p.facing * 400, { dmg: COMBAT.raikoDamage * p.spellMul(), life: 1.1, kind: 'raiko', w: 20, h: 20 });
+    shot.setScale(2.2);
+    Sfx.play('hado'); Sfx.play('wave');
+    this.fx.ring(p.x + p.facing * 12, p.body.center.y, 0xff4a30, 30, 260, 3);
+    this.fx.shake(150, 0.006);
+  }
+  raikoBlast(x, y, dmg) {
+    const R = COMBAT.raikoRadius;
+    this.fx.ring(x, y, 0xff4a30, R * 1.4, 420, 4);
+    this.fx.ring(x, y, 0xffffff, R, 260, 2);
+    this.fx.burst(x, y, 0xff4a30, 26);
+    this.fx.burst(x, y, 0xffd0a0, 14);
+    this.fx.impact(x, y, 0, 0xffb070, 14, 40);
+    this.fx.flash(0xff6a4a, 160, 0.22);
+    this.fx.shake(300, 0.012);
+    Sfx.play('break'); Sfx.play('hado');
+    this.hitStop(0.08);
+    for (const e of this.enemies) {
+      if (!e.alive || !e.hittable()) continue;
+      if (Phaser.Math.Distance.Between(x, y, e.x, e.y) > R + e.body.width / 2) continue;
+      if (e.hit(dmg, Math.sign(e.x - x) || 1, { kind: 'raiko', spell: true, knock: true }) === 'hit') {
+        this.fx.hit(e.x, e.y, 0, 0xffa060, 1.2);
+        if (GS.run.maskOn) GS.run.hollow += 1;
+      }
+    }
+    // Kido seals inside the blast give way
+    for (const t of this.solid.getTilesWithinWorldXY(x - R, y - R, R * 2, R * 2, { isNotEmpty: true })) {
+      if (t.index === T.KIDO && Phaser.Math.Distance.Between(x, y, t.pixelX + 8, t.pixelY + 8) <= R + 8) { this.breakCluster(t.x, t.y, T.KIDO); break; }
+    }
   }
 
   castGetsuga(p) {
@@ -586,7 +646,8 @@ class GameScene extends Phaser.Scene {
         e.konsoed = true;
         const first = !e.uid || !GS.data.konsoed[e.uid];
         if (e.uid) GS.data.konsoed[e.uid] = true;
-        if (first) GS.addReiatsu(33);
+        if (first) GS.addReiatsu(33 + (GS.sealOn('recall') ? 11 : 0));
+        this.rememberMemory(e.kind);
         this.fx.motes(e.x, e.y, 0xbfe6ff, 16);
         this.fx.ring(e.x, e.y, 0xbfe6ff, 24, 350);
       }
@@ -596,6 +657,39 @@ class GameScene extends Phaser.Scene {
       if (it instanceof LostPlus) it.interact();
       else if (it instanceof Npc) this.fx.floatText(it.x, it.y - 18, Controls.fmt(it.info.lines[0]), '#cfe8ff');
     }
+  }
+
+  // What the dead remember, kept for the old man in Rukongai
+  rememberMemory(kind) {
+    const d = GS.data;
+    if (d.memories[kind]) return;
+    d.memories[kind] = true;
+    if (d.quests.names === 1 && QUEST_NAMES.need.includes(kind)) {
+      const have = QUEST_NAMES.need.filter(k => d.memories[k]).length;
+      this.toast(`A memory for the old man in Rukongai (${have}/${QUEST_NAMES.need.length})`);
+    }
+    GS.save();
+  }
+
+  // Quest dialogue for the Old Rukongai Resident; every other speaker just uses their lines
+  npcLines(info) {
+    const d = GS.data;
+    if (info.name !== QUEST_NAMES.npc) return info.lines;
+    const need = QUEST_NAMES.need, have = need.filter(k => d.memories[k]).length, st = d.quests.names || 0;
+    if (st === 2) return info.lines.concat(['Thank you again. It is good to hear them, even secondhand. Keep that blade handy.']);
+    if (st === 1 && have >= need.length) {
+      d.quests.names = 2;
+      d.reishi += QUEST_NAMES.reishi;
+      if (!d.seals.includes(QUEST_NAMES.seal)) d.seals.push(QUEST_NAMES.seal);
+      GS.save();
+      this.time.delayedCall(1600, () => this.showPopup({ kind: 'seal', id: QUEST_NAMES.seal }));
+      return ['A thug who wanted one more day. A Shinigami who stayed after the orders stopped. A Hollow who remembers bread.', 'They were people. I knew it. I just needed someone else to know it too.', `Take this. ${QUEST_NAMES.reishi} reishi, and a seal I carried out of the old district. It listens the way you do.`];
+    }
+    if (st === 1) return [`You have heard ${have} of the ${need.length} I asked for: a thug, a corrupted Shinigami, and a Hollow.`, 'Strike each with the hilt and listen. Then come tell me what they said.'];
+    if (!GS.has('konso')) return info.lines.concat(['...They say there is a blade that lets you hear the dead. If you ever find it, come back. I have a favour to ask.']);
+    d.quests.names = 1;
+    GS.save();
+    return info.lines.concat(['Wait. That blade at your side, the one that hums. Is it a soul-burier?', 'Then listen for me. Read the memories of a thug, a corrupted Shinigami and a Hollow with your Konso Blade, and tell me what they said. I would like to know they were somebody.']);
   }
 
   spawnShards(x, y, n) {
@@ -615,6 +709,7 @@ class GameScene extends Phaser.Scene {
       s.tick(dt, p);
       if (p.state !== 'dead' && Phaser.Geom.Intersects.RectangleToRectangle(pr, bodyRect(s.body))) {
         GS.data.reishi += COMBAT.shardValue;
+        this.game.events.emit('reishi-get', { x: s.x, y: s.y });
         Sfx.play('shard');
         this.fx.motes(s.x, s.y, 0x7fe8ff, 4);
         s.destroy();
@@ -841,17 +936,24 @@ class GameScene extends Phaser.Scene {
     this.lockedCells = this.lockCells.concat(this.doors.filter(dr => dr.edge === 'left' || dr.edge === 'right'));
     this.lockedCells.forEach(c => { this.solid.putTileAt(T.LOCK, c.x, c.y); this.fx.dust(c.x * TILE + 8, c.y * TILE + 8, 3); });
     Sfx.play('boss');
+    Music.setBoss(true);
     this.fx.shake(500, 0.008);
+    if (this.boss.intro) this.boss.intro();
     const info = BOSSES[this.boss.id];
-    this.game.events.emit('boss-start', { name: info.name, title: info.title });
+    this.game.events.emit('boss-start', { name: info.name, title: info.title, notches: info.notches });
     this.time.delayedCall(1000, () => { if (this.boss && this.boss.alive) this.boss.activate(); });
   }
   onBossDefeated(boss) {
     const d = GS.data;
     d.bosses[boss.id] = true;
     this.game.events.emit('boss-end', {});
+    Music.setBoss(false);
     this.slowMo(0.25, 1100);
     this.fx.zoomPunch(0.08, 700);
+    if (boss.id === 'captain' && !GS.has('raiko')) {
+      d.abilities.raiko = true;
+      this.time.delayedCall(3200, () => { this.fx.flash(0xff4a30, 200, 0.3); this.showPopup({ kind: 'ability', id: 'raiko' }); });
+    }
     if (boss.id === 'final') {
       d.cleared = true;
       GS.save();
@@ -863,7 +965,7 @@ class GameScene extends Phaser.Scene {
     const bx = Phaser.Math.Clamp(boss.x, this.arena.left + 40, this.arena.right - 40);
     this.time.delayedCall(1700, () => {
       (this.lockedCells || []).forEach(c => this.solid.removeTileAt(c.x, c.y));
-      if (boss.cfg.drop) this.spawnShards(bx, this.arena.floor - 70, boss.cfg.drop);
+      if (boss.cfg.drop) this.spawnShards(bx, this.arena.floor - 70, Math.round(boss.cfg.drop * GS.dropMul()));
       if (this.player.state === 'normal' && this.player.grounded) this.player.setPose('raise', 1.8);
       this.toast(`Seal capacity grows: ${d.sealSlots} slots`);
       this.spawnReward(bx);
@@ -994,7 +1096,7 @@ class GameScene extends Phaser.Scene {
     this.game.events.emit('prompt', null);
     entry.room = room;
     entry.facing = this.player.facing;
-    this.cameras.main.fadeOut(130, 0, 0, 0);
+    this.cameras.main.fadeOut(150, ...this.regionTint((ROOMS[room] || this.def).region));
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart(entry));
   }
   travelTo(room) { this.goTo(room, { spawn: 'rest' }); }
@@ -1042,6 +1144,7 @@ class GameScene extends Phaser.Scene {
     this.fx.burst(p.x, p.y, 0xf4f1ea, 16);
     this.game.events.emit('prompt', null);
     this.game.events.emit('boss-end', { silent: true });
+    Music.setBoss(false);
     if (d.reishi > 0) {
       const s = this.validSafe(p.lastSafe);
       d.shade = { room: this.roomId, x: s.x, y: s.y - 14, amount: d.reishi };

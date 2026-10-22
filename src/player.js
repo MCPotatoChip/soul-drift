@@ -37,6 +37,25 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       scale: { start: 0.7, end: 0 }, alpha: { start: 0.7, end: 0 }, frequency: 40, emitting: false, tint: 0xc8202c,
     }).setDepth(19);
     this.aura.startFollow(this, 0, 4);
+    this.ring = scene.add.graphics().setDepth(27);   // charge progress (heal, Konso, Burst, Getsuga)
+  }
+
+  // A ring that fills around the body while something is charging, and pulses when it is ready
+  drawRing() {
+    const g = this.ring;
+    g.clear();
+    let p = 0, col = 0xffffff;
+    if (this.state === 'heal') { p = this.healProg / (GS.sealOn('quick') ? COMBAT.quickHealTime : COMBAT.healTime); col = 0xe8f4ff; }
+    else if (this.state === 'konso') { p = this.charge / 0.45; col = 0xbfe6ff; }
+    else if (this.state === 'charge') { p = this.charge / PHYS.burstCharge; col = 0xff8a3a; }
+    else if (this.gHold > 0.15 && GS.has('getsuga')) { p = this.gHold / (COMBAT.getsugaCharge * (GS.sealOn('moonfang') ? 0.6 : 1)); col = this.bankai ? 0xc8202c : 0x9ac8ff; }
+    if (p <= 0.02) return;
+    const ready = p >= 1;
+    p = Math.min(1, p);
+    const x = this.x, y = this.body.center.y, r = 19, now = this.scene.time.now;
+    g.lineStyle(3, 0x07070b, 0.45).strokeCircle(x, y, r);
+    g.lineStyle(2, col, ready ? 1 : 0.85).beginPath().arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p, false).strokePath();
+    if (ready) g.lineStyle(1, col, 0.4 + 0.3 * Math.sin(now / 70)).strokeCircle(x, y, r + 3 + Math.sin(now / 90) * 1.5);
   }
 
   placeFeet(x, feetY) { this.body.reset(x, feetY - 12); }
@@ -317,6 +336,14 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (inp.up && GS.has('bakudo')) {
       if (GS.data.reiatsu < COMBAT.spellCost) { s.denied('Not enough Reiatsu'); return; }
       if (s.castBakudo(this)) { GS.addReiatsu(-COMBAT.spellCost); this.t.kido = 0.35; this.castT = 0.3; }
+    } else if (inp.down && GS.has('raiko') && this.state !== 'cling') {
+      if (GS.data.reiatsu < COMBAT.raikoCost) { s.denied(`Raikōhō needs ${COMBAT.raikoCost} Reiatsu`); return; }
+      GS.addReiatsu(-COMBAT.raikoCost);
+      s.castRaiko(this);
+      this.castT = 0.4;
+      this.t.kido = 0.7;
+      this.body.velocity.x = -this.facing * 150;
+      this.t.recoil = 0.12;
     } else if (GS.has('hado')) {
       if (GS.data.reiatsu < COMBAT.spellCost) { s.denied('Not enough Reiatsu'); return; }
       GS.addReiatsu(-COMBAT.spellCost);
@@ -370,7 +397,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.charge += dt;
     if (Math.random() < 0.6) this.scene.fx.motes(this.x + this.facing * 10, this.y, 0xbfe6ff, 1);
     if (!inp.konsoH) { this.state = 'normal'; return; }
-    if (this.charge >= 0.45) {
+    if (this.charge >= (GS.sealOn('recall') ? 0.3 : 0.45)) {
       this.scene.konsoStrike(this);
       this.state = 'normal';
       this.t.atkCD = 0.3;
@@ -554,6 +581,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     GS.run.maskOn = false;
     GS.run.bankaiT = 0;
     this.aura.emitting = false;
+    this.ring.clear();
     // Collapse: a white flash, the hurt pose, then the soul lifts away and the body dissolves
     this.setAlpha(1).setScale(1);
     this.play(sheet + ':death');
@@ -609,7 +637,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.anims.timeScale = Phaser.Math.Clamp(Math.abs(this.body.velocity.x) / PHYS.runSpeed, 0.6, 1.4);
       // a puff of dust on each footfall
       const fi = this.anims.currentFrame ? this.anims.currentFrame.index : 0;
-      if (fi !== this.lastRunFrame && (fi === 1 || fi === 5)) this.scene.fx.dust(this.x - this.facing * 4, this.body.bottom, 2);
+      if (fi !== this.lastRunFrame && (fi === 1 || fi === 5)) { this.scene.fx.dust(this.x - this.facing * 4, this.body.bottom, 2); Sfx.step(REGION_SURFACE[this.scene.region]); }
       this.lastRunFrame = fi;
     } else this.anims.timeScale = 1;
     this.setFlipX(this.facing < 0);
@@ -620,6 +648,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     else if (this.state === 'konso') this.setTint(0xbfe6ff);
     else if (this.gReady) this.setTint(Math.floor(this.scene.time.now / 90) % 2 ? 0xcfe4ff : 0xffffff);
     else this.clearTint();
+    this.drawRing();
   }
   updateSafe() {
     if (this.state !== 'normal' || !this.body.blocked.down) return;
