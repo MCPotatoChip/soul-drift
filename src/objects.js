@@ -36,14 +36,17 @@ class Fx {
     this.moteE = scene.add.particles(0, 0, 'dot', { speed: { min: 10, max: 40 }, lifespan: 700, scale: { start: 0.6, end: 0 }, alpha: { start: 0.8, end: 0 }, emitting: false, blendMode: 'ADD' }).setDepth(26);
     this.debrisE = scene.add.particles(0, 0, 'px', { speed: { min: 60, max: 200 }, angle: { min: 200, max: 340 }, gravityY: 600, lifespan: 700, scale: { start: 1.5, end: 0.5 }, emitting: false }).setDepth(26);
   }
-  burst(x, y, color = 0xffffff, n = 14) { this.burstE.setParticleTint(color); this.burstE.explode(n, x, y); }
-  spark(x, y, color = 0xffffff, n = 7) { this.sparkE.setParticleTint(color); this.sparkE.explode(n, x, y); }
-  dust(x, y, n = 6) { this.dustE.explode(n, x, y); }
-  motes(x, y, color = 0xbfe6ff, n = 10) { this.moteE.setParticleTint(color); this.moteE.explode(n, x, y); }
-  debris(x, y, color, n = 8) { this.debrisE.setParticleTint(color); this.debrisE.explode(n, x, y); }
+  // Every burst goes through Settings.count so the Particles setting (and phones) can thin them out
+  burst(x, y, color = 0xffffff, n = 14) { this.burstE.setParticleTint(color); this.burstE.explode(Settings.count(n), x, y); }
+  spark(x, y, color = 0xffffff, n = 7) { this.sparkE.setParticleTint(color); this.sparkE.explode(Settings.count(n), x, y); }
+  dust(x, y, n = 6) { this.dustE.explode(Settings.count(n), x, y); }
+  motes(x, y, color = 0xbfe6ff, n = 10) { this.moteE.setParticleTint(color); this.moteE.explode(Settings.count(n), x, y); }
+  debris(x, y, color, n = 8) { this.debrisE.setParticleTint(color); this.debrisE.explode(Settings.count(n), x, y); }
 
   afterimage(sprite, tint = 0x9fb4ff, alpha = 0.55, dur = 220) {
-    const g = this.s.add.image(sprite.x, sprite.y, sprite.texture.key)
+    // Copy the exact frame, origin and scale: the ghost is a snapshot of the current pose
+    const g = this.s.add.image(sprite.x, sprite.y, sprite.texture.key, sprite.frame.name)
+      .setOrigin(sprite.originX, sprite.originY).setScale(sprite.scaleX, sprite.scaleY)
       .setFlipX(sprite.flipX).setDepth(sprite.depth - 1).setAlpha(alpha).setTintFill(tint);
     this.s.tweens.add({ targets: g, alpha: 0, duration: dur, onComplete: () => g.destroy() });
   }
@@ -57,6 +60,51 @@ class Fx {
   slashArc(x, y, dir, color = 0xffffff, scale = 1.4) {
     const s = this.s.add.image(x, y, 'slash').setDepth(24).setFlipX(dir < 0).setTint(color).setScale(scale);
     this.s.tweens.add({ targets: s, alpha: 0, duration: 160, onComplete: () => s.destroy() });
+  }
+
+  // Thin streaks thrown out of a point, biased toward `dir` (-1 / 1, or 0 for every way)
+  impact(x, y, dir = 1, color = 0xffffff, n = 5, len = 22) {
+    const count = Settings.count(n);
+    for (let i = 0; i < count; i++) {
+      const spread = dir ? Phaser.Math.FloatBetween(-0.95, 0.95) : Phaser.Math.FloatBetween(-Math.PI, Math.PI);
+      const a = (dir < 0 ? Math.PI : 0) + spread, l = len * Phaser.Math.FloatBetween(0.6, 1.2);
+      const g = this.s.add.image(x, y, 'px').setOrigin(0, 0.5).setRotation(a).setScale(l / 2, 0.6).setTint(color).setDepth(27).setBlendMode('ADD');
+      this.s.tweens.add({ targets: g, x: x + Math.cos(a) * l * 1.5, y: y + Math.sin(a) * l * 1.5, scaleX: 0, alpha: 0, duration: Phaser.Math.Between(120, 200), ease: 'Cubic.out', onComplete: () => g.destroy() });
+    }
+  }
+  // One call for "something was struck": sparks, directional streaks and a tiny ring
+  hit(x, y, dirX = 1, color = 0xffffff, power = 1) {
+    this.spark(x, y, color, Math.round(7 * power));
+    this.impact(x, y, dirX, color, Math.round(5 * power), 18 + 8 * power);
+    this.ring(x, y, color, 10 + 6 * power, 140, 1);
+  }
+  // A soul-coloured glow that lifts and fades
+  wisp(x, y, color = 0xbfe6ff, rise = 46) {
+    const g = this.s.add.image(x, y, 'glow').setTint(color).setBlendMode('ADD').setDepth(26).setScale(0.7).setAlpha(0.8);
+    this.s.tweens.add({ targets: g, y: y - rise, scale: 0.2, alpha: 0, duration: 900, ease: 'Sine.out', onComplete: () => g.destroy() });
+  }
+  // How an enemy comes apart: chunks in its own colour, a soul rising out, shake scaled to its size
+  kill(e, dirX = 0) {
+    const c = e.cfg.burst ?? 0xf4f1ea, big = e.maxHp >= 40;
+    this.burst(e.x, e.y, c, big ? 20 : 12);
+    this.debris(e.x, e.y - 4, c, big ? 12 : 7);
+    this.motes(e.x, e.y, 0xbfe6ff, 16);
+    this.impact(e.x, e.y, dirX, 0xffffff, big ? 8 : 5, 28);
+    this.ring(e.x, e.y, 0xbfe6ff, big ? 44 : 30, 380, 2);
+    this.wisp(e.x, e.y);
+    this.shake(big ? 150 : 70, big ? 0.007 : 0.003);
+  }
+  // Two feathered wings snap out and fade (Hirenkyaku Wings)
+  wings(x, y, color = 0xe8f4ff) {
+    [-1, 1].forEach((side) => {
+      const w = this.s.add.image(x + side * 3, y, 'wing').setOrigin(side < 0 ? 1 : 0, 0.7).setFlipX(side > 0).setTint(color)
+        .setDepth(18).setBlendMode('ADD').setAlpha(0.9).setScale(0.3).setAngle(side * 30);
+      this.s.tweens.add({ targets: w, scale: 1, angle: side * -8, y: y + 8, alpha: 0, duration: 340, ease: 'Cubic.out', onComplete: () => w.destroy() });
+    });
+  }
+  // Small numbers over a struck enemy (only when the setting is on)
+  damageNumber(x, y, dmg, color = '#ffffff') {
+    if (Settings.get('damageNumbers')) this.s.game.events.emit('dmgnum', { x, y, text: String(Math.round(dmg)), color });
   }
 
   chain(x1, y1, x2, y2) {
@@ -78,8 +126,22 @@ class Fx {
 
   floatText(x, y, text, color = '#cfe8ff') { this.s.game.events.emit('float', { x, y, text, color }); }
 
-  shake(ms = 120, intensity = 0.006) { this.s.cameras.main.shake(ms, intensity); }
-  flash(color = 0xffffff, ms = 120, alpha = 0.6) { this.s.game.events.emit('flash', { color, ms, alpha }); }
+  shake(ms = 120, intensity = 0.006) {
+    const k = Settings.shake();
+    if (k > 0) this.s.cameras.main.shake(ms, intensity * k);
+  }
+  flash(color = 0xffffff, ms = 120, alpha = 0.6) {
+    const k = Settings.flash();
+    if (k > 0) this.s.game.events.emit('flash', { color, ms, alpha: alpha * k });
+  }
+  // A quick push in on the camera: weight for the big moments
+  zoomPunch(amount = 0.05, ms = 220) {
+    if (!Settings.shake()) return;
+    const cam = this.s.cameras.main;
+    this.s.tweens.killTweensOf(cam);
+    cam.setZoom(ZOOM);
+    this.s.tweens.add({ targets: cam, zoom: ZOOM * (1 + amount * Settings.shake()), duration: ms / 2, yoyo: true, ease: 'Sine.out', onComplete: () => cam.setZoom(ZOOM) });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -313,7 +375,7 @@ class PlayerShot extends Phaser.Physics.Arcade.Image {
     const fx = this.x + Math.sign(this.body.velocity.x) * 6;
     const t = s.solid.getTileAtWorldXY(fx, this.y);
     if (t && t.collides) {
-      if (t.index === T.KIDO && this.kind === 'hado') s.breakCluster(t.x, t.y, T.KIDO);
+      if (t.index === T.KIDO && (this.kind === 'hado' || this.kind === 'getsuga')) s.breakCluster(t.x, t.y, T.KIDO);
       return this.kill(true);
     }
     const r = bodyRect(this.body);

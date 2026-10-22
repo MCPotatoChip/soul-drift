@@ -49,7 +49,8 @@ class Boss extends Enemy {
     return r;
   }
   bind(t) { super.bind(Math.min(t * 0.3, 1.2)); }
-  setScript(gen) { this.ai = new Co(gen); }
+  // A phase change cancels whatever attack was running, including its damage boxes
+  setScript(gen) { this.ai = new Co(gen); this.scene.hurtBoxes.length = 0; }
   face() { this.faceTo(this.player.x); }
   *wait(t) { yield t / this.spd; }
   *tele(t, color = 0xff6060, pose = this.telePose) {
@@ -393,7 +394,7 @@ class SwordBoss extends Boss {
       g.clear();
       this.untelegraph();
       xs.forEach((x, i) => {
-        this.scene.time.delayedCall(i * 40, () => new EnemyShot(this.scene, x, this.arena.top, 'blade', 0, 700, { dmg: 1, life: 1.2, passWalls: true, w: 6, h: 40, pierce: true }));
+        this.scene.time.delayedCall(i * 40, () => this.alive && new EnemyShot(this.scene, x, this.arena.top, 'blade', 0, 700, { dmg: 1, life: 1.2, passWalls: true, w: 6, h: 40, pierce: true }));
       });
       Sfx.play('wave');
       yield 0.55;

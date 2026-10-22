@@ -38,6 +38,7 @@ const GS = {
       time: 0,
       cleared: false,
       deaths: 0,
+      konsoed: {},           // enemy placements whose memory already yielded Reiatsu
     };
   },
 

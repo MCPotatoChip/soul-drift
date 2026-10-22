@@ -16,6 +16,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.reset(x, feetY - 12);
     this.setDepth(20);
     this.atkAnimT = 0; this.atkAnim = 'slashA'; this.castT = 0;
+    this.poseName = null; this.poseT = 0; this.idleT = 0; this.waking = false;
     this.play('ichigo:idle');
     this.facing = 1;
     this.state = 'normal';
@@ -39,6 +40,21 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   placeFeet(x, feetY) { this.body.reset(x, feetY - 12); }
+  // Hold a clip (raise, pray, rise) for `t` seconds while standing still
+  setPose(name, t) { this.poseName = name; this.poseT = t; this.play(this.sheetKey() + ':' + name); }
+  // Wake at a rest gate after dying: lying down, then up onto both feet
+  startWake() {
+    this.state = 'locked'; this.waking = true; this.t.wake = 0.74;
+    this.setPose('rise', 0.74);
+    this.scene.fx.motes(this.x, this.y + 8, 0xffe8b0, 10);
+  }
+  // Brief stretch / squash that eases back to normal (landing, jumping)
+  squash(sx, sy, ms = 120) {
+    if (this.state === 'dead') return;
+    this.scene.tweens.killTweensOf(this);
+    this.setScale(sx, sy);
+    this.scene.tweens.add({ targets: this, scaleX: 1, scaleY: 1, duration: ms, ease: 'Quad.out' });
+  }
   get grounded() { return this.body.blocked.down || this.body.touching.down; }
   get bankai() { return GS.run.bankaiT > 0; }
 
@@ -66,7 +82,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const grounded = this.grounded;
     if (grounded && !this.wasGrounded && body.velocity.y >= 0) {
       Sfx.play('land'); s.fx.dust(this.x, body.bottom, 5);
-      if (this.airT > 0.25) this.landT = 0.13;
+      if (this.airT > 0.25) { this.landT = 0.13; this.squash(1.2, 0.8, 130); s.fx.dust(this.x - 8, body.bottom, 3); s.fx.dust(this.x + 8, body.bottom, 3); }
     }
     this.airT = grounded ? 0 : (this.airT || 0) + dt;
     this.wasGrounded = grounded;
@@ -80,7 +96,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.updatePowers(dt, inp);
 
     switch (this.state) {
-      case 'locked': body.setVelocityX(0); break;
+      case 'locked':
+        body.setVelocityX(0);
+        if (this.waking && this.t.wake <= 0) { this.waking = false; this.state = 'normal'; }
+        break;
       case 'hurt': if (this.t.hurt <= 0) this.state = 'normal'; break;
       case 'stunned': body.setVelocityX(approach(body.velocity.x, 0, 900 * dt)); if (this.t.state <= 0) this.state = 'normal'; break;
       case 'dash': this.updateDash(dt, inp); break;
@@ -146,9 +165,12 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       Sfx.play('djump');
       this.scene.fx.motes(this.x, body.bottom, 0xe8f4ff, 12);
       this.scene.fx.ring(this.x, body.bottom, 0xe8f4ff, 16, 250, 1);
+      this.scene.fx.wings(this.x, body.center.y);
+      this.squash(0.86, 1.16, 150);
     } else {
       Sfx.play('jump');
       this.scene.fx.dust(this.x, body.bottom, 4);
+      this.squash(0.88, 1.14, 140);
     }
   }
 
@@ -203,8 +225,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
     body.velocity.x = this.wallDir * 30;
     if (inp.up) body.velocity.y = -PHYS.wallClimb;
-    else if (inp.down) body.velocity.y = PHYS.wallSlide;
-    else body.velocity.y = 0;
+    else if (inp.down) {
+      body.velocity.y = PHYS.wallSlide;
+      this.t.slide = (this.t.slide || 0) - dt;
+      if (this.t.slide <= 0) { this.t.slide = 0.07; this.scene.fx.dust(this.x + this.wallDir * 5, body.center.y + 4, 2); }
+    } else body.velocity.y = 0;
 
     if (!this.touchingWall(this.wallDir, true)) {
       // Climbed past the top edge: pop onto the ledge
@@ -223,6 +248,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.t.buffer = 0;
       Sfx.play('jump');
       this.scene.fx.dust(this.x + this.wallDir * 6, body.center.y, 5);
+      this.scene.fx.impact(this.x + this.wallDir * 6, body.center.y, -this.wallDir, 0xe8f4ff, 4, 16);
+      this.squash(0.9, 1.12, 130);
       return;
     }
     if (dir === -this.wallDir) {
@@ -316,6 +343,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
     if (!inp.healH || dir !== 0 || !this.grounded) { this.state = 'normal'; return; }
     const time = GS.sealOn('quick') ? COMBAT.quickHealTime : COMBAT.healTime;
+    if (this.bankai) this.healBase = Math.min(COMBAT.maxReiatsu, this.healBase + COMBAT.bankaiRegen * dt);
     this.healProg += dt;
     GS.data.reiatsu = Math.max(0, this.healBase - COMBAT.spellCost * Math.min(1, this.healProg / time));
     if (Math.random() < 0.5) this.scene.fx.motes(this.x + Phaser.Math.Between(-8, 8), this.y + 8, 0xe8f4ff, 1);
@@ -519,12 +547,22 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     return true;
   }
   die() {
+    const sheet = this.sheetKey(), s = this.scene;
     this.state = 'dead';
     this.body.setVelocity(0, 0);
     this.body.setAllowGravity(false);
     GS.run.maskOn = false;
     GS.run.bankaiT = 0;
     this.aura.emitting = false;
+    // Collapse: a white flash, the hurt pose, then the soul lifts away and the body dissolves
+    this.setAlpha(1).setScale(1);
+    this.play(sheet + ':death');
+    this.setTintFill(0xffffff);
+    s.time.delayedCall(90, () => { if (this.active) this.clearTint(); });
+    s.tweens.add({ targets: this, alpha: 0, y: this.y - 14, scaleX: 0.7, scaleY: 1.25, duration: 850, delay: 420, ease: 'Cubic.in' });
+    s.time.addEvent({ delay: 90, repeat: 9, callback: () => {
+      if (this.active) s.fx.motes(this.x + Phaser.Math.Between(-6, 6), this.y + 10 - Phaser.Math.Between(0, 14), 0xe8f4ff, 2);
+    } });
     this.scene.onPlayerDeath();
   }
 
@@ -532,6 +570,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   // Animation state machine: picks a clip from the gameplay state each frame
   animName() {
     if (this.atkAnimT > 0) return this.atkAnim;
+    if (this.poseT > 0) {
+      if ((this.state === 'normal' && this.grounded && Math.abs(this.body.velocity.x) < 20) || this.state === 'locked') return this.poseName;
+      this.poseT = 0;   // moved, jumped or got hit: the held pose ends
+    }
     switch (this.state) {
       case 'dead': case 'hurt': case 'stunned': return 'hurt';
       case 'dash': case 'burst': return 'dash';
@@ -547,9 +589,15 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     return 'idle';
   }
   updateVisual(dt = 0) {
-    this.atkAnimT -= dt; this.castT -= dt; this.landT = (this.landT || 0) - dt;
+    this.atkAnimT -= dt; this.castT -= dt; this.poseT -= dt; this.landT = (this.landT || 0) - dt;
     const sheet = this.sheetKey();
-    const name = this.animName();
+    let name = this.animName();
+    // Standing around for a while: glance up now and then
+    if (name === 'idle' || name === 'look') {
+      this.idleT += dt;
+      if (this.idleT > 5.5 && this.idleT < 6.5) name = 'look';
+      else if (this.idleT >= 6.5) this.idleT = Phaser.Math.FloatBetween(0, 2.5);
+    } else this.idleT = 0;
     const key = sheet + ':' + name;
     const cur = this.anims.currentAnim;
     if (!cur || cur.key !== key) {

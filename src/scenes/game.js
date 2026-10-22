@@ -32,6 +32,9 @@ class GameScene extends Phaser.Scene {
     this.doors = []; this.lockCells = []; this.collapseCells = []; this.bankaiCells = [];
     this.hinted = {};
     this.suppressed = new Set();
+    this.carryP = null; this.lastP = new Set();
+    this.slow = null; this.tscale = 1; this.lookT = 0;
+    this.anims.globalTimeScale = 1;
     this.swing = null;
     this.crackHits = {};
     this.trueSight = GS.has('konso');
@@ -59,6 +62,7 @@ class GameScene extends Phaser.Scene {
 
     this.events.on('resume', this.onResume, this);
     this.events.once('shutdown', () => {
+      this.anims.globalTimeScale = 1;
       this.events.off('resume', this.onResume, this);
       this.game.events.emit('prompt', null);
       if (this.bossStarted) this.game.events.emit('boss-end', { silent: true });
@@ -78,7 +82,7 @@ class GameScene extends Phaser.Scene {
 
   onResume() {
     Controls.clearPresses();
-    if (this.player && this.player.state === 'locked') this.player.state = 'normal';
+    if (this.player && this.player.state === 'locked') { this.player.state = 'normal'; this.player.poseT = Math.min(this.player.poseT, 0.2); }
   }
 
   // ------------------------------------------------------------------ build
@@ -157,17 +161,17 @@ class GameScene extends Phaser.Scene {
         }
         case 'W': this.interactables.push(new Smith(this, cx, feet)); break;
         case 'Z': new Portal(this, cx, y * TILE + 8); break;
-        case 'n': new Gillian(this, cx, feet); break;
+        case 'n': this.uid(x, y); new Gillian(this, cx, feet); break;
         case 'o': {
           const key = `${room}:o${cnt.o++}`;
           if (!GS.isTaken(key)) this.pickups.push(new Pickup(this, cx, feet - 10, 'ore', null, key));
           break;
         }
-        case 'e': new Thug(this, cx, feet); break;
-        case 'g': new Shinigami(this, cx, feet); break;
-        case 'j': new Adjuchas(this, cx, feet); break;
-        case 'a': new Arrancar(this, cx, feet); break;
-        case 'h': for (let i = 0; i < 3; i++) new Hollow(this, cx + (i - 1) * 24, y * TILE + 8 - i * 6); break;
+        case 'e': this.uid(x, y); new Thug(this, cx, feet); break;
+        case 'g': this.uid(x, y); new Shinigami(this, cx, feet); break;
+        case 'j': this.uid(x, y); new Adjuchas(this, cx, feet); break;
+        case 'a': this.uid(x, y); new Arrancar(this, cx, feet); break;
+        case 'h': for (let i = 0; i < 3; i++) { this.uid(x, y, i); new Hollow(this, cx + (i - 1) * 24, y * TILE + 8 - i * 6); } break;
         default:
           if (ch >= '1' && ch <= '9') {
             const edge = x === 0 ? 'left' : x === W - 1 ? 'right' : y === 0 ? 'top' : 'bottom';
@@ -199,6 +203,9 @@ class GameScene extends Phaser.Scene {
     if (d.shade && d.shade.room === room) this.shade = new Shade(this, d.shade.x, d.shade.y, d.shade.amount);
   }
 
+  // Stable id for the next enemy built, so per-placement facts (Konso Reiatsu) survive room reloads
+  uid(x, y, n = 0) { this.nextUid = `${this.roomId}:${x},${y}:${n}`; }
+
   spawnPlayer() {
     const e = this.entry;
     let x = this.pxW / 2, feet = this.pxH / 2, vy = 0, facing = e.facing || 1;
@@ -220,6 +227,7 @@ class GameScene extends Phaser.Scene {
     this.player = new Player(this, x, feet);
     this.player.facing = facing;
     if (vy) this.player.body.velocity.y = vy;
+    if (e.wake && e.spawn === 'rest') this.player.startWake();
     this.player.lastSafe = (door && (door.edge === 'top' || door.edge === 'bottom')) ? this.validSafe({ x, y: feet }) : { x, y: feet };
   }
 
@@ -255,6 +263,9 @@ class GameScene extends Phaser.Scene {
 
   readInput() {
     const P = Controls.takePresses(), C = Controls, i = this.inp;
+    // Presses made during a hit-stop were never seen by the player: carry them to the first live frame
+    if (this.carryP) { this.carryP.forEach(c => P.add(c)); this.carryP = null; }
+    this.lastP = P;
     i.left = C.isDown('left'); i.right = C.isDown('right'); i.up = C.isDown('up'); i.down = C.isDown('down');
     i.jumpP = C.inSet('jump', P); i.jumpH = C.isDown('jump');
     i.attackP = C.inSet('attack', P); i.attackH = C.isDown('attack'); i.dashP = C.inSet('dash', P);
@@ -272,12 +283,17 @@ class GameScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ loop
   update(time, delta) {
-    const dt = Math.min(delta / 1000, 1 / 30);
+    let dt = Math.min(delta / 1000, 1 / 30);
+    if (this.slow) {
+      this.slow.t -= dt;
+      if (this.slow.t <= 0) { this.slow = null; this.applyTimeScale(1); }
+    }
+    dt *= this.tscale;
     this.readInput();
     if (this.frozen) return;
     if (this.hitStopT > 0) {
       this.hitStopT -= dt;
-      if (this.hitStopT > 0) { if (!this.physics.world.isPaused) this.physics.world.pause(); return; }
+      if (this.hitStopT > 0) { this.carryP = this.lastP; if (!this.physics.world.isPaused) this.physics.world.pause(); return; }
       this.physics.world.resume();
     }
     GS.data.time += dt;
@@ -310,8 +326,37 @@ class GameScene extends Phaser.Scene {
       this.checkExits();
       this.handleMenus();
     }
+    this.updateCamera(dt);
     this.updateBackground();
     if (this.dark.visible) this.dark.setPosition(p.x, p.y);
+  }
+
+  // Look ahead in the facing direction, and look up or down after standing still holding that way
+  updateCamera(dt) {
+    const p = this.player, cam = this.cameras.main, off = cam.followOffset;
+    const moving = Math.abs(p.body.velocity.x) > 20 || p.state === 'dash' || p.state === 'burst';
+    let tx = p.state === 'dead' ? 0 : -p.facing * (moving ? 30 : 12), ty = 0;
+    const still = p.state === 'normal' && p.grounded && !moving && !this.respawning;
+    if (still && (this.inp.up !== this.inp.down)) {
+      this.lookT = (this.lookT || 0) + dt;
+      if (this.lookT > 0.4) ty = this.inp.up ? 60 : -60;
+    } else this.lookT = 0;
+    const k = Math.min(1, dt * 3);
+    off.x += (tx - off.x) * k;
+    off.y += (ty - off.y) * k;
+  }
+
+  // Slow the whole simulation (bodies, tweens, timers, animations) for `ms` of real time
+  slowMo(scale = 0.3, ms = 900) {
+    this.slow = { t: ms / 1000 };
+    this.applyTimeScale(scale);
+  }
+  applyTimeScale(k) {
+    this.tscale = k;
+    this.physics.world.timeScale = 1 / k;
+    this.tweens.timeScale = k;
+    this.time.timeScale = k;
+    this.anims.globalTimeScale = k;
   }
 
   updateBackground() {
@@ -405,7 +450,7 @@ class GameScene extends Phaser.Scene {
         GS.addReiatsu(COMBAT.reiatsuPerHit * (GS.sealOn('harvest') ? 1.5 : 1));
         if (GS.run.maskOn) GS.run.hollow += COMBAT.hollowPerHit;
         this.hitStop(0.045);
-        this.fx.spark(e.x, e.y, 0xffffff, 8);
+        this.fx.hit(e.x, e.y, sw.kind === 'side' ? dirX : 0, 0xffffff, 1);
         Sfx.play('hit');
         if (sw.kind === 'down') this.pogo();
         else if (sw.kind === 'side') { p.body.velocity.x = -p.facing * 110; p.t.recoil = 0.07; }
@@ -539,7 +584,9 @@ class GameScene extends Phaser.Scene {
       if (e.reveal) e.reveal();
       if (!e.konsoed) {
         e.konsoed = true;
-        GS.addReiatsu(33);
+        const first = !e.uid || !GS.data.konsoed[e.uid];
+        if (e.uid) GS.data.konsoed[e.uid] = true;
+        if (first) GS.addReiatsu(33);
         this.fx.motes(e.x, e.y, 0xbfe6ff, 16);
         this.fx.ring(e.x, e.y, 0xbfe6ff, 24, 350);
       }
@@ -564,6 +611,7 @@ class GameScene extends Phaser.Scene {
     pr.x -= 3; pr.y -= 3; pr.width += 6; pr.height += 6;
     for (const s of this.shards) {
       if (!s.active) continue;
+      if (s.y > this.pxH + 48 || s.age > 50) { s.destroy(); continue; }
       s.tick(dt, p);
       if (p.state !== 'dead' && Phaser.Geom.Intersects.RectangleToRectangle(pr, bodyRect(s.body))) {
         GS.data.reishi += COMBAT.shardValue;
@@ -653,12 +701,14 @@ class GameScene extends Phaser.Scene {
       GS.save();
       pk.collect();
       p.body.setVelocity(0, p.body.velocity.y);
+      p.setPose('raise', 1.0);
       this.showPopup({ kind: 'ability', id: pk.id });
     } else if (pk.type === 'seal') {
       if (!d.seals.includes(pk.id)) d.seals.push(pk.id);
       Sfx.play('pickup');
       GS.save();
       pk.collect();
+      p.setPose('raise', 0.8);
       this.showPopup({ kind: 'seal', id: pk.id });
     } else if (pk.type === 'ore') {
       d.ore = (d.ore || 0) + 1;
@@ -800,6 +850,8 @@ class GameScene extends Phaser.Scene {
     const d = GS.data;
     d.bosses[boss.id] = true;
     this.game.events.emit('boss-end', {});
+    this.slowMo(0.25, 1100);
+    this.fx.zoomPunch(0.08, 700);
     if (boss.id === 'final') {
       d.cleared = true;
       GS.save();
@@ -811,6 +863,8 @@ class GameScene extends Phaser.Scene {
     const bx = Phaser.Math.Clamp(boss.x, this.arena.left + 40, this.arena.right - 40);
     this.time.delayedCall(1700, () => {
       (this.lockedCells || []).forEach(c => this.solid.removeTileAt(c.x, c.y));
+      if (boss.cfg.drop) this.spawnShards(bx, this.arena.floor - 70, boss.cfg.drop);
+      if (this.player.state === 'normal' && this.player.grounded) this.player.setPose('raise', 1.8);
       this.toast(`Seal capacity grows: ${d.sealSlots} slots`);
       this.spawnReward(bx);
       this.setDarkness(REGIONS[this.region].dark);
@@ -957,6 +1011,7 @@ class GameScene extends Phaser.Scene {
     this.fx.ring(gate.x, gate.y, 0xffe8b0, 40, 500);
     p.state = 'locked';
     p.body.setVelocityX(0);
+    p.setPose('pray', 99);
     this.openMenu('rest');
   }
   onPlusSent(key) {
@@ -1002,7 +1057,7 @@ class GameScene extends Phaser.Scene {
       GS.save();
       this.game.events.emit('toast', d.shade ? 'Your reishi lingers where you fell.' : 'You wake at the rest gate.');
       this.cameras.main.fadeOut(700, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ room: d.restRoom || 'kar_hub', spawn: 'rest' }));
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ room: d.restRoom || 'kar_hub', spawn: 'rest', wake: true }));
     });
   }
 
