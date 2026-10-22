@@ -16,6 +16,7 @@ class TitleScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#05050a');
+    Music.setRegion('title');
     this.makeTitleArt();
     // sky, moon, drifting cloud streaks, Karakura skyline
     this.add.image(0, 0, 'title_sky').setOrigin(0).setScale(ZOOM);
@@ -60,8 +61,11 @@ class TitleScene extends Phaser.Scene {
 
     // menu
     this.hasSave = GS.hasSave();
+    this.save = GS.peek();
     this.items = [];
     if (this.hasSave) this.items.push({ label: 'Continue', act: () => this.cont() });
+    // A finished journey can be walked again, keeping your powers, against tougher foes
+    if (this.save && this.save.cleared) this.items.push({ label: `New Game+${this.save.plus ? ' ' + (this.save.plus + 1) : ''}`, act: () => this.newGamePlus() });
     this.items.push({ label: 'New game', act: () => this.newGame() });
     this.items.push({ label: 'Controls', act: () => this.toggleControls() });
     this.items.push({ label: 'Settings', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'settings' }); } });
@@ -157,8 +161,8 @@ class TitleScene extends Phaser.Scene {
   onKey(code) {
     Sfx.init();
     if (this.scene.isActive('menu')) return;
-    if (Controls.isUp(code)) { this.sel = (this.sel + this.items.length - 1) % this.items.length; this.confirming = false; this.note.setText(''); Sfx.play('select'); this.refresh(); }
-    else if (Controls.isDownKey(code)) { this.sel = (this.sel + 1) % this.items.length; this.confirming = false; this.note.setText(''); Sfx.play('select'); this.refresh(); }
+    if (Controls.isUp(code)) { this.sel = (this.sel + this.items.length - 1) % this.items.length; this.confirming = false; this.confirmingPlus = false; this.note.setText(''); Sfx.play('select'); this.refresh(); }
+    else if (Controls.isDownKey(code)) { this.sel = (this.sel + 1) % this.items.length; this.confirming = false; this.confirmingPlus = false; this.note.setText(''); Sfx.play('select'); this.refresh(); }
     else if (Controls.isConfirm(code) || code === 'Space') this.items[this.sel].act();
   }
 
@@ -173,6 +177,17 @@ class TitleScene extends Phaser.Scene {
     }
     GS.wipe();
     GS.newGame();
+    this.begin({ room: 'kar_hub', spawn: 'start' }, 'intro');
+  }
+  newGamePlus() {
+    if (!this.confirmingPlus) {
+      this.confirmingPlus = true;
+      this.note.setText(Touch.enabled ? 'A new journey with your powers, against tougher foes. Tap again to begin.' : Controls.fmt('A new journey with your powers, against tougher foes. Press {jump} again to begin.'));
+      Sfx.play('deny');
+      return;
+    }
+    GS.newGamePlus(this.save);
+    GS.save();
     this.begin({ room: 'kar_hub', spawn: 'start' });
   }
   cont() {
@@ -180,10 +195,11 @@ class TitleScene extends Phaser.Scene {
     GS.data.hp = GS.data.maxHp;
     this.begin({ room: GS.data.restRoom || 'kar_hub', spawn: 'rest' });
   }
-  begin(entry) {
+  begin(entry, via) {
     Sfx.play('confirm');
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
+      if (via === 'intro') { this.scene.start('intro', entry); return; }
       this.scene.start('game', entry);
       this.scene.launch('ui');
     });
@@ -194,6 +210,7 @@ class EndingScene extends Phaser.Scene {
   constructor() { super('ending'); }
   create() {
     const d = GS.data;
+    Music.setRegion('end');
     this.cameras.main.setBackgroundColor('#f4f1ea');
     this.cameras.main.fadeIn(1200, 255, 255, 255);
     const lines = [
@@ -216,6 +233,48 @@ class EndingScene extends Phaser.Scene {
       const off = Controls.on((code) => { if (Controls.isConfirm(code)) { off(); this.scene.start('title'); } });
       this.events.once('shutdown', off);
       this.input.once('pointerdown', () => { off(); this.scene.start('title'); });
+    });
+  }
+}
+
+
+// The opening: three quiet lines on black, with reishi rising, then the town
+class IntroScene extends Phaser.Scene {
+  constructor() { super('intro'); }
+  init(entry) { this.entry = entry || { room: 'kar_hub', spawn: 'start' }; }
+  create() {
+    Music.setRegion('title');
+    this.cameras.main.setBackgroundColor('#05050a');
+    this.cameras.main.fadeIn(900, 0, 0, 0);
+    this.add.particles(0, 0, 'dot', {
+      x: { min: 0, max: GAME_W }, y: GAME_H + 10, speedY: { min: -60, max: -20 }, speedX: { min: -8, max: 8 },
+      lifespan: 9000, scale: { start: 0.9, end: 0.2 }, alpha: { start: 0.6, end: 0 }, frequency: 180, tint: 0xbfe6ff, blendMode: 'ADD',
+    });
+    const lines = [
+      'Karakura Town. A quiet night.',
+      'You can see the ones who never crossed over.',
+      'Something is calling from the spaces between.',
+    ];
+    this.texts = lines.map((l, i) => {
+      const t = this.add.text(GAME_W / 2, GAME_H / 2 - 40 + i * 52, l, { fontFamily: FONT_DISPLAY, fontSize: '32px', fontStyle: '700', color: INK }).setOrigin(0.5).setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, y: t.y - 8, delay: 1200 + i * 2300, duration: 1400, ease: 'Sine.out' });
+      return t;
+    });
+    this.add.graphics().lineStyle(2, 0xd8343f, 1).lineBetween(GAME_W / 2 - 50, GAME_H / 2 - 92, GAME_W / 2 + 50, GAME_H / 2 - 92);
+    this.skip = this.add.text(GAME_W - 28, GAME_H - 22, Touch.enabled ? 'Tap to skip' : Controls.fmt('{jump} to skip'), { fontFamily: FONT_BODY, fontSize: '15px', color: MUTED }).setOrigin(1, 1).setAlpha(0.7);
+    this.done = false;
+    this.time.delayedCall(9800, () => this.finish());
+    const off = Controls.on((code) => { if (Controls.isConfirm(code) || Controls.isBack(code)) this.finish(); });
+    this.events.once('shutdown', off);
+    this.input.once('pointerdown', () => this.finish());
+  }
+  finish() {
+    if (this.done) return;
+    this.done = true;
+    this.cameras.main.fadeOut(700, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('game', this.entry);
+      this.scene.launch('ui');
     });
   }
 }

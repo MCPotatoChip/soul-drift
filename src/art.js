@@ -275,6 +275,14 @@ STYLES.captain_b = variant(STYLES.captain, {
   weapon: variant(STYLES.captain.weapon, { blade: '#c8bcff', edge: '#ffffff', guard: '#8a7cff', smear: '#a99cff70' }),
   eye: '#a99cff',
 });
+// Kido master: a hooded Shinigami in deep blue with glowing eyes, hands free for casting
+STYLES.caster = variant(STYLES.shini, {
+  skin: '#bfa38c', skinShade: '#8e725c', eye: '#7fe8ff', brow: '#1c2438',
+  hair: '#1c2438', hairHi: '#3a4868', hairShade: '#0e1220', hairStyle: 'hood',
+  robe: '#1b2a46', robeHi: '#3a5280', robeShade: '#0e1626', inner: '#7fa8d8', sash: '#3aa0c8',
+  hakama: '#16203a', hakamaShade: '#0c1224', hakamaHi: '#2e4268', armband: '#9ad8ff',
+  carry: 'none', weapon: { type: 'none' }, anims: ['idle', 'run', 'cast', 'hurt'],
+});
 
 // ---------------------------------------------------------------------------
 // Drawing

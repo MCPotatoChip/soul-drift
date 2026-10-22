@@ -39,6 +39,9 @@ const GS = {
       cleared: false,
       deaths: 0,
       konsoed: {},           // enemy placements whose memory already yielded Reiatsu
+      memories: {},          // kinds of enemy whose memories Konso has read
+      quests: {},            // quest id -> 0 not started, 1 accepted, 2 done
+      plus: 0,               // New Game+ cycles completed
     };
   },
 
@@ -66,6 +69,26 @@ const GS = {
     d.equipped.push(id);
     if (id === 'will') { d.maxHp += 1; d.hp += 1; }
     return true;
+  },
+
+  // New Game+: enemies are tougher and pay more
+  hpMul() { return 1 + 0.6 * Math.min(3, this.data.plus || 0); },
+  dropMul() { return 1 + 0.5 * Math.min(3, this.data.plus || 0); },
+
+  // A fresh journey that keeps what you earned: powers, seals, the edge of the blade and health
+  newGamePlus(old) {
+    const d = this.fresh();
+    Object.assign(d, {
+      abilities: Object.assign({}, old.abilities), seals: old.seals.slice(), equipped: old.equipped.slice(),
+      sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, maxHp: old.maxHp, hp: old.maxHp,
+      fragmentsTotal: old.fragmentsTotal, ore: old.ore || 0, reishi: old.reishi || 0, plus: (old.plus || 0) + 1,
+    });
+    this.data = d;
+    this.run = this.freshRun();
+  },
+  // The saved game without making it the current one (for the title screen)
+  peek() {
+    try { const raw = localStorage.getItem(SAVE_KEY); return raw ? Object.assign(this.fresh(), JSON.parse(raw)) : null; } catch (e) { return null; }
   },
 
   slashDamage() { return COMBAT.slashDamage + (this.data.swordLevel || 0) * COMBAT.swordBonus; },

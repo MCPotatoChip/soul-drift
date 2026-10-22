@@ -60,6 +60,9 @@ const COMBAT = {
   shardValue: 5,
   getsugaCost: 22,
   getsugaCharge: 0.55,
+  raikoCost: 66,          // Hado #63 costs two thirds of the vessel
+  raikoDamage: 42,
+  raikoRadius: 58,
   getsugaDamage: 18,
   swordBonus: 2,          // extra slash damage per forge level
 };
@@ -74,6 +77,7 @@ const FORGE = [
 const ABILITIES = {
   dash:   { name: 'Black Step', key: '{dash}', desc: 'A burst of flash-step speed. Usable once in midair, refreshed when you land or grip a wall.' },
   hado:   { name: 'Kido: Hado', key: '{kido}', desc: 'Spend 33 Reiatsu to hurl a crimson blast that pierces enemies and shatters violet Kido seals.' },
+  raiko:  { name: 'Hado #63: Raikōhō', key: '{down} + {kido}', desc: 'Spend 66 Reiatsu to loose a great bolt that bursts on impact, hurting everything around it. Learned by facing the Rogue Captain.' },
   grip:   { name: 'Reiatsu Grip', key: 'Hold {left} or {right} against a wall', desc: 'Cling to walls with spiritual pressure. Hold {up} to climb, press {jump} to leap away.' },
   bakudo: { name: 'Kido: Bakudo', key: '{up} + {kido}', desc: 'Spend 33 Reiatsu to bind the nearest enemy or moving platform in golden chains.' },
   wings:  { name: 'Hirenkyaku Wings', key: '{jump} in midair', desc: 'Step on condensed reishi for a second jump.' },
@@ -83,7 +87,7 @@ const ABILITIES = {
   bankai: { name: 'Bankai', key: '{bankai} with a full Reiatsu vessel', desc: 'Release your final form: faster, longer strikes that throw crescent waves, and Reiatsu that refills on its own.' },
   hollow: { name: 'Hollow Mask', key: '{mask}', desc: 'Don the mask for raw power and speed. Something inside you is keeping count.' },
 };
-const ABILITY_ORDER = ['dash', 'hado', 'grip', 'bakudo', 'wings', 'getsuga', 'konso', 'burst', 'bankai', 'hollow'];
+const ABILITY_ORDER = ['dash', 'hado', 'raiko', 'grip', 'bakudo', 'wings', 'getsuga', 'konso', 'burst', 'bankai', 'hollow'];
 
 const SEALS = {
   edge:    { name: 'Whetted Edge', cost: 2, desc: 'Slash damage +40%.' },
@@ -97,12 +101,19 @@ const SEALS = {
   moonfang: { name: 'Moon Fang', cost: 1, desc: 'Getsuga Tenshō charges faster and costs less Reiatsu.' },
   phantom: { name: 'Phantom Step', cost: 2, desc: 'Nothing can touch you during a Black Step.' },
   will:    { name: 'Unbreakable Will', cost: 3, desc: 'One extra mask of health while equipped.' },
+  recall:  { name: 'Soul Recall', cost: 1, desc: 'The Konso Blade works faster and draws out more Reiatsu.' },
+};
+
+// Things the shop sells that are neither seals nor fragments
+const TOOLS = {
+  compass: { name: 'Pin Compass', desc: 'Marks every power, seal, fragment, ore and Lost Plus you have not found yet on the map, in every room you have visited.' },
 };
 
 const SHOP_STOCK = [
   { type: 'seal', id: 'magnet', price: 80 },
   { type: 'seal', id: 'swift', price: 150 },
   { type: 'seal', id: 'quick', price: 220 },
+  { type: 'tool', id: 'compass', price: 180 },
   { type: 'fragment', id: 'shop', price: 300 },
 ];
 
@@ -117,12 +128,17 @@ const REGIONS = {
   for: { name: 'Forest of Menos', sub: 'Beneath the white sand', color: 0x6a8a7a, dark: 0.72 },
 };
 
+// What the ground sounds like underfoot in each region
+const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand' };
+
+
+// notches: health fractions where the fight changes phase (drawn on the boss bar)
 const BOSSES = {
-  menos:   { name: 'Menos Grande', title: 'Hollow of a Thousand Faces' },
-  captain: { name: 'Rogue Captain Kurogane', title: 'Deserter of the Ninth Division' },
-  vasto:   { name: 'Vasto Lorde', title: 'Sovereign of the Sand' },
-  final:   { name: 'The Fallen Vizard', title: 'What You Could Become' },
-  espada:  { name: 'Espada of the Unseen', title: 'Hidden Among the Menos' },
+  menos:   { name: 'Menos Grande', title: 'Hollow of a Thousand Faces', notches: [0.5] },
+  captain: { name: 'Rogue Captain Kurogane', title: 'Deserter of the Ninth Division', notches: [0.5] },
+  vasto:   { name: 'Vasto Lorde', title: 'Sovereign of the Sand', notches: [0.6, 0.25] },
+  final:   { name: 'The Fallen Vizard', title: 'What You Could Become', notches: [0.66, 0.33] },
+  espada:  { name: 'Espada of the Unseen', title: 'Hidden Among the Menos', notches: [0.5] },
 };
 
 const MEMORIES = {
@@ -137,4 +153,9 @@ const MEMORIES = {
   final: ['"I am the one who never took the mask off."'],
   gillian: ['"We were hundreds once. Now we are one, and still hungry."', '"Do not look up. The light hurts."'],
   espada: ['"I hid here so long I forgot what I was hiding from."'],
+  caster: ['"I wrote the incantations. Now they write me."', '"Every word I spoke, I meant. That was the mistake."'],
+  diver: ['"I only ever wanted to hang quietly, and be forgotten."'],
 };
+
+// The old man in Rukongai wants to hear what the dead remember
+const QUEST_NAMES = { npc: 'Old Rukongai Resident', need: ['thug', 'shini', 'hollow'], reishi: 200, seal: 'recall' };

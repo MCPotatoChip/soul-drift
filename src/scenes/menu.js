@@ -17,8 +17,10 @@ class MenuScene extends Phaser.Scene {
     this.msg = '';
     this.listening = null;
     const off = Controls.on((code) => this.onKey(code));
-    this.events.once('shutdown', () => { off(); Controls.capture = null; });
+    Sfx.muffle(true);   // the world's sound goes behind a door while a menu is open
+    this.events.once('shutdown', () => { off(); Controls.capture = null; Sfx.muffle(false); });
     this.render();
+    this.popIn();
   }
 
   close() {
@@ -28,7 +30,7 @@ class MenuScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ helpers
-  clear() { this.layer.removeAll(true); }
+  clear() { this.layer.list.forEach(c => this.tweens.killTweensOf(c)); this.layer.removeAll(true); }
   txt(x, y, s, size = 22, color = INK, o = {}) {
     const t = this.add.text(x, y, s, Object.assign({ fontFamily: o.display ? FONT_DISPLAY : FONT_BODY, fontSize: size + 'px', color, fontStyle: o.bold ? '700' : o.display ? '800' : 'normal', wordWrap: o.wrap ? { width: o.wrap } : undefined, lineSpacing: 4 }, o.style || {}));
     if (o.origin !== undefined) t.setOrigin(...[].concat(o.origin));
@@ -51,10 +53,22 @@ class MenuScene extends Phaser.Scene {
         g.fillStyle(0xd8343f, 1).fillRect(x - 16, y + i * gap - 6, 3, gap - 6);
         this.layer.add(g);
       }
-      this.txt(x, y + i * gap, it.label, 24, it.disabled ? '#5c5868' : on ? INK : '#b8b2c4', { bold: on });
+      if (it.icon) this.icon(it.icon, x + 16, y + i * gap + 13, 32, it.disabled ? 0.4 : 1);
+      this.txt(x + (it.icon ? 46 : 0), y + i * gap, it.label, 24, it.disabled ? '#5c5868' : on ? INK : '#b8b2c4', { bold: on });
       this.hit(x - 16, y + i * gap - 6, w, gap - 6, () => this.tapItem(i));
       if (it.right) this.txt(x + w - 32, y + i * gap, it.right, 20, it.rightColor || MUTED, { origin: [1, 0] });
     });
+  }
+  icon(key, x, y, size = 32, alpha = 1) {
+    const im = this.add.image(x, y, key).setDisplaySize(size, size).setAlpha(alpha);
+    this.layer.add(im);
+    return im;
+  }
+  // Slide and fade the screen in whenever the view changes
+  popIn() {
+    this.tweens.killTweensOf(this.layer);
+    this.layer.setAlpha(0).setY(12);
+    this.tweens.add({ targets: this.layer, alpha: 1, y: 0, duration: 170, ease: 'Quad.out' });
   }
   footer(s) { this.txt(GAME_W / 2, GAME_H - 40, s, 16, MUTED, { origin: 0.5 }); }
   // Invisible tap target (touch screens); lives in the layer so every render rebuilds it
@@ -101,16 +115,17 @@ class MenuScene extends Phaser.Scene {
         const owned = Object.keys(SEALS).filter(id => d.seals.includes(id));
         this.items = owned.map(id => {
           const s = SEALS[id], on = GS.sealOn(id);
-          return { id, label: (on ? '● ' : '○ ') + s.name, right: '◆'.repeat(s.cost), rightColor: on ? GOLD : MUTED, act: () => this.toggleSeal(id) };
+          return { id, icon: 'icon_' + id, label: (on ? '● ' : '○ ') + s.name, right: '◆'.repeat(s.cost), rightColor: on ? GOLD : MUTED, act: () => this.toggleSeal(id) };
         });
         if (!owned.length) this.txt(GAME_W / 2, 260, 'You have no seals yet. They hide all over the world, and the shop sells a few.', 20, MUTED, { origin: 0.5 });
-        this.list(this.items, 200, 190, 46, 460);
+        this.list(this.items, 200, 188, 42, 460);
         const cur = this.items[this.sel];
         if (cur) {
           const s = SEALS[cur.id];
-          this.txt(740, 190, s.name, 32, INK, { display: true });
-          this.txt(740, 240, `Cost ${s.cost} slot${s.cost > 1 ? 's' : ''}`, 18, GOLD, { bold: true });
-          this.txt(740, 280, s.desc, 22, INK, { wrap: 440 });
+          this.icon('icon_' + cur.id, 770, 208, 64);
+          this.txt(816, 190, s.name, 32, INK, { display: true });
+          this.txt(816, 232, `Cost ${s.cost} slot${s.cost > 1 ? 's' : ''}`, 18, GOLD, { bold: true });
+          this.txt(740, 290, s.desc, 22, INK, { wrap: 440 });
         }
         if (this.msg) this.txt(GAME_W / 2, GAME_H - 80, this.msg, 18, CRIMSON, { origin: 0.5 });
         this.footer(Controls.fmt('{jump} equip or remove · {attack} back'));
@@ -130,14 +145,14 @@ class MenuScene extends Phaser.Scene {
         this.title('Spirit Goods', 'The merchant tips a striped hat. "Reishi only, no refunds."');
         this.items = SHOP_STOCK.map(it => {
           const sold = it.type === 'seal' ? d.seals.includes(it.id) : !!d.bought[it.id];
-          const name = it.type === 'seal' ? SEALS[it.id].name + ' (seal)' : 'Soul Fragment';
-          return { it, label: name, right: sold ? 'sold' : it.price + ' reishi', disabled: sold, rightColor: !sold && d.reishi >= it.price ? GOLD : MUTED, act: () => this.buy(it) };
+          const name = it.type === 'seal' ? SEALS[it.id].name + ' (seal)' : it.type === 'tool' ? TOOLS[it.id].name : 'Soul Fragment';
+          return { it, icon: it.type === 'seal' || it.type === 'tool' ? 'icon_' + it.id : 'ui_shard', label: name, right: sold ? 'sold' : it.price + ' reishi', disabled: sold, rightColor: !sold && d.reishi >= it.price ? GOLD : MUTED, act: () => this.buy(it) };
         });
         this.items.push({ label: 'Leave', act: () => this.close() });
         this.list(this.items, 200, 200, 50, 520);
         const cur = this.items[this.sel];
         if (cur && cur.it) {
-          const desc = cur.it.type === 'seal' ? SEALS[cur.it.id].desc : 'Collect four to grow your soul vessel by one mask.';
+          const desc = cur.it.type === 'seal' ? SEALS[cur.it.id].desc : cur.it.type === 'tool' ? TOOLS[cur.it.id].desc : 'Collect four to grow your soul vessel by one mask.';
           this.txt(800, 200, desc, 21, INK, { wrap: 380 });
         }
         this.txt(200, GAME_H - 110, `You carry ${d.reishi} reishi`, 20, '#7fe8ff', { bold: true });
@@ -266,29 +281,30 @@ class MenuScene extends Phaser.Scene {
     this.title('Map', 'Rooms you have walked through');
     const ids = Object.keys(ROOMS);
     const box = (id) => { const r = ROOMS[id], H = r.tiles.length, W = r.tiles[0].length; return { x: r.pos[0], y: r.pos[1], w: W / 10, h: H / 10 }; };
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    ids.forEach(id => { const b = box(id); minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); });
-    const areaW = 1160, areaH = 470, ox = 60, oy = 170;
-    const sc = Math.min(areaW / (maxX - minX), areaH / (maxY - minY));
-    const P = (x, y) => ({ x: ox + (x - minX) * sc, y: oy + (y - minY) * sc });
-    const g = this.add.graphics();
-    this.layer.add(g);
     // known neighbours appear as faint outlines
     const known = new Set();
     ids.forEach(id => { if (d.visited[id]) Object.values(ROOMS[id].doors).forEach(([to]) => known.add(to)); });
+    // The map frames what you have seen, so it zooms in on a small journey and out on a large one
+    const shown = ids.filter(id => d.visited[id] || known.has(id));
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    (shown.length ? shown : ids).forEach(id => { const b = box(id); minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); });
+    const areaW = 1160, areaH = 470, ox = 60, oy = 170;
+    const sc = Math.min(areaW / (maxX - minX), areaH / (maxY - minY), 34);
+    const ex = (areaW - (maxX - minX) * sc) / 2, ey = (areaH - (maxY - minY) * sc) / 2;
+    const P = (x, y) => ({ x: ox + ex + (x - minX) * sc, y: oy + ey + (y - minY) * sc });
+    const g = this.add.graphics();
+    this.layer.add(g);
     ids.forEach(id => {
       const b = box(id), p = P(b.x, b.y), w = b.w * sc, h = b.h * sc;
       if (d.visited[id]) {
         g.fillStyle(REGIONS[ROOMS[id].region].color, id === d.room ? 0.55 : 0.28).fillRect(p.x, p.y, w, h);
         g.lineStyle(2, id === d.room ? 0xffffff : 0xe9e4d8, id === d.room ? 1 : 0.6).strokeRect(p.x, p.y, w, h);
-        if (d.gates[id]) {
-          g.fillStyle(0xffe8b0, 1).fillCircle(p.x + 8, p.y + 8, 4);
-        }
         if (sc * b.w > 60) this.txt(p.x + 4, p.y + h - 4, ROOMS[id].name, 13, INK, { origin: [0, 1] });
       } else if (known.has(id)) {
         g.lineStyle(1, 0xe9e4d8, 0.25).strokeRect(p.x, p.y, w, h);
       }
     });
+    this.drawPins(g, P, box);
     // the player
     const cur = box(d.room), game = this.scene.get('game');
     if (game && game.player) {
@@ -296,20 +312,75 @@ class MenuScene extends Phaser.Scene {
       const p = P(px, py);
       g.fillStyle(0xd8343f, 1).fillCircle(p.x, p.y, 6);
       g.lineStyle(2, 0xffffff, 1).strokeCircle(p.x, p.y, 8);
+      const pulse = this.add.circle(p.x, p.y, 8).setStrokeStyle(2, 0xd8343f).setFillStyle();
+      this.layer.add(pulse);
+      this.tweens.add({ targets: pulse, radius: 22, alpha: { from: 0.9, to: 0 }, duration: 1100, repeat: -1 });
     }
+    // legend
+    const legend = [['gate', 'rest gate'], ['shop', 'shop'], ['forge', 'swordsmith'], ['boss', 'boss']];
+    if (d.bought.compass) legend.push(['power', 'power'], ['seal', 'seal'], ['frag', 'fragment'], ['plus', 'lost plus'], ['ore', 'ore']);
+    const lg = this.add.graphics(); this.layer.add(lg);
+    let lx = GAME_W / 2 - legend.length * 62;
+    legend.forEach(([k, label]) => { this.pin(lg, k, lx, GAME_H - 76); this.txt(lx + 12, GAME_H - 86, label, 15, MUTED); lx += 28 + label.length * 8 + 28; });
     this.items = [];
     this.hit(0, 0, GAME_W, GAME_H, () => this.back());
     this.footer(Controls.fmt('Red marker: you · gold dot: rest gate · {map} or {attack} close'));
   }
 
+  // Landmarks always show on rooms you have seen; with the Pin Compass, so does what is left to find
+  drawPins(g, P, box) {
+    const d = GS.data;
+    Object.keys(ROOMS).forEach(id => {
+      if (!d.visited[id]) return;
+      const r = ROOMS[id], b = box(id), cnt = { k: 0, c: 0, f: 0, l: 0, o: 0 };
+      r.tiles.forEach((row, ty) => {
+        for (let tx = 0; tx < row.length; tx++) {
+          const ch = row[tx];
+          let kind = null;
+          switch (ch) {
+            case 'R': kind = 'gate'; break;
+            case 'S': kind = 'shop'; break;
+            case 'W': kind = 'forge'; break;
+            case 'B': kind = d.bosses[r.boss] ? 'bossDone' : 'boss'; break;
+            case 'k': { const i = cnt.k++, aid = (r.abilities || [])[i]; if (aid && !GS.isTaken(`${id}:k${i}`) && !GS.has(aid)) kind = 'power'; break; }
+            case 'c': { const i = cnt.c++, sid = (r.seals || [])[i]; if (sid && !GS.isTaken(`${id}:c${i}`) && !d.seals.includes(sid)) kind = 'seal'; break; }
+            case 'f': { const i = cnt.f++; if (!GS.isTaken(`${id}:f${i}`)) kind = 'frag'; break; }
+            case 'l': { const i = cnt.l++; if (!GS.isTaken(`${id}:l${i}`)) kind = 'plus'; break; }
+            case 'o': { const i = cnt.o++; if (!GS.isTaken(`${id}:o${i}`)) kind = 'ore'; break; }
+          }
+          if (!kind) continue;
+          if (['power', 'seal', 'frag', 'plus', 'ore'].includes(kind) && !d.bought.compass) continue;
+          if (kind === 'gate' && !d.gates[id]) continue;
+          const pt = P(b.x + tx / 10, b.y + ty / 10);
+          this.pin(g, kind, pt.x, pt.y);
+        }
+      });
+    });
+  }
+  pin(g, kind, x, y) {
+    switch (kind) {
+      case 'gate': g.fillStyle(0xffe8b0, 1).fillCircle(x, y, 4); g.lineStyle(1, 0x07070b, 0.8).strokeCircle(x, y, 4); break;
+      case 'shop': g.fillStyle(0x7fe8ff, 1).fillRect(x - 3, y - 3, 6, 6); break;
+      case 'forge': g.fillStyle(0xff9a50, 1).fillTriangle(x, y - 4, x - 4, y + 3, x + 4, y + 3); break;
+      case 'boss': g.fillStyle(0xd8343f, 1).fillPoints([{ x, y: y - 5 }, { x: x + 5, y }, { x, y: y + 5 }, { x: x - 5, y }], true); break;
+      case 'bossDone': g.lineStyle(1.5, 0x8a8497, 1).strokePoints([{ x, y: y - 5 }, { x: x + 5, y }, { x, y: y + 5 }, { x: x - 5, y }], true); break;
+      case 'power': g.fillStyle(0xffffff, 1).fillCircle(x, y, 3.5); g.lineStyle(1.5, 0xffe8b0, 1).strokeCircle(x, y, 6); break;
+      case 'seal': g.fillStyle(0xffd75e, 1).fillPoints([{ x, y: y - 4 }, { x: x + 3, y }, { x, y: y + 4 }, { x: x - 3, y }], true); break;
+      case 'frag': g.fillStyle(0x7fe8ff, 1).fillCircle(x, y, 2.5); break;
+      case 'plus': g.fillStyle(0xe8f4ff, 1).fillCircle(x, y, 2.5); g.lineStyle(1, 0x7fe8ff, 1).strokeCircle(x, y, 4); break;
+      case 'ore': g.fillStyle(0xb89aff, 1).fillCircle(x, y, 2.5); break;
+    }
+  }
+
   renderInventory() {
     const d = GS.data;
-    this.title('Inventory', `${GS.completion()}% complete · ${this.fmtTime(d.time)}`);
+    this.title('Inventory', `${GS.completion()}% complete · ${this.fmtTime(d.time)}${d.plus ? ` · New Game+ ${d.plus}` : ''}`);
     this.txt(150, 180, 'ABILITIES', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     ABILITY_ORDER.forEach((id, i) => {
       const a = ABILITIES[id], has = !!d.abilities[id];
-      this.txt(150, 214 + i * 38, has ? a.name : '? ? ?', 22, has ? INK : '#4c4858', { bold: has });
-      if (has) this.txt(520, 216 + i * 38, a.key, 17, GOLD, { origin: [1, 0] });
+      this.icon(has ? 'icon_' + id : 'icon_unknown', 166, 228 + i * 40, 32, has ? 1 : 0.6);
+      this.txt(196, 208 + i * 40, has ? a.name : '? ? ?', 20, has ? INK : '#4c4858', { bold: has });
+      if (has) this.txt(196, 230 + i * 40, Controls.fmt(a.key), 13, GOLD);
     });
     const x = 700;
     this.txt(x, 180, 'SOUL', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
@@ -325,7 +396,8 @@ class MenuScene extends Phaser.Scene {
     });
     this.txt(x, 520, 'EQUIPPED SEALS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     const eq = d.equipped.map(id => SEALS[id].name);
-    this.txt(x, 548, eq.length ? eq.join(' · ') : 'None. Equip seals at a rest gate.', 19, eq.length ? INK : MUTED, { wrap: 470 });
+    d.equipped.forEach((id, i) => this.icon('icon_' + id, x + 18 + i * 42, 562, 34));
+    this.txt(x, d.equipped.length ? 590 : 548, eq.length ? eq.join(' · ') : 'None. Equip seals at a rest gate.', 19, eq.length ? INK : MUTED, { wrap: 470 });
     this.items = [];
     this.hit(0, 0, GAME_W, GAME_H, () => this.back());
     this.footer(Controls.fmt('{inventory} or {attack} close'));
@@ -334,11 +406,11 @@ class MenuScene extends Phaser.Scene {
   fmtTime(t) { const m = Math.floor(t / 60), s = Math.floor(t % 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}:${String(s).padStart(2, '0')}`; }
 
   // ------------------------------------------------------------------ actions
-  go(view) { this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); }
+  go(view) { this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); this.popIn(); }
   back() {
     const parent = { seals: 'rest', travel: 'rest', controls: 'pause', settings: 'pause' }[this.view];
-    if (parent && this.type !== this.view) { this.view = parent; this.sel = 0; this.msg = ''; Sfx.play('select'); this.render(); }
-    else if ((this.view === 'map' || this.view === 'inventory') && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); }
+    if (parent && this.type !== this.view) { this.view = parent; this.sel = 0; this.msg = ''; Sfx.play('select'); this.render(); this.popIn(); }
+    else if ((this.view === 'map' || this.view === 'inventory') && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); this.popIn(); }
     else this.close();
   }
   toggleSeal(id) {
@@ -353,6 +425,7 @@ class MenuScene extends Phaser.Scene {
     if (d.reishi < it.price) { Sfx.play('deny'); this.msg = `You need ${it.price - d.reishi} more reishi.`; this.render(); return; }
     d.reishi -= it.price;
     if (it.type === 'seal') { d.seals.push(it.id); this.msg = ''; }
+    else if (it.type === 'tool') { d.bought[it.id] = true; this.msg = ''; this.game.events.emit('toast', `${TOOLS[it.id].name} bought. Check the map.`); }
     else { d.bought[it.id] = true; const up = GS.addFragment(); this.msg = ''; this.game.events.emit('toast', up ? 'Four fragments fuse. Max health +1' : `Soul Fragment ${d.fragments}/4`); }
     GS.save();
     Sfx.play('pickup');

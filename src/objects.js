@@ -78,6 +78,19 @@ class Fx {
     this.impact(x, y, dirX, color, Math.round(5 * power), 18 + 8 * power);
     this.ring(x, y, color, 10 + 6 * power, 140, 1);
   }
+  // Fragments that fly out, tumble and fall away: glass, bone, blade, sand
+  shatter(x, y, colors, n = 16, spread = 90, fall = 60, dur = 1000) {
+    const cols = [].concat(colors), count = Settings.count(n);
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2, d = spread * (0.35 + Math.random() * 0.65);
+      const sh = this.s.add.image(x, y, 'px').setScale(Phaser.Math.Between(2, 5), Phaser.Math.Between(1, 3)).setTint(Phaser.Utils.Array.GetRandom(cols)).setDepth(28).setRotation(Math.random() * Math.PI);
+      this.s.tweens.add({
+        targets: sh, x: x + Math.cos(a) * d, y: { value: y + Math.sin(a) * d * 0.6 + fall, ease: 'Quad.in' },
+        rotation: sh.rotation + Phaser.Math.FloatBetween(-6, 6), alpha: { value: 0, delay: dur * 0.45 }, duration: dur * Phaser.Math.FloatBetween(0.7, 1.2),
+        ease: 'Cubic.out', onComplete: () => sh.destroy(),
+      });
+    }
+  }
   // A soul-coloured glow that lifts and fades
   wisp(x, y, color = 0xbfe6ff, rise = 46) {
     const g = this.s.add.image(x, y, 'glow').setTint(color).setBlendMode('ADD').setDepth(26).setScale(0.7).setAlpha(0.8);
@@ -174,11 +187,14 @@ class ShopKeeper extends Phaser.GameObjects.Sprite {
     scene.add.existing(this);
     npcSprite(this, 'npc_merchant');
     this.setDepth(7).setFlipX(true);
+    this.faces = true;
     this.prompt = 'Shop';
     // a little stall behind the merchant
     this.stall = scene.add.image(x + 18, feet - 12, 'stall').setDepth(6);
   }
   interact() { this.scene.openMenu('shop'); }
+  // tips his hat with a little hop
+  greet() { this.scene.tweens.add({ targets: this, y: this.y - 4, yoyo: true, duration: 120, ease: 'Quad.out', repeat: 1 }); }
 }
 
 class Smith extends Phaser.GameObjects.Sprite {
@@ -188,10 +204,19 @@ class Smith extends Phaser.GameObjects.Sprite {
     npcSprite(this, 'npc_smith');
     this.setDepth(7);
     this.prompt = 'Forge';
+    this.faces = true;
     this.anvil = scene.add.image(x + 17, feet - 7, 'anvil').setDepth(6);
-    scene.time.addEvent({ delay: 1700, loop: true, callback: () => { if (this.active) scene.fx.spark(x + 17, feet - 14, 0xffb070, 4); } });
+    // the hammer swing: a lean into the blow, with sparks and a clang off the anvil
+    scene.time.addEvent({ delay: 1700, loop: true, callback: () => {
+      if (!this.active) return;
+      scene.tweens.add({ targets: this, angle: { from: this.flipX ? 7 : -7, to: 0 }, duration: 190, ease: 'Quad.out' });
+      scene.fx.spark(x + 17, feet - 14, 0xffb070, 4);
+      scene.fx.impact(x + 17, feet - 14, 0, 0xffd0a0, 4, 10);
+      if (Math.abs(scene.player.x - x) < 220) Sfx.play('clang');
+    } });
   }
   interact() { Sfx.play('clang'); this.scene.openMenu('forge'); }
+  greet() { this.scene.tweens.add({ targets: this, y: this.y - 2, yoyo: true, duration: 110, ease: 'Quad.out' }); }
 }
 
 // A Senkaimon hanging in the air (decoration marking a door to the Dangai)
@@ -214,13 +239,14 @@ class Npc extends Phaser.GameObjects.Sprite {
     this.setDepth(7);
     this.info = info || { name: 'Spirit', lines: ['...'] };
     this.prompt = 'Listen';
+    this.faces = true;
     if (STYLES[style].alpha) {   // souls hover a little
       scene.tweens.add({ targets: this, y: feet - 2, yoyo: true, repeat: -1, duration: 1400, ease: 'Sine.inOut' });
     }
   }
   interact() {
     this.setFlipX(this.scene.player.x < this.x);
-    this.scene.startDialog(this.info.name, this.info.lines);
+    this.scene.startDialog(this.info.name, this.scene.npcLines(this.info));
   }
 }
 
@@ -232,6 +258,7 @@ class LostPlus extends Phaser.GameObjects.Sprite {
     this.setDepth(7);
     this.key = key;
     this.prompt = 'Konso';
+    this.faces = true;
     scene.tweens.add({ targets: this, alpha: 0.6, yoyo: true, repeat: -1, duration: 1100, ease: 'Sine.inOut' });
   }
   interact() {
@@ -275,7 +302,7 @@ class Pickup extends Phaser.GameObjects.Image {
 
 const PICKUP_COLORS = {
   dash: 0x9fb4ff, hado: 0xff6a4a, grip: 0x7fe8ff, bakudo: 0xffd75e, wings: 0xe8f4ff,
-  konso: 0xbfe6ff, burst: 0xff8a3a, bankai: 0xe0303c, hollow: 0xf4f1ea, getsuga: 0x9ac8ff,
+  konso: 0xbfe6ff, burst: 0xff8a3a, bankai: 0xe0303c, hollow: 0xf4f1ea, getsuga: 0x9ac8ff, raiko: 0xff4a30, compass: 0x7fe8ff,
 };
 
 class Shard extends Phaser.Physics.Arcade.Image {
@@ -369,19 +396,21 @@ class PlayerShot extends Phaser.Physics.Arcade.Image {
     this.trailT -= dt;
     if (this.trailT <= 0) {
       this.trailT = 0.03;
-      const col = this.kind === 'hado' ? 0xff7a4a : this.kind === 'getsuga' && this.texture.key === 'getsuga' ? 0x9ac8ff : 0xc8202c;
+      const col = this.kind === 'hado' ? 0xff7a4a : this.kind === 'raiko' ? 0xff3a2a : this.kind === 'getsuga' && this.texture.key === 'getsuga' ? 0x9ac8ff : 0xc8202c;
       s.fx.motes(this.x, this.y, col, this.kind === 'getsuga' ? 3 : 1);
     }
     const fx = this.x + Math.sign(this.body.velocity.x) * 6;
     const t = s.solid.getTileAtWorldXY(fx, this.y);
     if (t && t.collides) {
       if (t.index === T.KIDO && (this.kind === 'hado' || this.kind === 'getsuga')) s.breakCluster(t.x, t.y, T.KIDO);
+      if (this.kind === 'raiko') return this.explode();
       return this.kill(true);
     }
     const r = bodyRect(this.body);
     for (const e of s.enemies) {
       if (!e.alive || this.hit.has(e) || !e.hittable()) continue;
       if (Phaser.Geom.Intersects.RectangleToRectangle(r, bodyRect(e.body))) {
+        if (this.kind === 'raiko') return this.explode();   // bursts on the first thing it meets
         this.hit.add(e);
         const res = e.hit(this.dmg, Math.sign(this.body.velocity.x), { kind: this.kind, spell: true });
         if (res === 'hit') { s.fx.spark(e.x, e.y, 0xffa060); Sfx.play('hit'); if (GS.run.maskOn) GS.run.hollow += 1; }
@@ -390,6 +419,12 @@ class PlayerShot extends Phaser.Physics.Arcade.Image {
   }
   kill(fx) {
     if (fx) { this.scene.fx.burst(this.x, this.y, this.kind === 'hado' ? 0xff7a4a : 0xc8202c, 12); }
+    this.destroy();
+  }
+  explode() {
+    if (this.exploded) return;
+    this.exploded = true;
+    this.scene.raikoBlast(this.x, this.y, this.dmg);
     this.destroy();
   }
 }
@@ -404,6 +439,7 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
     const size = o.size || 8;
     this.body.setSize(o.w || size, o.h || size);
     this.dmg = o.dmg || 1; this.life = o.life || 3; this.passWalls = !!o.passWalls; this.pierce = !!o.pierce;
+    this.burstColor = o.burst ?? 0xff8aa0; this.debris = !!o.debris;
     if (o.rotate) this.setRotation(Math.atan2(vy, vx));
     if (o.flipX) this.setFlipX(true);
     if (o.scale) this.setScale(o.scale);
@@ -414,11 +450,104 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
     const s = this.scene;
     this.life -= dt;
     if (this.life <= 0) return this.destroy();
-    if (!this.passWalls && s.isSolidAt(this.x, this.y)) { s.fx.burst(this.x, this.y, 0xff8aa0, 6); return this.destroy(); }
+    if (!this.passWalls && s.isSolidAt(this.x, this.y)) {
+      s.fx.burst(this.x, this.y, this.burstColor, 6);
+      if (this.debris) { s.fx.debris(this.x, this.y, this.burstColor, 8); s.fx.dust(this.x, this.y, 6); s.fx.shake(90, 0.004); Sfx.play('break'); }
+      return this.destroy();
+    }
     const p = s.player;
     if (p.state !== 'dead' && Phaser.Geom.Intersects.RectangleToRectangle(bodyRect(this.body), bodyRect(p.body))) {
       p.takeDamage(this.dmg, this.x);
       if (!this.pierce) this.destroy();
+    }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Hazards: things in the room that act on their own timer. The scene ticks them.
+// ---------------------------------------------------------------------------
+
+// A reishi vent in the floor: it steams, rumbles, then blasts a column straight up
+class Geyser extends Phaser.GameObjects.Image {
+  constructor(scene, x, feet) {
+    super(scene, x, feet - 2, 'vent');
+    scene.add.existing(this);
+    this.setDepth(6);
+    this.feet = feet; this.homeX = x;
+    this.period = 3.6;
+    this.clock = Math.random() * this.period;   // so neighbouring vents are out of step
+    this.col = scene.add.graphics().setDepth(17).setBlendMode('ADD');
+    this.color = REGIONS[scene.region].color;
+    this.glow = scene.add.image(x, feet - 2, 'glow').setTint(this.color).setBlendMode('ADD').setDepth(6).setScale(0.8, 0.4).setAlpha(0);
+    this.puff = 0; this.fired = false;
+    scene.hazards.push(this);
+  }
+  tick(dt) {
+    const s = this.scene;
+    this.clock = (this.clock + dt) % this.period;
+    const t = this.clock, x = this.homeX;
+    this.setX(x);
+    this.col.clear();
+    if (t < 1.7) {                      // idle: thin steam
+      this.fired = false;
+      this.glow.setAlpha(0.15);
+      this.puff -= dt;
+      if (this.puff <= 0) { this.puff = 0.35; s.fx.motes(x + Phaser.Math.Between(-3, 3), this.feet - 4, this.color, 1); }
+    } else if (t < 2.5) {               // warning: it shakes and brightens
+      const k = (t - 1.7) / 0.8;
+      this.glow.setAlpha(0.2 + 0.5 * k);
+      this.setX(x + (Math.random() - 0.5) * 1.5 * k);
+      this.puff -= dt;
+      if (this.puff <= 0) { this.puff = 0.07; s.fx.dust(x + Phaser.Math.Between(-5, 5), this.feet - 3, 1); s.fx.motes(x, this.feet - 4, this.color, 1); }
+      if (t - dt < 1.7) Sfx.play('geyser');
+    } else if (t < 3.4) {               // the blast
+      if (!this.fired) {
+        this.fired = true;
+        s.addHurt(x - 7, this.feet - 88, 14, 88, 1, 0.9);
+        s.fx.shake(160, 0.005);
+        s.fx.ring(x, this.feet - 4, this.color, 26, 300, 2);
+      }
+      const k = Math.min(1, (t - 2.5) / 0.12) * (1 - Math.max(0, (t - 3.15) / 0.25));
+      const h = 88 * k;
+      this.col.fillStyle(this.color, 0.22 * k).fillRect(x - 8, this.feet - h, 16, h);
+      this.col.fillStyle(0xffffff, 0.4 * k).fillRect(x - 3, this.feet - h, 6, h);
+      this.glow.setAlpha(0.8);
+      this.puff -= dt;
+      if (this.puff <= 0) { this.puff = 0.04; s.fx.motes(x + Phaser.Math.Between(-5, 5), this.feet - Phaser.Math.Between(4, 80), 0xffffff, 1); }
+    } else this.glow.setAlpha(0.1);
+  }
+}
+
+// A stalactite hanging from the ceiling: it shakes loose when you pass beneath, then grows back
+class Stalactite extends Phaser.GameObjects.Image {
+  constructor(scene, x, topY) {
+    super(scene, x, topY, 'rock');
+    scene.add.existing(this);
+    this.setOrigin(0.5, 0).setDepth(13);
+    this.home = { x, y: topY };
+    this.mode = 'hang'; this.t = 0;
+    scene.hazards.push(this);
+  }
+  tick(dt) {
+    const s = this.scene, p = s.player, dx = p.x - this.home.x, dy = p.y - this.home.y;
+    this.t -= dt;
+    switch (this.mode) {
+      case 'hang':
+        if (Math.abs(dx) < 22 && dy > 24 && dy < 280 && p.state !== 'dead') { this.mode = 'shake'; this.t = 0.5; Sfx.play('telegraph'); }
+        break;
+      case 'shake':
+        this.x = this.home.x + (Math.random() - 0.5) * 2.2;
+        if (Math.random() < 0.3) s.fx.dust(this.home.x + Phaser.Math.Between(-5, 5), this.home.y + 2, 1);
+        if (this.t <= 0) {
+          this.mode = 'gone'; this.t = 6; this.setVisible(false);
+          new EnemyShot(s, this.home.x, this.home.y + 9, 'rock', 0, 40, { gravity: true, dmg: 1, w: 8, h: 14, life: 3, burst: 0x8a8494, debris: true });
+          s.fx.burst(this.home.x, this.home.y + 4, 0x8a8494, 6);
+        }
+        break;
+      case 'gone':
+        if (this.t <= 0) { this.mode = 'hang'; this.x = this.home.x; this.setVisible(true).setAlpha(0); s.tweens.add({ targets: this, alpha: 1, duration: 600 }); }
+        break;
     }
   }
 }

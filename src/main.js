@@ -15,7 +15,7 @@ function startGame() {
     physics: { default: 'arcade', arcade: { gravity: { y: PHYS.gravity }, tileBias: 20, debug: false } },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { touch: { capture: true }, activePointers: 2 },
-    scene: [BootScene, TitleScene, GameScene, UIScene, MenuScene, EndingScene],
+    scene: [BootScene, TitleScene, IntroScene, GameScene, UIScene, MenuScene, EndingScene],
   });
 
   Touch.attach(game);
@@ -69,6 +69,8 @@ Controls.onChange(renderKeyLegend);
         document.fonts.load('800 40px "Shippori Mincho B1"'),
         document.fonts.load('400 20px "Zen Kaku Gothic New"'),
         document.fonts.load('700 20px "Zen Kaku Gothic New"'),
+        // the kanji used on the icons, so their font subset is ready before the textures are drawn
+        document.fonts.load('800 25px "Shippori Mincho B1"', '瞬破握縛翼牙葬門解虚刃速魂集癒磁長恩月幻志雷憶針'),
       ])
     : Promise.resolve();
   let started = false;

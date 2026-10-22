@@ -367,6 +367,37 @@ function makeBackgrounds(scene, region) {
 }
 
 // ---------------------------------------------------------------------------
+// Menu and popup icons: a medallion (round for powers, a tablet for seals) with a kanji on it
+const ICON_GLYPH = {
+  dash: '瞬', hado: '破', grip: '握', bakudo: '縛', wings: '翼', getsuga: '牙', konso: '葬', burst: '門', bankai: '解', hollow: '虚',
+  edge: '刃', swift: '速', harvest: '魂', focus: '集', quick: '癒', magnet: '磁', long: '長', grace: '恩', moonfang: '月', phantom: '幻', will: '志',
+  raiko: '雷', recall: '憶', compass: '針',
+  unknown: '?',
+};
+function makeIcons(scene) {
+  Object.keys(ICON_GLYPH).forEach(id => {
+    const seal = !!SEALS[id], unknown = id === 'unknown';
+    const hex = seal ? 0xd9b35a : unknown ? 0x5c5868 : (PICKUP_COLORS[id] || 0xffffff);
+    const col = '#' + hex.toString(16).padStart(6, '0');
+    canvasTex(scene, 'icon_' + id, 48, 48, c => {
+      const g = c.createRadialGradient(24, 22, 3, 24, 24, 24);
+      g.addColorStop(0, '#2c2936'); g.addColorStop(1, '#0d0c13');
+      c.fillStyle = g; c.strokeStyle = col; c.lineWidth = 2.5;
+      c.beginPath();
+      if (seal) { c.moveTo(24, 2); c.lineTo(41, 9); c.lineTo(41, 33); c.lineTo(24, 46); c.lineTo(7, 33); c.lineTo(7, 9); c.closePath(); }
+      else c.arc(24, 24, 21, 0, Math.PI * 2);
+      c.fill(); c.stroke();
+      c.globalAlpha = 0.35; c.lineWidth = 1; c.beginPath();
+      if (seal) { c.moveTo(24, 6); c.lineTo(37, 11.5); c.lineTo(37, 31.5); c.lineTo(24, 41.5); c.lineTo(11, 31.5); c.lineTo(11, 11.5); c.closePath(); } else c.arc(24, 24, 17.5, 0, Math.PI * 2);
+      c.stroke(); c.globalAlpha = 1;
+      c.font = '800 25px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.shadowColor = col; c.shadowBlur = unknown ? 0 : 7;
+      c.fillStyle = unknown ? '#6d687a' : '#f2ede2';
+      c.fillText(ICON_GLYPH[id], 24, seal ? 24 : 25);
+    });
+  });
+}
+
 function makeAllTextures(scene) {
   makeCharacterArt(scene);
 
@@ -586,6 +617,32 @@ function makeAllTextures(scene) {
     c.fillStyle = '#e8fcff'; c.fillRect(5, 4, 2, 7);
   });
 
+  makeIcons(scene);
+
+  // A floor vent for the reishi geysers
+  canvasTex(scene, 'vent', 18, 5, c => {
+    c.fillStyle = '#17161f'; c.fillRect(0, 1, 18, 4);
+    c.fillStyle = '#3a3846'; c.fillRect(0, 0, 18, 1);
+    c.fillStyle = '#08070c'; for (let x = 2; x < 16; x += 3) c.fillRect(x, 2, 2, 2);
+  });
+  // A hanging stalactite, point down
+  canvasTex(scene, 'rock', 12, 20, c => {
+    c.fillStyle = '#8a8494'; c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.lineTo(8, 11); c.lineTo(6, 20); c.lineTo(4, 11); c.closePath(); c.fill();
+    c.fillStyle = '#5c5868'; c.beginPath(); c.moveTo(6, 0); c.lineTo(12, 0); c.lineTo(8, 11); c.lineTo(6, 20); c.closePath(); c.fill();
+    c.fillStyle = '#b8b2c4'; c.fillRect(2, 1, 2, 5);
+  });
+
+  // A soft vertical bar of light (Seireitei shafts): bright in the middle, fading at the sides and the bottom
+  canvasTex(scene, 'shaft', 48, 220, c => {
+    const h = c.createLinearGradient(0, 0, 48, 0);
+    h.addColorStop(0, 'rgba(255,255,255,0)'); h.addColorStop(0.5, 'rgba(255,255,255,1)'); h.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = h; c.fillRect(0, 0, 48, 220);
+    c.globalCompositeOperation = 'destination-in';
+    const v = c.createLinearGradient(0, 0, 0, 220);
+    v.addColorStop(0, 'rgba(0,0,0,1)'); v.addColorStop(0.55, 'rgba(0,0,0,0.6)'); v.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = v; c.fillRect(0, 0, 48, 220);
+    c.globalCompositeOperation = 'source-over';
+  });
   // A fan of five feathers hinged at the lower right (drawn left-facing; flipped for the right wing)
   canvasTex(scene, 'wing', 36, 26, c => {
     const hx = 34, hy = 20;
