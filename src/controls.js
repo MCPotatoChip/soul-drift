@@ -65,6 +65,9 @@ const Controls = {
       cb(code);
       return;
     }
+    // Browser shortcuts (Ctrl+S, Cmd+F, Alt+Tab...) are not game input: leave them alone, and
+    // never register them as held (macOS never sends the keyup for a key pressed with Cmd)
+    if ((e.ctrlKey || e.metaKey || e.altKey) && !/^(Control|Shift|Alt|Meta)/.test(code)) return;
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(code) || this.actionsFor(code).length) e.preventDefault();
     if (!e.repeat) this.pressed.add(code);
     this.held.add(code);
