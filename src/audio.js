@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 const Sfx = {
-  ctx: null, out: null, noiseBuf: null, enabled: true, last: {},
+  ctx: null, out: null, noiseBuf: null, enabled: Settings.get('sfx') > 0, last: {},
 
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
@@ -14,13 +14,18 @@ const Sfx = {
     try {
       this.ctx = new AC();
       this.out = this.ctx.createGain();
-      this.out.gain.value = 0.26;
+      this.out.gain.value = 0.26 * Settings.get('sfx');
       this.out.connect(this.ctx.destination);
       const len = this.ctx.sampleRate;
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     } catch (e) { this.ctx = null; }
+  },
+
+  applyVolume() {
+    this.enabled = Settings.get('sfx') > 0;
+    if (this.out) this.out.gain.value = 0.26 * Settings.get('sfx');
   },
 
   tone(freq, dur, o = {}) {
