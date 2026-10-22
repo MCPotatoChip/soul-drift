@@ -5,6 +5,10 @@
 // progress lives in GS so nothing resets between rooms.
 // ---------------------------------------------------------------------------
 
+// Held (continuous) actions and the input flag each one drives
+const HELD_ACTIONS_INPUT = { left: 'left', right: 'right', up: 'up', down: 'down', jump: 'jumpH', attack: 'attackH', heal: 'healH', konso: 'konsoH', burst: 'burstH' };
+const HELD_ACTIONS = Object.keys(HELD_ACTIONS_INPUT);
+
 class GameScene extends Phaser.Scene {
   constructor() { super('game'); }
   init(data) { this.entry = data || {}; }
@@ -27,6 +31,7 @@ class GameScene extends Phaser.Scene {
     this.interactables = []; this.pickups = []; this.platforms = []; this.shards = [];
     this.doors = []; this.lockCells = []; this.collapseCells = []; this.bankaiCells = [];
     this.hinted = {};
+    this.suppressed = new Set();
     this.swing = null;
     this.crackHits = {};
     this.trueSight = GS.has('konso');
@@ -259,6 +264,10 @@ class GameScene extends Phaser.Scene {
     i.bankaiP = C.inSet('bankai', P); i.maskP = C.inSet('mask', P);
     i.interactP = C.inSet('interact', P); i.upP = C.inSet('up', P);
     i.mapP = C.inSet('map', P); i.invP = C.inSet('inventory', P); i.pauseP = C.inSet('pause', P);
+    // Held keys that must be let go of before they count again (see hazardRespawn)
+    for (const a of this.suppressed) {
+      if (C.isDown(a)) i[HELD_ACTIONS_INPUT[a]] = false; else this.suppressed.delete(a);
+    }
   }
 
   // ------------------------------------------------------------------ loop
@@ -695,6 +704,9 @@ class GameScene extends Phaser.Scene {
   hazardRespawn() {
     const p = this.player;
     this.respawning = true;
+    // Whatever is held right now (usually a direction) stays dead until released, so
+    // holding toward the spikes cannot walk the player straight back into them
+    this.suppressed = new Set(HELD_ACTIONS.filter(a => Controls.isDown(a)));
     p.state = 'locked';
     p.body.setVelocity(0, 0);
     p.body.setAllowGravity(false);
@@ -980,12 +992,14 @@ class GameScene extends Phaser.Scene {
       d.shade = { room: this.roomId, x: s.x, y: s.y - 14, amount: d.reishi };
       d.reishi = 0;
     }
-    d.hp = d.maxHp;
     d.reiatsu = 0;
     GS.run = GS.freshRun();
     GS.save();
     this.transitioning = true;
     this.time.delayedCall(1300, () => {
+      // Health refills only now, so the HUD can show the last mask breaking
+      d.hp = d.maxHp;
+      GS.save();
       this.game.events.emit('toast', d.shade ? 'Your reishi lingers where you fell.' : 'You wake at the rest gate.');
       this.cameras.main.fadeOut(700, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ room: d.restRoom || 'kar_hub', spawn: 'rest' }));
