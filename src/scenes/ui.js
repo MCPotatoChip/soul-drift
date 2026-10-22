@@ -103,10 +103,8 @@ class UIScene extends Phaser.Scene {
 
     if (this.cache.hp !== d.hp || this.cache.maxHp !== d.maxHp) {
       if (this.cache.hp !== undefined && d.hp < this.cache.hp) {
-        for (let i = d.hp; i < this.cache.hp && i < this.masks.length; i++) {
-          const m = this.masks[i];
-          this.tweens.add({ targets: m, scale: { from: 1.5, to: 1 }, duration: 250 });
-        }
+        // i < maxHp: a mask that merely disappears with the max (unequipping a seal) does not break
+        for (let i = d.hp; i < this.cache.hp && i < d.maxHp && i < this.masks.length; i++) this.breakMask(this.masks[i], i - d.hp);
       }
       this.cache.hp = d.hp; this.cache.maxHp = d.maxHp;
       this.masks.forEach((m, i) => {
@@ -159,6 +157,27 @@ class UIScene extends Phaser.Scene {
       if (t.life <= 0) { t.text.destroy(); this.toasts.splice(i, 1); }
     }
     this.updateDialog(dt);
+  }
+
+  // A lost mask splits down the middle: the halves tumble away and fall while bone
+  // fragments scatter, and the empty outline pops into the slot they leave behind.
+  breakMask(slot, order = 0) {
+    const { x, y } = slot, w = slot.width, h = slot.height;
+    const delay = order * 90;
+    [-1, 1].forEach((dir) => {
+      const half = this.add.image(x, y, 'ui_mask').setDepth(11).setTintFill(0xffffff);
+      half.setCrop(dir < 0 ? 0 : w / 2, 0, w / 2, h);
+      this.time.delayedCall(delay + 70, () => half.clearTint());
+      this.tweens.add({ targets: half, x: x + dir * Phaser.Math.Between(12, 20), angle: dir * Phaser.Math.Between(24, 48), duration: 560, delay, ease: 'Quad.out' });
+      this.tweens.add({ targets: half, y: y + Phaser.Math.Between(52, 80), duration: 560, delay, ease: 'Quad.in' });
+      this.tweens.add({ targets: half, alpha: 0, duration: 260, delay: delay + 300, onComplete: () => half.destroy() });
+    });
+    for (let i = 0; i < 9; i++) {
+      const shard = this.add.image(x, y, 'px').setDepth(11).setTint(i % 3 ? 0xf4f1ea : 0xc8202c).setScale(Phaser.Math.Between(1, 3)).setAlpha(0);
+      const a = Phaser.Math.FloatBetween(-Math.PI, 0);
+      this.tweens.add({ targets: shard, alpha: { from: 1, to: 0 }, x: x + Math.cos(a) * Phaser.Math.Between(14, 34), y: { value: y + Math.sin(a) * 22 + Phaser.Math.Between(30, 60), ease: 'Quad.in' }, angle: Phaser.Math.Between(-180, 180), duration: Phaser.Math.Between(380, 620), delay, onComplete: () => shard.destroy() });
+    }
+    this.tweens.add({ targets: slot, scale: { from: 1.35, to: 1 }, duration: 260, delay, ease: 'Back.out' });
   }
 
   drawVessel(rei, bank) {
