@@ -78,13 +78,14 @@ class MenuScene extends Phaser.Scene {
       case 'pause': {
         this.title('Paused', ROOMS[d.room].name);
         this.items = [{ label: 'Resume', act: () => this.close() }, { label: 'Controls', act: () => this.go('controls') }, { label: 'Map', act: () => this.go('map') },
-          { label: 'Inventory', act: () => this.go('inventory') }, { label: Sfx.enabled ? 'Sound: on' : 'Sound: off', act: () => { Sfx.enabled = !Sfx.enabled; this.render(); } },
+          { label: 'Inventory', act: () => this.go('inventory') }, { label: 'Settings', act: () => this.go('settings') },
           { label: 'Quit to title', act: () => this.quit() }];
         this.list(this.items, GAME_W / 2 - 190, 210);
         this.footer('Progress saves at rest gates and when you collect things. Quitting returns you to your last rest gate.');
         break;
       }
       case 'controls': { this.renderControls(); break; }
+      case 'settings': { this.renderSettings(); break; }
       case 'rest': {
         this.title('Senkaimon Rest Gate', 'Progress saved · health restored');
         const gates = Object.keys(d.gates).length;
@@ -148,6 +149,21 @@ class MenuScene extends Phaser.Scene {
       case 'map': this.renderMap(); break;
       case 'inventory': this.renderInventory(); break;
     }
+  }
+
+  renderSettings() {
+    this.title('Settings', 'Left and right change a value. Changes save right away.');
+    this.items = Settings.schema.map(row => ({ row, label: row[1], right: Settings.label(row), rightColor: GOLD, act: () => this.adjustSetting(row, 1, true) }));
+    this.items.push({ label: 'Back', act: () => this.back() });
+    this.list(this.items, GAME_W / 2 - 300, 200, 52, 600);
+    this.footer(Controls.fmt('{left} {right} change · {jump} next value · {attack} back'));
+  }
+  adjustSetting(row, dir, wrap = false) {
+    // Confirm and taps wrap a slider round to 0 instead of sticking at full
+    if (wrap && row[2] === 'slider' && dir > 0 && Settings.get(row[0]) >= 1) Settings.set(row[0], 0);
+    else Settings.adjust(row, dir);
+    Sfx.play('select');
+    this.render();
   }
 
   // Two columns of actions; confirm rebinds the main key, Backspace removes an alternate key
@@ -320,7 +336,7 @@ class MenuScene extends Phaser.Scene {
   // ------------------------------------------------------------------ actions
   go(view) { this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); }
   back() {
-    const parent = { seals: 'rest', travel: 'rest', controls: 'pause' }[this.view];
+    const parent = { seals: 'rest', travel: 'rest', controls: 'pause', settings: 'pause' }[this.view];
     if (parent && this.type !== this.view) { this.view = parent; this.sel = 0; this.msg = ''; Sfx.play('select'); this.render(); }
     else if ((this.view === 'map' || this.view === 'inventory') && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); }
     else this.close();
@@ -372,6 +388,10 @@ class MenuScene extends Phaser.Scene {
       }
       if (code === 'Enter' || code === 'Space' || code === 'KeyZ') { const it = this.items[this.sel]; if (it) it.act(); return; }
       if (code === 'Escape') { this.back(); return; }
+    }
+    if (this.view === 'settings') {
+      const it = this.items[this.sel], L = code === 'ArrowLeft' || Controls.is(code, 'left'), R = code === 'ArrowRight' || Controls.is(code, 'right');
+      if (it && it.row && (L || R)) { this.adjustSetting(it.row, L ? -1 : 1); return; }
     }
     if (Controls.isUp(code)) { if (n) { this.sel = (this.sel + n - 1) % n; this.msg = ''; Sfx.play('select'); this.render(); } return; }
     if (Controls.isDownKey(code)) { if (n) { this.sel = (this.sel + 1) % n; this.msg = ''; Sfx.play('select'); this.render(); } return; }

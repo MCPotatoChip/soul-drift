@@ -22,6 +22,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.drop = cfg.drop ?? 2;
     this.kbRes = cfg.kb ?? 1;
     this.kind = cfg.kind;
+    this.uid = scene.nextUid || null; scene.nextUid = null;
     this.alive = true;
     this.boundT = 0; this.flashT = 0; this.stunT = 0;
     this.facing = -1;
@@ -60,6 +61,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (!this.body.allowGravity) this.body.setVelocityY(0);
       if (this.boundT <= 0) this.refreshTint();
       this.afterTick && this.afterTick(dt);
+      this.hurtPose(dt);
       return;
     }
     if (this.stunT > 0) {
@@ -69,6 +71,15 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     } else this.think(dt);
     this.setFlipX(this.facing < 0);
     this.afterTick && this.afterTick(dt);
+    this.hurtPose(dt);
+  }
+  // The clip every humanoid sheet already has: held briefly after a hit so enemies visibly flinch
+  hurtPose(dt) {
+    if (this.hurtT > 0 && this.alive) {
+      this.hurtT -= dt;
+      if (this.canHurt === undefined) this.canHurt = this.scene.anims.exists(this.sheet + ':hurt');
+      if (this.canHurt) this.anim('hurt');
+    }
   }
   think() {}
   refreshTint() {
@@ -84,6 +95,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.blocks && this.blocks(dirX, o)) return 'block';
     this.hp -= dmg;
     this.flashT = 0.08;
+    if (!this.isBoss) this.hurtT = 0.16;
+    this.scene.fx.damageNumber(this.x, this.y - this.displayHeight / 2 - 2, dmg);
     this.setTintFill(0xffffff);
     if (this.hp <= 0) { this.die(dirX); return 'hit'; }
     if (!this.isBoss && o.knock !== false) {
@@ -107,8 +120,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.body.enable = false;
     const s = this.scene;
     s.spawnShards(this.x, this.y, this.drop);
-    s.fx.burst(this.x, this.y, this.cfg.burst ?? 0xf4f1ea, 14);
-    s.fx.motes(this.x, this.y, 0xbfe6ff, 18);
+    s.fx.kill(this, dirX || 0);
     Sfx.play('hit');
     this.onDie && this.onDie();
     this.anims.pause();

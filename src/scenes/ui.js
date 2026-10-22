@@ -67,6 +67,7 @@ class UIScene extends Phaser.Scene {
       dialog: (d) => this.openDialog(d),
       popup: (p) => this.openPopup(p),
       float: (f) => this.addFloat(f),
+      dmgnum: (f) => this.addDamageNumber(f),
       prompt: (p) => this.setPrompt(p),
       flash: (f) => this.doFlash(f),
       banner: (b) => this.showBanner(b),
@@ -228,6 +229,13 @@ class UIScene extends Phaser.Scene {
     }).setOrigin(0.5, 1).setDepth(35).setAlpha(0);
     this.tweens.add({ targets: t, alpha: 1, y: s.y - 16, duration: 300 });
     this.tweens.add({ targets: t, alpha: 0, y: s.y - 46, delay: 2600, duration: 700, onComplete: () => t.destroy() });
+  }
+  addDamageNumber(f) {
+    const s = this.toScreen(f.x, f.y);
+    const t = this.add.text(s.x + Phaser.Math.Between(-8, 8), s.y, f.text, { fontFamily: FONT_BODY, fontSize: '22px', fontStyle: '700', color: f.color || '#ffffff', stroke: '#07070b', strokeThickness: 4 })
+      .setOrigin(0.5, 1).setDepth(34);
+    this.tweens.add({ targets: t, y: s.y - 38, duration: 650, ease: 'Cubic.out' });
+    this.tweens.add({ targets: t, alpha: 0, delay: 350, duration: 300, onComplete: () => t.destroy() });
   }
   setPrompt(p) {
     if (!p) { this.promptTarget = null; this.prompt.setVisible(false); return; }

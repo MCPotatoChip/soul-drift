@@ -586,5 +586,17 @@ function makeAllTextures(scene) {
     c.fillStyle = '#e8fcff'; c.fillRect(5, 4, 2, 7);
   });
 
+  // A fan of five feathers hinged at the lower right (drawn left-facing; flipped for the right wing)
+  canvasTex(scene, 'wing', 36, 26, c => {
+    const hx = 34, hy = 20;
+    for (let i = 4; i >= 0; i--) {
+      const a = Math.PI + 0.12 + i * 0.27, len = 31 - i * 2.2;
+      c.save(); c.translate(hx, hy); c.rotate(a);
+      c.fillStyle = `rgba(255,255,255,${(0.95 - i * 0.12).toFixed(2)})`;
+      c.beginPath(); c.ellipse(len / 2, 0, len / 2, 2.6, 0, 0, Math.PI * 2); c.fill();
+      c.restore();
+    }
+  });
+
   Object.keys(TILE_PAL).forEach(r => { makeTileset(scene, r); makeBackgrounds(scene, r); });
 }

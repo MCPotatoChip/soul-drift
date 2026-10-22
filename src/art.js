@@ -92,6 +92,18 @@ class Pen {
       }
     }
   }
+  // Rotate everything in the frame about (cx, cy); deg > 0 turns clockwise on screen.
+  // Nearest-neighbour from the destination side, so no holes open up in the sprite.
+  rotate(deg, cx, cy) {
+    const th = deg * Math.PI / 180, c = Math.cos(th), sn = Math.sin(th), fw = this.fw, fh = this.fh, W = this.w, d = this.data;
+    const src = new Uint32Array(fw * fh);
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) src[y * fw + x] = d[(this.oy + y) * W + this.ox + x];
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+      const sx = Math.floor(cx + dx * c + dy * sn), sy = Math.floor(cy - dx * sn + dy * c);
+      d[(this.oy + y) * W + this.ox + x] = (sx >= 0 && sy >= 0 && sx < fw && sy < fh) ? src[sy * fw + sx] : 0;
+    }
+  }
   // Scale the alpha of everything in the frame (ghosts)
   fade(a) {
     const W = this.w, d = this.data;
@@ -514,12 +526,14 @@ function drawHumanoid(pen, st, P) {
   drawHead(pen, st, sx, sy, P);
   if (wpn.mode === 'hand') drawWeapon(pen, st.weapon, fh, wpn.angle, sway);
   drawArm(pen, st, { x: sx + 2, y: sy + 1 }, fh, false);
+  // Falling over / getting up: tip the whole figure about a point just above the feet
+  if (P.rot) pen.rotate(P.rot, hx, G - 3);
 }
 
 // ---------------------------------------------------------------------------
 // Poses
 // ---------------------------------------------------------------------------
-const BASE_POSE = { bob: 0, lean: 0, crouch: 0, ff: [1, 0], bf: [-2, 0], fh: [2, 8], bh: [-3, 8], weapon: null, sway: 0, tilt: 0, coatSway: 0 };
+const BASE_POSE = { bob: 0, lean: 0, crouch: 0, ff: [1, 0], bf: [-2, 0], fh: [2, 8], bh: [-3, 8], weapon: null, sway: 0, tilt: 0, coatSway: 0, rot: 0 };
 const W = (angle) => ({ mode: 'hand', angle });
 
 function lerpPose(a, b, t) {
@@ -625,6 +639,38 @@ function humanoidAnimsBase(st) {
     float: [[{ ff: [2, 3], bf: [-3, 2], fh: [5, 4], bh: [-5, 5] }, { bob: 1, ff: [2, 4], bf: [-3, 3], fh: [5, 5], bh: [-5, 6], sway: 0.5 }, { bob: 1, ff: [2, 4], bf: [-3, 3], fh: [5, 5], bh: [-5, 6], sway: 1 }, { ff: [2, 3], bf: [-3, 2], fh: [5, 4], bh: [-5, 5], sway: 0.5 }], 5, -1],
     dive: [[{ lean: 1, ff: [1, 0], bf: [-1, 1], fh: [3, 10], bh: [0, 10], sway: 2 }], 1, 0],
     rush: [[{ lean: 5, crouch: 2, ff: [6, 1], bf: [-7, 1], fh: [11, 3], bh: [8, 5], sway: -2 }], 1, 0],
+    // Knocked backwards and down (death)
+    death: [[
+      { lean: -3, crouch: 1, rot: -10, ff: [2, 0], bf: [-3, 0], fh: [-4, -2], bh: [-6, 0], sway: 2, coatSway: 2 },
+      { lean: -4, crouch: 2, rot: -38, ff: [3, 2], bf: [-2, 4], fh: [-5, -4], bh: [-7, -2], sway: 3, coatSway: 3 },
+      { lean: -3, crouch: 2, rot: -68, ff: [3, 3], bf: [-3, 5], fh: [-7, -3], bh: [-8, -1], sway: 3, coatSway: 3 },
+      { lean: -2, crouch: 1, rot: -88, ff: [2, 1], bf: [-3, 2], fh: [-8, -2], bh: [-9, 1], sway: 3, coatSway: 2 },
+    ], 9, 0],
+    // Waking at a rest gate: up off the ground, onto a knee, then standing
+    rise: [[
+      { lean: -2, crouch: 1, rot: -88, ff: [2, 1], bf: [-3, 2], fh: [-8, -2], bh: [-9, 1], sway: 3, coatSway: 2 },
+      { lean: -3, crouch: 2, rot: -60, ff: [3, 3], bf: [-3, 5], fh: [-6, -2], bh: [-8, 0], sway: 2 },
+      { lean: 0, crouch: 3, rot: -22, ff: [3, 1], bf: [-4, 0], fh: [5, 6], bh: [-1, 6], sway: 1 },
+      { lean: 2, crouch: 3, ff: [4, 0], bf: [-4, 0], fh: [4, 5], bh: [2, 6], sway: 1 },
+      { lean: 1, crouch: 1, ff: [3, 0], bf: [-3, 0], fh: [3, 7], bh: [-2, 7], sway: 0 },
+    ], 7, 0],
+    // Blade thrust skyward: a new power, a victory
+    raise: [[
+      { lean: -1, ff: [3, 0], bf: [-3, 0], fh: [3, -9], bh: [-3, 6], weapon: W(-92), sway: 1, coatSway: -1 },
+      { lean: -1, bob: 1, ff: [3, 0], bf: [-3, 0], fh: [3, -10], bh: [-3, 6], weapon: W(-96), sway: -1, coatSway: 1 },
+    ], 4, -1],
+    // Kneeling at a rest gate, hands together
+    pray: [[
+      { crouch: 2, lean: 1, ff: [3, 0], bf: [-3, 0], fh: [3, 4], bh: [2, 4], sway: 0 },
+      { crouch: 2, lean: 1, bob: 1, ff: [3, 0], bf: [-3, 0], fh: [3, 5], bh: [2, 5], sway: 0.5 },
+    ], 2, -1],
+    // An idle glance upward, now and then
+    look: [[
+      { tilt: -1, fh: [2, 8], bh: [-3, 8], sway: 0.5 },
+      { tilt: -2, bob: 0, fh: [2, 8], bh: [-3, 8], sway: 1 },
+      { tilt: -2, bob: 1, fh: [2, 8], bh: [-3, 9], sway: 1 },
+      { tilt: -1, fh: [2, 8], bh: [-3, 8], sway: 0.5 },
+    ], 4, 0],
   };
 }
 

@@ -64,6 +64,7 @@ class TitleScene extends Phaser.Scene {
     if (this.hasSave) this.items.push({ label: 'Continue', act: () => this.cont() });
     this.items.push({ label: 'New game', act: () => this.newGame() });
     this.items.push({ label: 'Controls', act: () => this.toggleControls() });
+    this.items.push({ label: 'Settings', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'settings' }); } });
     this.sel = 0;
     this.confirming = false;
     this.selBrush = this.add.image(128, 0, 'brush').setOrigin(0, 0.5).setScale(0.78, 0.62).setAlpha(0.9);
@@ -211,7 +212,7 @@ class EndingScene extends Phaser.Scene {
     this.tweens.add({ targets: stats, alpha: 1, delay: 7000, duration: 1200 });
     const foot = this.add.text(GAME_W / 2, 620, (Touch.enabled ? 'Thank you for playing. Tap to return to the title.' : Controls.fmt('Thank you for playing. Press {jump} to return to the title.')), { fontFamily: FONT_BODY, fontSize: '17px', color: '#8a8497' }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: foot, alpha: 1, delay: 8000, duration: 1000 });
-    this.time.delayedCall(8000, () => {
+    this.time.delayedCall(3000, () => {
       const off = Controls.on((code) => { if (Controls.isConfirm(code)) { off(); this.scene.start('title'); } });
       this.events.once('shutdown', off);
       this.input.once('pointerdown', () => { off(); this.scene.start('title'); });
