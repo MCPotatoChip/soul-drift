@@ -96,8 +96,8 @@ class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------------ build
   buildBackground() {
     const r = this.region;
-    this.bgFactors = [0.02, 0.12, 0.3];
-    this.bgLayers = [0, 1, 2].map(i => this.add.tileSprite(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, `bg_${r}_${i}`)
+    this.bgFactors = BG_FACTORS;
+    this.bgLayers = BG_FACTORS.map((_, i) => this.add.tileSprite(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, `bg_${r}_${i}`)
       .setOrigin(0).setScrollFactor(0).setDepth(-10 + i));
   }
 
@@ -379,9 +379,14 @@ class GameScene extends Phaser.Scene {
     this.anims.globalTimeScale = k;
   }
 
+  // Layers slide with the camera at their own pace; in tall rooms the nearer ones rise and sink a little too
   updateBackground() {
-    const sx = this.cameras.main.scrollX;
-    this.bgLayers.forEach((l, i) => { l.tilePositionX = sx * this.bgFactors[i]; });
+    const cam = this.cameras.main, sx = cam.scrollX;
+    const ky = this.pxH > VIEW_H + 32 ? (cam.scrollY - (this.pxH - VIEW_H) / 2) : 0;
+    this.bgLayers.forEach((l, i) => {
+      l.tilePositionX = sx * this.bgFactors[i];
+      l.y = VIEW_H / 2 - Phaser.Math.Clamp(ky * this.bgFactors[i] * 0.35, -40, 0) * (i > 1 ? 1 : 0);
+    });
   }
 
   // A dark wash of a region's colour, used for the fade between rooms

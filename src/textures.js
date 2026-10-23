@@ -38,7 +38,7 @@ const TILE_PAL = {
   sei: { base: '#b3ae9f', mid: '#c6c1b3', dark: '#8f8a7e', top: '#3f6468', line: '#9d988b', spike: '#4a4640', plank: '#8a3a34', plankHi: '#b65a4e' },
   sok: { base: '#4b3434', mid: '#5a3e3e', dark: '#2f2020', top: '#a0705c', line: '#3a2626', spike: '#eadad2', plank: '#6a4a3a', plankHi: '#94705a' },
   hm:  { base: '#aaa6b8', mid: '#bdb9cb', dark: '#858196', top: '#f4f2f8', line: '#97939f', spike: '#24212c', plank: '#6e6a84', plankHi: '#a4a0bc' },
-  end: { base: '#1e2636', mid: '#273044', dark: '#141a26', top: '#8fb4d8', line: '#334058', spike: '#c8e8ff', plank: '#3a4a66', plankHi: '#6a86ac' },
+  end: { base: '#4e6a8c', mid: '#6a88aa', dark: '#34486a', top: '#dceaf8', line: '#2a3c58', spike: '#e8f4ff', plank: '#8aa6c8', plankHi: '#ffffff' },
   dan: { base: '#281f3c', mid: '#32284c', dark: '#18122a', top: '#b49ae8', line: '#3e3260', spike: '#e6d8ff', plank: '#5a4a8a', plankHi: '#9a84d8' },
   for: { base: '#1d1a25', mid: '#25202f', dark: '#110f18', top: '#52705f', line: '#2b2537', spike: '#ece8f4', plank: '#cfcbe0', plankHi: '#ffffff' },
 };
@@ -65,9 +65,10 @@ function makeTileset(scene, region) {
         c.fillStyle = p.mid; c.fillRect(ox + 4, 0, 1, 16);
       } else if (region === 'for') {
         c.fillStyle = p.line; for (let i = 0; i < 3; i++) c.fillRect(ox + Math.floor(rnd() * 12), Math.floor(rnd() * 12), 4, 1);
-      } else if (region === 'end') {
-        c.fillStyle = p.mid; c.fillRect(ox + 1, 1, 14, 14);
-        c.fillStyle = p.line; c.fillRect(ox + 2, 2, 1, 1); c.fillRect(ox + 13, 2, 1, 1); c.fillRect(ox + 2, 13, 1, 1); c.fillRect(ox + 13, 13, 1, 1);
+      } else if (region === 'end') {   // the glass and steel face of a fallen skyscraper
+        c.fillStyle = p.line; c.fillRect(ox, 0, 16, 16);
+        c.fillStyle = p.mid; c.fillRect(ox + 1, 1, 6, 6); c.fillRect(ox + 9, 1, 6, 6); c.fillRect(ox + 1, 9, 6, 6); c.fillRect(ox + 9, 9, 6, 6);
+        c.fillStyle = 'rgba(220,236,252,0.45)'; c.fillRect(ox + 1, 1, 2, 2); c.fillRect(ox + 9, 1, 2, 2); c.fillRect(ox + 1, 9, 2, 2); c.fillRect(ox + 9, 9, 2, 2);
       }
       for (let i = 0; i < 9; i++) {
         c.fillStyle = rnd() < 0.5 ? p.dark : p.mid;
@@ -133,149 +134,299 @@ function makeTileset(scene, region) {
 }
 
 // ---------------------------------------------------------------------------
-// Backgrounds: three 640x360 layers per region (sky, far, near), tiling in x
+// Backgrounds: four 640x360 layers per region (sky, far, mid, near), tiling in
+// x. Far layers are low in contrast and lean toward the sky's colour, so the
+// eye reads distance; the near layer only fills the bottom of the frame.
 // ---------------------------------------------------------------------------
+const BG_FACTORS = [0.02, 0.08, 0.2, 0.42];
+
 function makeBackgrounds(scene, region) {
   const W = VIEW_W, H = VIEW_H;
-  const grad = (c, stops) => {
-    const g = c.createLinearGradient(0, 0, 0, H);
+  const k = (n) => 'bg_' + region + '_' + n;
+  const grad = (c, stops, x0 = 0, y0 = 0, x1 = 0, y1 = H) => {
+    const g = c.createLinearGradient(x0, y0, x1, y1);
     stops.forEach(([o, col]) => g.addColorStop(o, col));
-    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    return g;
   };
-  const stars = (c, n, seed, alpha = 0.8) => {
+  const sky = (c, stops) => { c.fillStyle = grad(c, stops); c.fillRect(0, 0, W, H); };
+  const stars = (c, n, seed, alpha = 0.8, maxY = 0.7) => {
     const r = seeded(seed);
     for (let i = 0; i < n; i++) {
-      c.fillStyle = `rgba(255,255,255,${(0.2 + r() * alpha).toFixed(2)})`;
-      c.fillRect(Math.floor(r() * W), Math.floor(r() * H * 0.7), 1, 1);
+      const a = 0.2 + r() * alpha, x = Math.floor(r() * W), y = Math.floor(r() * H * maxY);
+      c.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`;
+      c.fillRect(x, y, 1, 1);
+      if (a > 0.85) { c.fillStyle = `rgba(255,255,255,${(a * 0.3).toFixed(2)})`; c.fillRect(x - 1, y, 3, 1); c.fillRect(x, y - 1, 1, 3); }
     }
   };
-  const wrap = (fn) => { fn(0); fn(-W); fn(W); };
-  const k = (n) => 'bg_' + region + '_' + n;
+  const glowDisc = (c, x, y, r, inner, outer) => {
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, inner); g.addColorStop(1, outer);
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  };
+  // long soft cloud bands, drawn at every horizontal offset so they tile
+  const clouds = (c, n, seed, col, yMin, yMax, wMin, wMax, hMax = 5) => {
+    const r = seeded(seed);
+    for (let i = 0; i < n; i++) {
+      const y = yMin + r() * (yMax - yMin), w = wMin + r() * (wMax - wMin), x = r() * W, h = 2 + r() * hMax;
+      c.fillStyle = col;
+      [-W, 0, W].forEach(o => { c.beginPath(); c.ellipse(x + o, y, w / 2, h, 0, 0, Math.PI * 2); c.fill(); c.beginPath(); c.ellipse(x + o + w * 0.18, y - h * 0.6, w * 0.28, h * 0.8, 0, 0, Math.PI * 2); c.fill(); });
+    }
+  };
+  // a ridge line made of sine waves, filled to the bottom
+  const ridge = (c, col, base, amps, seed = 0) => {
+    c.fillStyle = col;
+    c.beginPath(); c.moveTo(0, H);
+    for (let x = 0; x <= W; x += 4) {
+      let y = base;
+      amps.forEach(([a, f], i) => { y += Math.sin((x / W) * Math.PI * 2 * f + seed + i * 1.7) * a; });
+      c.lineTo(x, y);
+    }
+    c.lineTo(W, H); c.closePath(); c.fill();
+  };
+  // a piece drawn at x, -W and +W so anything crossing the seam lines up
+  const tile = (fn) => [-W, 0, W].forEach(o => fn(o));
 
   if (region === 'kar') {
     canvasTex(scene, k(0), W, H, c => {
-      grad(c, [[0, '#121330'], [0.55, '#3c2c5e'], [0.85, '#9a5574'], [1, '#c8786e']]);
-      stars(c, 90, 3);
-      c.fillStyle = '#f3e9d2'; c.beginPath(); c.arc(470, 70, 22, 0, Math.PI * 2); c.fill();
-      c.fillStyle = 'rgba(243,233,210,0.08)'; c.beginPath(); c.arc(470, 70, 40, 0, Math.PI * 2); c.fill();
+      sky(c, [[0, '#090a1e'], [0.45, '#1e1a44'], [0.75, '#4e2e5e'], [0.92, '#8e4e68'], [1, '#b8686a']]);
+      stars(c, 130, 3, 0.75, 0.62);
+      glowDisc(c, 470, 74, 90, 'rgba(243,233,210,0.18)', 'rgba(243,233,210,0)');
+      c.fillStyle = '#f3e9d2'; c.beginPath(); c.arc(470, 74, 24, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(200,190,170,0.4)';
+      [[462, 66, 5], [478, 82, 4], [482, 64, 2.5]].forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); });
+      clouds(c, 7, 17, 'rgba(26,20,50,0.55)', 40, 150, 140, 300, 4);
+      clouds(c, 4, 19, 'rgba(150,90,130,0.18)', 200, 260, 200, 360, 3);
     });
     canvasTex(scene, k(1), W, H, c => {
+      // the far city: tall, flat, and blue with distance
       const r = seeded(11);
       let x = 0;
       while (x < W) {
-        const w = 26 + Math.floor(r() * 40), h = 90 + Math.floor(r() * 140);
-        const bx = x;
-        wrap(o => {
-          c.fillStyle = '#25223f'; c.fillRect(bx + o, H - h, w, h);
+        const w = 18 + Math.floor(r() * 30), h = 80 + Math.floor(r() * 120), bx = x;
+        tile(o => {
+          c.fillStyle = grad(c, [[0, '#2a2650'], [1, '#1c1a3a']], 0, H - h, 0, H); c.fillRect(bx + o, H - h, w, h);
+          c.fillStyle = 'rgba(120,110,170,0.25)'; c.fillRect(bx + o, H - h, 1, h);
         });
         const r2 = seeded(bx * 7 + 1);
-        for (let wy = H - h + 8; wy < H - 10; wy += 9) for (let wx = bx + 4; wx < bx + w - 4; wx += 7) {
-          if (r2() < 0.28) { c.fillStyle = r2() < 0.8 ? 'rgba(255,207,107,0.55)' : 'rgba(150,200,255,0.5)'; c.fillRect(wx, wy, 3, 4); }
+        for (let wy = H - h + 6; wy < H - 8; wy += 7) for (let wx = bx + 3; wx < bx + w - 3; wx += 5) {
+          if (r2() < 0.18) { c.fillStyle = r2() < 0.85 ? 'rgba(255,214,140,0.32)' : 'rgba(170,210,255,0.3)'; c.fillRect(wx, wy, 2, 3); }
         }
-        x += w + 4 + Math.floor(r() * 10);
+        x += w + 2 + Math.floor(r() * 8);
       }
+      // the Karakura TV tower, with its red light
+      c.fillStyle = '#221f42'; c.fillRect(300, 70, 4, H - 70); c.fillRect(294, 110, 16, 6); c.fillRect(297, 150, 10, 4);
+      c.beginPath(); c.moveTo(286, H); c.lineTo(302, 120); c.lineTo(318, H); c.closePath(); c.fill();
+      c.fillStyle = '#ff4050'; c.fillRect(301, 66, 2, 2);
+      glowDisc(c, 302, 67, 8, 'rgba(255,64,80,0.5)', 'rgba(255,64,80,0)');
     });
     canvasTex(scene, k(2), W, H, c => {
-      c.fillStyle = '#121226';
-      for (let px = 40; px < W; px += 200) {
-        c.fillRect(px, 150, 4, H - 150); c.fillRect(px - 12, 160, 28, 3);
+      // houses with tiled roofs, a few lit windows, poles and the wires between them
+      const r = seeded(23);
+      let x = 0;
+      while (x < W) {
+        const w = 56 + Math.floor(r() * 50), wall = 34 + Math.floor(r() * 30), roof = 18 + Math.floor(r() * 8), bx = x, top = H - wall;
+        tile(o => {
+          c.fillStyle = '#1a1830'; c.fillRect(bx + o, top, w, wall);
+          c.fillStyle = '#24223e';
+          c.beginPath(); c.moveTo(bx + o - 6, top + 2); c.lineTo(bx + o + w * 0.5, top - roof); c.lineTo(bx + o + w + 6, top + 2); c.closePath(); c.fill();
+          c.fillStyle = '#3a3862'; c.fillRect(bx + o - 6, top + 1, w + 12, 2);
+          c.strokeStyle = 'rgba(70,68,110,0.6)'; c.lineWidth = 1;
+          for (let i = 1; i < 5; i++) { c.beginPath(); c.moveTo(bx + o + w * 0.5, top - roof + 2); c.lineTo(bx + o - 6 + (w + 12) * i / 5, top + 1); c.stroke(); }
+          const r3 = seeded(bx * 13 + 5);
+          for (let i = 0; i < 3; i++) if (r3() < 0.6) {
+            const wx = bx + o + 6 + r3() * (w - 18), wy = top + 8 + r3() * (wall - 20);
+            c.fillStyle = 'rgba(255,200,120,0.75)'; c.fillRect(wx, wy, 8, 7);
+            c.fillStyle = 'rgba(40,30,50,0.6)'; c.fillRect(wx + 3, wy, 1, 7);
+            glowDisc(c, wx + 4, wy + 3, 14, 'rgba(255,190,110,0.16)', 'rgba(255,190,110,0)');
+          }
+        });
+        x += w + 18 + Math.floor(r() * 30);
       }
-      c.strokeStyle = 'rgba(18,18,38,0.9)'; c.lineWidth = 1;
-      for (let i = 0; i < 2; i++) {
+      c.fillStyle = '#121128';
+      for (let px = 70; px < W; px += 210) { c.fillRect(px, 120, 4, H - 120); c.fillRect(px - 12, 130, 28, 3); c.fillRect(px - 8, 140, 20, 2); }
+      c.strokeStyle = 'rgba(18,17,40,0.95)'; c.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
         c.beginPath();
-        for (let px = 40 - 200; px < W + 200; px += 200) { c.moveTo(px - 10, 162 + i * 3); c.quadraticCurveTo(px + 90, 190 + i * 3, px + 190, 162 + i * 3); }
+        for (let px = 70 - 210; px < W + 210; px += 210) { c.moveTo(px - 10, 132 + i * 4); c.quadraticCurveTo(px + 95, 160 + i * 4, px + 198, 132 + i * 4); }
         c.stroke();
       }
-      const r = seeded(5);
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      // block walls and hedges along the street, and a street lamp's pool of light
+      const r = seeded(31);
+      c.fillStyle = '#0b0a17';
       let x = 0;
-      while (x < W) { const w = 50 + r() * 60, h = 40 + r() * 50; c.fillRect(x, H - h, w, h); x += w + 20 + r() * 30; }
+      while (x < W) { const w = 40 + r() * 70, h = 18 + r() * 22; c.fillRect(x, H - h, w, h); x += w + r() * 10; }
+      for (let i = 0; i < 9; i++) { const hx = r() * W, hr = 10 + r() * 14; tile(o => { c.beginPath(); c.arc(hx + o, H - 26, hr, 0, Math.PI * 2); c.fill(); }); }
+      [120, 470].forEach(lx => {
+        glowDisc(c, lx + 6, H - 76, 70, 'rgba(255,230,180,0.16)', 'rgba(255,230,180,0)');
+        c.fillStyle = '#0b0a17'; c.fillRect(lx, H - 80, 3, 80); c.fillRect(lx, H - 80, 12, 3);
+        c.fillStyle = '#ffeec0'; c.fillRect(lx + 8, H - 77, 5, 2);
+      });
     });
   } else if (region === 'ruk') {
     canvasTex(scene, k(0), W, H, c => {
-      grad(c, [[0, '#3a2a3e'], [0.5, '#a65a44'], [0.85, '#e5a868'], [1, '#f0c890']]);
-      c.fillStyle = 'rgba(255,220,160,0.55)'; c.beginPath(); c.arc(180, 210, 46, 0, Math.PI * 2); c.fill();
+      sky(c, [[0, '#24183a'], [0.4, '#6a3448'], [0.7, '#c86848'], [0.88, '#eca460'], [1, '#f6d090']]);
+      glowDisc(c, 180, 236, 120, 'rgba(255,220,150,0.45)', 'rgba(255,200,130,0)');
+      c.fillStyle = 'rgba(255,232,180,0.95)'; c.beginPath(); c.arc(180, 236, 34, 0, Math.PI * 2); c.fill();
+      clouds(c, 8, 41, 'rgba(120,50,70,0.35)', 60, 190, 160, 320, 4);
+      clouds(c, 6, 43, 'rgba(255,180,120,0.25)', 150, 230, 100, 240, 3);
     });
     canvasTex(scene, k(1), W, H, c => {
-      c.fillStyle = '#6a4636';
-      c.beginPath(); c.moveTo(0, H);
-      for (let x = 0; x <= W; x += 8) c.lineTo(x, 250 + Math.sin(x / W * Math.PI * 4) * 22 + Math.sin(x / W * Math.PI * 10) * 6);
-      c.lineTo(W, H); c.closePath(); c.fill();
+      // on the horizon, the white walls of the Seireitei and the spire on Sokyoku Hill
+      ridge(c, 'rgba(150,96,90,0.55)', 268, [[8, 2], [4, 7]]);
+      c.fillStyle = 'rgba(236,214,200,0.55)';
+      c.fillRect(0, 238, W, 22);
+      c.fillStyle = 'rgba(190,150,140,0.55)'; c.fillRect(0, 236, W, 3);
+      const r = seeded(47);
+      for (let i = 0; i < 8; i++) {
+        const tx = 20 + i * 80 + r() * 30, th = 30 + r() * 40;
+        c.fillStyle = 'rgba(236,214,200,0.6)'; c.fillRect(tx, 238 - th, 12, th);
+        c.fillStyle = 'rgba(110,80,90,0.6)';
+        c.beginPath(); c.moveTo(tx - 5, 238 - th + 4); c.lineTo(tx + 6, 238 - th - 6); c.lineTo(tx + 17, 238 - th + 4); c.closePath(); c.fill();
+      }
+      c.fillStyle = 'rgba(120,70,80,0.55)';
+      c.beginPath(); c.moveTo(430, 240); c.lineTo(470, 170); c.lineTo(510, 240); c.closePath(); c.fill();
+      c.fillRect(468, 120, 4, 52);
     });
     canvasTex(scene, k(2), W, H, c => {
-      const r = seeded(21);
+      ridge(c, '#5a3a2e', 262, [[16, 2], [6, 5]], 1);
+      // shacks and their chimney smoke
+      const r = seeded(53);
+      for (let i = 0; i < 7; i++) {
+        const bx = r() * W, w = 30 + r() * 26, h = 16 + r() * 12, by = 262 + Math.sin(bx / W * Math.PI * 4 + 1) * 16 - 2;
+        tile(o => {
+          c.fillStyle = '#3e2820'; c.fillRect(bx + o, by - h, w, h + 20);
+          c.fillStyle = '#5e4030'; c.beginPath(); c.moveTo(bx + o - 5, by - h + 2); c.lineTo(bx + o + w / 2, by - h - 12); c.lineTo(bx + o + w + 5, by - h + 2); c.closePath(); c.fill();
+          c.fillStyle = 'rgba(255,190,110,0.6)'; if (r() < 0.5) c.fillRect(bx + o + w * 0.3, by - h + 5, 4, 4);
+          c.fillStyle = 'rgba(200,170,160,0.12)';
+          for (let s = 0; s < 6; s++) { c.beginPath(); c.arc(bx + o + w * 0.7 - s * 4, by - h - 16 - s * 12, 4 + s * 2, 0, Math.PI * 2); c.fill(); }
+        });
+      }
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      const r = seeded(59);
+      c.fillStyle = '#211611';
       let x = 0;
       while (x < W) {
-        const w = 40 + r() * 40, h = 30 + r() * 30, bx = x;
-        wrap(o => {
-          c.fillStyle = '#2c1f19'; c.fillRect(bx + o, H - h, w, h);
-          c.beginPath(); c.moveTo(bx + o - 6, H - h); c.lineTo(bx + o + w * 0.4, H - h - 18); c.lineTo(bx + o + w + 6, H - h + 4); c.closePath(); c.fill();
+        const w = 40 + r() * 40, h = 30 + r() * 26, bx = x;
+        tile(o => {
+          c.fillRect(bx + o, H - h, w, h);
+          c.beginPath(); c.moveTo(bx + o - 6, H - h); c.lineTo(bx + o + w * 0.4, H - h - 16); c.lineTo(bx + o + w + 6, H - h + 4); c.closePath(); c.fill();
         });
-        x += w + 30 + r() * 50;
+        x += w + 40 + r() * 60;
       }
+      for (let i = 0; i < 26; i++) { const gx = r() * W, gh = 5 + r() * 9; c.fillRect(gx, H - gh, 1, gh); c.fillRect(gx + 2, H - gh * 0.7, 1, gh * 0.7); }
+      for (let fx = 0; fx < W; fx += 22) c.fillRect(fx, H - 22, 2, 22);
+      c.fillRect(0, H - 18, W, 2);
     });
   } else if (region === 'sei') {
-    canvasTex(scene, k(0), W, H, c => { grad(c, [[0, '#6f95b8'], [0.7, '#c8d6dc'], [1, '#ece6d6']]); });
+    canvasTex(scene, k(0), W, H, c => {
+      sky(c, [[0, '#4a78ac'], [0.55, '#9cbcd8'], [0.85, '#dcdcd2'], [1, '#ece6d6']]);
+      glowDisc(c, 520, 50, 160, 'rgba(255,250,230,0.35)', 'rgba(255,250,230,0)');
+      clouds(c, 9, 61, 'rgba(255,255,255,0.45)', 40, 170, 90, 220, 7);
+      clouds(c, 6, 67, 'rgba(255,255,255,0.25)', 150, 220, 160, 300, 5);
+    });
     canvasTex(scene, k(1), W, H, c => {
+      // pagodas fading into the haze, and the white Tower of Penitence above them all
       const r = seeded(31);
       for (let i = 0; i < 6; i++) {
-        const bx = 30 + i * 105 + r() * 30, w = 30 + r() * 20, h = 140 + r() * 90;
-        wrap(o => {
-          c.fillStyle = '#e4dfd1'; c.fillRect(bx + o, H - h, w, h);
-          c.fillStyle = '#3d5a64';
-          for (let t = 0; t < 3; t++) {
-            const ty = H - h + t * 40;
-            c.beginPath(); c.moveTo(bx + o - 10, ty + 10); c.lineTo(bx + o + w / 2, ty - 6); c.lineTo(bx + o + w + 10, ty + 10); c.closePath(); c.fill();
-          }
-          c.fillStyle = 'rgba(60,70,80,0.3)'; c.fillRect(bx + o + w / 2 - 3, H - h + 50, 6, 8);
+        const bx = 30 + i * 105 + r() * 30, w = 26 + r() * 16, h = 120 + r() * 80;
+        tile(o => {
+          c.fillStyle = 'rgba(214,214,212,0.75)'; c.fillRect(bx + o, H - h, w, h);
+          c.fillStyle = 'rgba(80,110,124,0.6)';
+          for (let t = 0; t < 3; t++) { const ty = H - h + t * 36; c.beginPath(); c.moveTo(bx + o - 9, ty + 9); c.lineTo(bx + o + w / 2, ty - 5); c.lineTo(bx + o + w + 9, ty + 9); c.closePath(); c.fill(); }
         });
       }
+      c.fillStyle = 'rgba(240,238,232,0.9)'; c.fillRect(420, 30, 22, H - 30);
+      c.fillStyle = 'rgba(190,196,200,0.8)'; c.fillRect(436, 30, 6, H - 30);
+      c.fillStyle = 'rgba(240,238,232,0.9)'; c.beginPath(); c.moveTo(412, 34); c.lineTo(431, 14); c.lineTo(450, 34); c.closePath(); c.fill();
+      c.fillStyle = 'rgba(120,130,140,0.5)'; c.fillRect(428, 60, 6, 8);
     });
     canvasTex(scene, k(2), W, H, c => {
-      c.fillStyle = '#d6d0c0'; c.fillRect(0, 270, W, H - 270);
-      c.fillStyle = '#4a4a4e'; c.fillRect(0, 262, W, 9);
-      c.fillStyle = '#b8b2a2'; for (let x = 0; x < W; x += 64) c.fillRect(x, 271, 2, H - 271);
+      // barracks roofs: dark teal tiles with upturned eaves, a red lantern here and there
+      const r = seeded(71);
+      let x = 0;
+      while (x < W) {
+        const w = 70 + r() * 60, h = 40 + r() * 30, bx = x, top = 250 - h * 0.4;
+        tile(o => {
+          c.fillStyle = '#d2ccbc'; c.fillRect(bx + o, top, w, H - top);
+          c.fillStyle = '#2f4e56';
+          c.beginPath(); c.moveTo(bx + o - 10, top + 4); c.quadraticCurveTo(bx + o - 4, top - 2, bx + o + 6, top - 10); c.lineTo(bx + o + w - 6, top - 10); c.quadraticCurveTo(bx + o + w + 4, top - 2, bx + o + w + 10, top + 4); c.closePath(); c.fill();
+          c.fillStyle = '#4a6e78'; c.fillRect(bx + o + 6, top - 10, w - 12, 2);
+          c.fillStyle = 'rgba(80,70,60,0.35)'; for (let px = bx + o + 8; px < bx + o + w - 8; px += 16) c.fillRect(px, top + 10, 8, 12);
+          if (r() < 0.6) { c.fillStyle = '#c83a30'; c.fillRect(bx + o + w * 0.2, top + 4, 4, 6); glowDisc(c, bx + o + w * 0.2 + 2, top + 7, 10, 'rgba(255,120,80,0.3)', 'rgba(255,120,80,0)'); }
+        });
+        x += w + 26 + r() * 30;
+      }
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      // the long white walls of the Seireitei, capped with tile
+      c.fillStyle = '#d6d0c0'; c.fillRect(0, 286, W, H - 286);
+      c.fillStyle = '#3a3a40'; c.fillRect(0, 278, W, 9);
+      c.fillStyle = '#56565e'; c.fillRect(0, 278, W, 2);
+      c.fillStyle = '#b8b2a2'; for (let x = 0; x < W; x += 64) c.fillRect(x, 287, 2, H - 287);
+      c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(0, 287, W, 5);
     });
   } else if (region === 'sok') {
     canvasTex(scene, k(0), W, H, c => {
-      grad(c, [[0, '#24101a'], [0.5, '#7a2430'], [0.85, '#d8664a'], [1, '#f0a070']]);
-      c.fillStyle = 'rgba(255,190,130,0.85)'; c.beginPath(); c.arc(420, 250, 60, 0, Math.PI * 2); c.fill();
+      sky(c, [[0, '#140810'], [0.4, '#4e1420'], [0.72, '#b03c30'], [0.9, '#e88050'], [1, '#f2aa70']]);
+      glowDisc(c, 420, 250, 140, 'rgba(255,190,130,0.45)', 'rgba(255,190,130,0)');
+      c.fillStyle = 'rgba(255,214,160,0.9)'; c.beginPath(); c.arc(420, 250, 44, 0, Math.PI * 2); c.fill();
+      clouds(c, 9, 81, 'rgba(60,10,24,0.45)', 40, 200, 170, 340, 5);
     });
     canvasTex(scene, k(1), W, H, c => {
-      c.fillStyle = '#3a1820';
-      c.beginPath(); c.moveTo(0, H); c.lineTo(0, 260); c.quadraticCurveTo(240, 120, 420, 150); c.quadraticCurveTo(560, 170, W, 250); c.lineTo(W, H); c.closePath(); c.fill();
-      // execution frame on the hilltop
-      c.fillStyle = '#2a1016';
-      c.fillRect(330, 40, 8, 120); c.fillRect(300, 50, 70, 7); c.fillRect(306, 70, 58, 4);
-      c.fillRect(312, 40, 4, 30); c.fillRect(352, 40, 4, 30);
+      // the hill, and on it the Sokyoku: a halberd as tall as a tower, held in its frame
+      c.fillStyle = 'rgba(70,24,34,0.85)';
+      c.beginPath(); c.moveTo(0, H); c.lineTo(0, 268); c.quadraticCurveTo(240, 128, 420, 156); c.quadraticCurveTo(560, 176, W, 252); c.lineTo(W, H); c.closePath(); c.fill();
+      c.fillStyle = 'rgba(40,12,20,0.9)';
+      c.fillRect(326, 22, 8, 136);
+      c.beginPath(); c.moveTo(322, 26); c.lineTo(330, 0); c.lineTo(338, 26); c.closePath(); c.fill();
+      c.fillRect(318, 30, 24, 4);
+      c.fillRect(292, 70, 76, 6); c.fillRect(298, 94, 64, 4);
+      c.fillRect(304, 70, 4, 88); c.fillRect(352, 70, 4, 88);
     });
     canvasTex(scene, k(2), W, H, c => {
+      const r = seeded(87);
+      c.fillStyle = '#3a141c';
+      for (let i = 0; i < 6; i++) {
+        const bx = r() * W, w = 40 + r() * 60, h = 60 + r() * 70;
+        tile(o => { c.beginPath(); c.moveTo(bx + o, H); c.lineTo(bx + o + w * 0.35, H - h); c.lineTo(bx + o + w * 0.55, H - h * 0.8); c.lineTo(bx + o + w, H); c.closePath(); c.fill(); });
+      }
+      ridge(c, '#2e1016', 300, [[10, 3], [5, 9]], 2);
+    });
+    canvasTex(scene, k(3), W, H, c => {
       const r = seeded(41);
-      c.fillStyle = '#1c0d10';
+      c.fillStyle = '#170a0e';
       c.beginPath(); c.moveTo(0, H);
-      for (let x = 0; x <= W; x += 16) c.lineTo(x, 300 + r() * 30);
-      c.lineTo(W, 315); c.lineTo(W, H); c.closePath(); c.fill();
+      for (let x = 0; x <= W; x += 16) c.lineTo(x, 318 + r() * 24);
+      c.lineTo(W, 330); c.lineTo(W, H); c.closePath(); c.fill();
+      for (let i = 0; i < 30; i++) { const gx = r() * W, gh = 6 + r() * 14; c.fillRect(gx, 330 - gh, 1, gh); }
     });
   } else if (region === 'hm') {
     canvasTex(scene, k(0), W, H, c => {
-      grad(c, [[0, '#030308'], [0.75, '#0e0e1e'], [1, '#1a1a30']]);
-      stars(c, 160, 7, 0.6);
+      sky(c, [[0, '#020206'], [0.7, '#0c0c1c'], [1, '#1a1a30']]);
+      stars(c, 200, 7, 0.6, 0.8);
+      glowDisc(c, 500, 80, 80, 'rgba(242,240,230,0.14)', 'rgba(242,240,230,0)');
       c.fillStyle = '#f2f0e6'; c.beginPath(); c.arc(500, 80, 38, 0, Math.PI * 2); c.fill();
       c.globalCompositeOperation = 'destination-out';
       c.beginPath(); c.arc(486, 70, 36, 0, Math.PI * 2); c.fill();
       c.globalCompositeOperation = 'source-over';
     });
     canvasTex(scene, k(1), W, H, c => {
-      c.fillStyle = '#4a4860';
-      c.beginPath(); c.moveTo(0, H);
-      for (let x = 0; x <= W; x += 8) c.lineTo(x, 280 + Math.sin(x / W * Math.PI * 2) * 18 + Math.sin(x / W * Math.PI * 6) * 8);
-      c.lineTo(W, H); c.closePath(); c.fill();
-      // distant dome palace
-      c.fillStyle = '#2c2a3c';
-      c.beginPath(); c.arc(150, 270, 60, Math.PI, 0); c.fill();
-      c.fillRect(110, 190, 6, 50); c.fillRect(186, 200, 6, 40);
+      // Las Noches on the horizon: a vast white dome ringed by towers
+      ridge(c, 'rgba(60,58,82,0.9)', 286, [[10, 2], [5, 6]]);
+      c.fillStyle = 'rgba(70,68,96,0.95)';
+      c.beginPath(); c.arc(170, 286, 92, Math.PI, 0); c.fill();
+      c.fillStyle = 'rgba(96,94,124,0.6)'; c.beginPath(); c.arc(150, 266, 60, Math.PI * 1.1, Math.PI * 1.6); c.lineTo(150, 266); c.fill();
+      [[62, 70], [96, 110], [244, 100], [278, 66], [130, 40], [210, 46]].forEach(([tx, th]) => {
+        c.fillStyle = 'rgba(70,68,96,0.95)'; c.fillRect(tx, 286 - th, 6, th);
+        c.beginPath(); c.moveTo(tx - 2, 286 - th); c.lineTo(tx + 3, 286 - th - 10); c.lineTo(tx + 8, 286 - th); c.closePath(); c.fill();
+      });
     });
     canvasTex(scene, k(2), W, H, c => {
-      c.strokeStyle = '#cfcbe0'; c.lineCap = 'round';
+      ridge(c, '#46445a', 300, [[14, 2], [6, 5]], 3);
+      c.strokeStyle = 'rgba(207,203,224,0.7)'; c.lineCap = 'round';
       const tree = (x, s) => {
         c.lineWidth = 3 * s; c.beginPath(); c.moveTo(x, H); c.lineTo(x + 4, H - 90 * s); c.stroke();
         c.lineWidth = 2 * s;
@@ -283,7 +434,16 @@ function makeBackgrounds(scene, region) {
         c.beginPath(); c.moveTo(x + 3, H - 70 * s); c.lineTo(x + 28 * s, H - 104 * s); c.stroke();
         c.lineWidth = 1; c.beginPath(); c.moveTo(x - 12 * s, H - 66 * s); c.lineTo(x - 18 * s, H - 92 * s); c.stroke();
       };
-      tree(90, 1); tree(380, 0.8); tree(560, 1.15);
+      tree(90, 0.8); tree(380, 0.65); tree(560, 0.9);
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      ridge(c, '#26243a', 330, [[10, 1], [6, 4]], 5);
+      c.strokeStyle = '#d6d2e6'; c.lineCap = 'round';
+      [[40, 1.2], [470, 1.4]].forEach(([x, s]) => {
+        c.lineWidth = 4 * s; c.beginPath(); c.moveTo(x, H); c.lineTo(x + 6, H - 110 * s); c.stroke();
+        c.lineWidth = 2.5 * s; c.beginPath(); c.moveTo(x + 4, H - 64 * s); c.lineTo(x + 40 * s, H - 100 * s); c.stroke();
+        c.beginPath(); c.moveTo(x + 5, H - 86 * s); c.lineTo(x - 26 * s, H - 118 * s); c.stroke();
+      });
     });
   } else if (region === 'dan') {
     const strands = (c, n, seed, col, wMin, wMax, amp) => {
@@ -291,7 +451,7 @@ function makeBackgrounds(scene, region) {
       for (let i = 0; i < n; i++) {
         const x0 = r() * W, w = wMin + r() * (wMax - wMin), ph = r() * 6, freq = 2 + r() * 3;
         c.fillStyle = col;
-        wrap(o => {
+        tile(o => {
           c.beginPath();
           for (let y = 0; y <= H; y += 6) c.lineTo(x0 + o + Math.sin(y / H * Math.PI * freq + ph) * amp, y);
           for (let y = H; y >= 0; y -= 6) c.lineTo(x0 + o + w + Math.sin(y / H * Math.PI * freq + ph + 0.6) * amp, y);
@@ -299,68 +459,97 @@ function makeBackgrounds(scene, region) {
         });
       }
     };
-    canvasTex(scene, k(0), W, H, c => { grad(c, [[0, '#0a0614'], [0.5, '#1a0e2e'], [1, '#2a1442']]); stars(c, 60, 23, 0.4); });
-    canvasTex(scene, k(1), W, H, c => strands(c, 9, 31, 'rgba(150,110,220,0.16)', 18, 46, 22));
+    canvasTex(scene, k(0), W, H, c => { sky(c, [[0, '#0a0614'], [0.5, '#1a0e2e'], [1, '#2a1442']]); stars(c, 60, 23, 0.4); });
+    canvasTex(scene, k(1), W, H, c => strands(c, 9, 31, 'rgba(150,110,220,0.14)', 18, 46, 22));
     canvasTex(scene, k(2), W, H, c => {
-      strands(c, 6, 37, 'rgba(70,40,120,0.55)', 8, 20, 14);
+      strands(c, 6, 37, 'rgba(70,40,120,0.5)', 8, 20, 14);
       const r = seeded(41);
       for (let i = 0; i < 18; i++) { c.fillStyle = `rgba(220,200,255,${(0.1 + r() * 0.3).toFixed(2)})`; c.fillRect(r() * W, r() * H, 2, 2); }
     });
+    canvasTex(scene, k(3), W, H, c => {
+      // the walls of the Precipice World ooze in from above and below
+      const wall = (y0, dir) => {
+        c.fillStyle = dir > 0 ? grad(c, [[0, 'rgba(40,20,70,0)'], [1, 'rgba(40,20,70,0.85)']], 0, y0, 0, y0 + 60) : grad(c, [[0, 'rgba(40,20,70,0.85)'], [1, 'rgba(40,20,70,0)']], 0, y0 - 60, 0, y0);
+        c.beginPath(); c.moveTo(0, dir > 0 ? H : 0);
+        for (let x = 0; x <= W; x += 8) c.lineTo(x, y0 + Math.sin(x / W * Math.PI * 6) * 10 + Math.sin(x / W * Math.PI * 14) * 4);
+        c.lineTo(W, dir > 0 ? H : 0); c.closePath(); c.fill();
+      };
+      wall(320, 1); wall(26, -1);
+    });
   } else if (region === 'for') {
     canvasTex(scene, k(0), W, H, c => {
-      grad(c, [[0, '#0d1216'], [0.4, '#070a0e'], [1, '#05060a']]);
-      const g = c.createLinearGradient(0, 0, 0, 90);
-      g.addColorStop(0, 'rgba(200,210,230,0.18)'); g.addColorStop(1, 'rgba(200,210,230,0)');
-      c.fillStyle = g; c.fillRect(0, 0, W, 90);
+      sky(c, [[0, '#0d1216'], [0.4, '#070a0e'], [1, '#05060a']]);
+      c.fillStyle = grad(c, [[0, 'rgba(200,210,230,0.18)'], [1, 'rgba(200,210,230,0)']], 0, 0, 0, 90); c.fillRect(0, 0, W, 90);
     });
     canvasTex(scene, k(1), W, H, c => {
       const r = seeded(51);
-      // distant Menos silhouettes among the trunks
+      // distant Menos among the trunks
       for (let i = 0; i < 5; i++) {
         const x = 40 + i * 130 + r() * 40, top = 150 + r() * 60;
-        wrap(o => {
+        tile(o => {
           c.fillStyle = '#0c0b12'; c.beginPath(); c.moveTo(x + o, top); c.lineTo(x + o + 26, H); c.lineTo(x + o - 26, H); c.closePath(); c.fill();
-          c.fillStyle = 'rgba(220,214,200,0.5)'; c.beginPath(); c.ellipse(x + o + 3, top + 4, 6, 7, 0, 0, Math.PI * 2); c.fill();
+          c.fillStyle = 'rgba(220,214,200,0.45)'; c.beginPath(); c.ellipse(x + o + 3, top + 4, 6, 7, 0, 0, Math.PI * 2); c.fill();
           c.beginPath(); c.moveTo(x + o + 6, top + 2); c.lineTo(x + o + 22, top + 7); c.lineTo(x + o + 6, top + 9); c.closePath(); c.fill();
         });
       }
-      c.fillStyle = 'rgba(190,186,206,0.22)';
-      for (let i = 0; i < 6; i++) { const x = r() * W; wrap(o => c.fillRect(x + o, 0, 10 + r() * 8, H)); }
+      c.fillStyle = 'rgba(190,186,206,0.18)';
+      for (let i = 0; i < 6; i++) { const x = r() * W, w = 10 + r() * 8; tile(o => c.fillRect(x + o, 0, w, H)); }
     });
     canvasTex(scene, k(2), W, H, c => {
+      // mist lying between the stems
+      clouds(c, 8, 57, 'rgba(120,150,140,0.1)', 180, 320, 200, 400, 14);
+      const trunk = (x, w) => {
+        c.fillStyle = '#c8c4d4'; c.fillRect(x, 0, w, H);
+        c.fillStyle = '#9894a8'; c.fillRect(x + w - 3, 0, 3, H);
+        c.fillStyle = 'rgba(5,6,10,0.45)'; c.fillRect(x, 0, w, H);
+      };
+      trunk(200, 16); trunk(560, 20);
+    });
+    canvasTex(scene, k(3), W, H, c => {
       const trunk = (x, w) => {
         c.fillStyle = '#d8d4e4'; c.fillRect(x, 0, w, H);
-        c.fillStyle = '#a8a4b8'; c.fillRect(x + w - 3, 0, 3, H);
-        c.strokeStyle = '#d8d4e4'; c.lineWidth = 4;
-        c.beginPath(); c.moveTo(x + w, 120); c.lineTo(x + w + 50, 90); c.stroke();
-        c.beginPath(); c.moveTo(x, 210); c.lineTo(x - 40, 180); c.stroke();
-        c.fillStyle = 'rgba(5,6,10,0.35)'; c.fillRect(x, 0, w, H);
+        c.fillStyle = '#a8a4b8'; c.fillRect(x + w - 4, 0, 4, H);
+        c.strokeStyle = '#d8d4e4'; c.lineWidth = 5;
+        c.beginPath(); c.moveTo(x + w, 120); c.lineTo(x + w + 60, 84); c.stroke();
+        c.beginPath(); c.moveTo(x, 210); c.lineTo(x - 50, 176); c.stroke();
+        c.fillStyle = 'rgba(5,6,10,0.3)'; c.fillRect(x, 0, w, H);
       };
-      trunk(70, 22); trunk(420, 30);
+      trunk(70, 26); trunk(420, 34);
     });
   } else if (region === 'end') {
+    // The Inner World: skyscrapers lying on their sides under a blue sky that never ends
+    const slab = (c, x, y, w, h, col, win, frame) => {
+      c.fillStyle = col; c.fillRect(x, y, w, h);
+      c.fillStyle = win;
+      for (let wx = x + 3; wx < x + w - 4; wx += 7) for (let wy = y + 3; wy < y + h - 3; wy += 6) c.fillRect(wx, wy, 5, 4);
+      c.fillStyle = frame; c.fillRect(x, y, w, 1); c.fillRect(x, y + h - 1, w, 1);
+    };
     canvasTex(scene, k(0), W, H, c => {
-      grad(c, [[0, '#05070c'], [1, '#18223a']]);
-      c.strokeStyle = 'rgba(127,212,255,0.07)';
-      for (let x = 0; x < W; x += 32) { c.beginPath(); c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, H); c.stroke(); }
-      for (let y = 0; y < H; y += 32) { c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); c.stroke(); }
+      sky(c, [[0, '#3e7ec4'], [0.5, '#7ab0e0'], [1, '#d4e6f4']]);
+      clouds(c, 10, 91, 'rgba(255,255,255,0.6)', 30, 300, 80, 200, 9);
+      clouds(c, 6, 93, 'rgba(255,255,255,0.3)', 60, 320, 160, 320, 6);
     });
     canvasTex(scene, k(1), W, H, c => {
-      const r = seeded(51);
-      for (let i = 0; i < 7; i++) {
-        const bx = i * 92 + r() * 30, w = 16 + r() * 18, h = 120 + r() * 160;
-        wrap(o => {
-          c.fillStyle = '#26324a'; c.fillRect(bx + o, H - h, w, h);
-          c.fillStyle = 'rgba(127,212,255,0.5)'; c.fillRect(bx + o, H - h, 1, h); c.fillRect(bx + o, H - h, w, 1);
-        });
+      const r = seeded(97);
+      for (let i = 0; i < 9; i++) {
+        const y = 20 + i * 38 + r() * 14, w = 140 + r() * 220, h = 18 + r() * 14, fromLeft = i % 2 === 0;
+        const x = fromLeft ? r() * W : r() * W - w;
+        tile(o => slab(c, x + o, y, w, h, 'rgba(150,176,206,0.55)', 'rgba(220,234,248,0.4)', 'rgba(250,252,255,0.5)'));
       }
     });
     canvasTex(scene, k(2), W, H, c => {
-      const r = seeded(61);
-      for (let i = 0; i < 14; i++) {
-        const x = r() * W, y = 60 + r() * 260, s = 4 + r() * 10;
-        c.fillStyle = `rgba(200,232,255,${(0.15 + r() * 0.3).toFixed(2)})`;
-        c.beginPath(); c.moveTo(x, y - s); c.lineTo(x + s * 0.5, y); c.lineTo(x, y + s); c.lineTo(x - s * 0.5, y); c.closePath(); c.fill();
+      const r = seeded(101);
+      for (let i = 0; i < 6; i++) {
+        const y = 40 + i * 54 + r() * 18, w = 160 + r() * 200, h = 26 + r() * 16;
+        const x = r() * W;
+        tile(o => slab(c, x + o, y, w, h, '#6a8cb0', 'rgba(200,226,250,0.7)', '#e8f2fc'));
+      }
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      const r = seeded(103);
+      for (let i = 0; i < 3; i++) {
+        const y = 290 + i * 26 + r() * 6, w = 200 + r() * 200, x = r() * W;
+        tile(o => slab(c, x + o, y, w, 40, '#3e5a7e', 'rgba(150,190,230,0.55)', '#9ab8dc'));
       }
     });
   }
@@ -370,7 +559,8 @@ function makeBackgrounds(scene, region) {
 // Menu and popup icons: a medallion (round for powers, a tablet for seals) with a kanji on it
 const ICON_GLYPH = {
   dash: '瞬', hado: '破', grip: '握', bakudo: '縛', wings: '翼', getsuga: '牙', konso: '葬', burst: '門', bankai: '解', hollow: '虚',
-  edge: '刃', swift: '速', harvest: '魂', focus: '集', quick: '癒', magnet: '磁', long: '長', grace: '恩', moonfang: '月', phantom: '幻', will: '志',
+  edge: '刃', swift: '速', harvest: '魂', focus: '集', quick: '癒', magnet: '磁', long: '長', grace: '恩', moonfang: '月', phantom: '蝉', will: '志',
+  kaido: '回', bell: '鈴', shunko: '鬨', hierro: '鋼', gentei: '限',
   raiko: '雷', recall: '憶', compass: '針',
   unknown: '?',
 };
@@ -451,6 +641,44 @@ function makeAllTextures(scene) {
     c.fillStyle = '#17161f'; c.fillRect(3, 0, 2, 9);
   });
   canvasTex(scene, 'chain', 6, 4, c => { c.strokeStyle = '#ffd75e'; c.lineWidth = 1; c.strokeRect(0.5, 0.5, 5, 3); });
+
+  // Boss and enemy projectiles
+  canvasTex(scene, 'petal', 4, 3, c => { c.fillStyle = '#ffe0ea'; c.fillRect(0, 1, 4, 1); c.fillRect(1, 0, 2, 3); });
+  canvasTex(scene, 'needle', 12, 3, c => { c.fillStyle = '#e8e0d0'; c.fillRect(0, 1, 12, 1); c.fillStyle = '#ffffff'; c.fillRect(9, 0, 3, 3); });
+  canvasTex(scene, 'acid', 10, 10, c => {
+    const g = c.createRadialGradient(5, 5, 0, 5, 5, 5);
+    g.addColorStop(0, '#f0ffd0'); g.addColorStop(0.4, '#9aff6a'); g.addColorStop(1, 'rgba(60,140,40,0)');
+    c.fillStyle = g; c.fillRect(0, 0, 10, 10);
+  });
+  canvasTex(scene, 'kunai', 12, 4, c => { c.fillStyle = '#c8ced8'; c.beginPath(); c.moveTo(12, 2); c.lineTo(6, 0); c.lineTo(6, 4); c.closePath(); c.fill(); c.fillStyle = '#2a2834'; c.fillRect(0, 1, 6, 2); c.fillStyle = '#c8202c'; c.fillRect(0, 1, 1, 2); });
+  canvasTex(scene, 'zabi', 12, 8, c => { c.fillStyle = '#c9d0d8'; c.beginPath(); c.moveTo(12, 4); c.lineTo(2, 0); c.lineTo(0, 4); c.lineTo(2, 8); c.closePath(); c.fill(); c.fillStyle = '#ffffff'; c.fillRect(4, 3, 7, 1); });
+  canvasTex(scene, 'lanza', 44, 10, c => {
+    const g = c.createLinearGradient(0, 0, 44, 0);
+    g.addColorStop(0, 'rgba(58,232,138,0)'); g.addColorStop(0.3, 'rgba(58,232,138,0.8)'); g.addColorStop(1, '#e8fff0');
+    c.fillStyle = g; c.beginPath(); c.moveTo(44, 5); c.lineTo(30, 1); c.lineTo(0, 4); c.lineTo(0, 6); c.lineTo(30, 9); c.closePath(); c.fill();
+    c.fillStyle = '#ffffff'; c.fillRect(24, 4, 18, 2);
+  });
+  canvasTex(scene, 'giantblade', 14, 54, c => {
+    c.fillStyle = 'rgba(255,144,184,0.35)'; c.fillRect(0, 0, 14, 54);
+    c.fillStyle = '#f4f0f6'; c.beginPath(); c.moveTo(7, 0); c.lineTo(12, 14); c.lineTo(11, 54); c.lineTo(3, 54); c.lineTo(2, 14); c.closePath(); c.fill();
+    c.fillStyle = '#ffd0e0'; c.fillRect(7, 6, 1, 48);
+  });
+  canvasTex(scene, 'thrownblade', 28, 28, c => {
+    c.translate(14, 14); c.rotate(-0.6);
+    c.fillStyle = '#1d1b25'; c.fillRect(-4, -12, 8, 20);
+    c.fillStyle = '#6a6878'; c.fillRect(3, -12, 1, 20);
+    c.fillStyle = '#15141b'; c.fillRect(-1, 8, 3, 6);
+  });
+  canvasTex(scene, 'waterwave', 20, 28, c => {
+    c.fillStyle = 'rgba(74,180,255,0.55)'; c.beginPath(); c.moveTo(0, 28); c.quadraticCurveTo(4, 0, 20, 6); c.quadraticCurveTo(12, 10, 14, 28); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(220,240,255,0.9)'; c.beginPath(); c.moveTo(6, 28); c.quadraticCurveTo(8, 8, 18, 7); c.quadraticCurveTo(12, 12, 11, 28); c.closePath(); c.fill();
+  });
+  canvasTex(scene, 'getsuga_w', 30, 58, c => {
+    c.fillStyle = 'rgba(20,18,26,0.9)';
+    c.beginPath(); c.arc(0, 29, 30, -1.3, 1.3); c.arc(-9, 29, 26, 1.15, -1.15, true); c.closePath(); c.fill();
+    c.fillStyle = '#f6f6fa';
+    c.beginPath(); c.arc(0, 29, 26, -1.25, 1.25); c.arc(-8, 29, 23, 1.15, -1.15, true); c.closePath(); c.fill();
+  });
 
   // Items & props
   canvasTex(scene, 'shard', 6, 9, c => {

@@ -276,7 +276,7 @@ class Boss extends Enemy {
     this.untelegraph();
   }
   // Change form: a held pose, flashes, a banner
-  *transform(sheet, line, banner, color, colorHex) {
+  *changeForm(sheet, line, banner, color, colorHex) {
     this.body.setVelocity(0, 0); this.body.setAllowGravity(true);
     this.invulnerable = true;
     yield () => this.body.blocked.down;
@@ -1016,7 +1016,7 @@ class Renji extends Duelist {
     if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.bankai()); }
   }
   *bankai() {
-    yield* this.transform('renji_b', '"Bankai. Hihio Zabimaru!"', { text: 'BANKAI', color: '#ff5040', small: 'Hihio Zabimaru' }, 0xc8202c, '#ffb0a0');
+    yield* this.changeForm('renji_b', '"Bankai. Hihio Zabimaru!"', { text: 'BANKAI', color: '#ff5040', small: 'Hihio Zabimaru' }, 0xc8202c, '#ffb0a0');
     this.snake = new BoneSnake(this);
     this.hazards.push(this.snake);
     this.aura.emitting = true;
@@ -1183,7 +1183,7 @@ class Byakuya extends Duelist {
     else if (this.phase === 2 && this.hp <= this.maxHp * 0.22) { this.phase = 3; this.setScript(this.senkei()); }
   }
   *bankai() {
-    yield* this.transform('byakuya_b', '"Bankai. Senbonzakura Kageyoshi."', { text: 'BANKAI', color: '#ff90b8', small: 'Senbonzakura Kageyoshi' }, 0xff90b8, '#ffd0e0');
+    yield* this.changeForm('byakuya_b', '"Bankai. Senbonzakura Kageyoshi."', { text: 'BANKAI', color: '#ff90b8', small: 'Senbonzakura Kageyoshi' }, 0xff90b8, '#ffd0e0');
     this.aura.emitting = true;
     this.spd = 1.1;
     this.scene.ambience && this.scene.ambience.petalStorm && this.scene.ambience.petalStorm();
@@ -1298,7 +1298,7 @@ class Kenpachi extends Duelist {
     if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.unleash()); }
   }
   *unleash() {
-    yield* this.transform('kenpachi_r', '"Ha! You are fun. Then I will take this off."', { text: 'UNLEASHED', color: '#f2d040', small: 'the eyepatch comes off' }, 0xf2d040, '#ffe080');
+    yield* this.changeForm('kenpachi_r', '"Ha! You are fun. Then I will take this off."', { text: 'UNLEASHED', color: '#f2d040', small: 'the eyepatch comes off' }, 0xf2d040, '#ffe080');
     this.aura.setParticleTint(0xf2d040);
     this.aura.emitting = true;
     this.armor = 0.85; this.spd = 1.25; this.walkSpeed = 85;
@@ -1414,7 +1414,7 @@ class Grimmjow extends Duelist {
     if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.release()); }
   }
   *release() {
-    yield* this.transform('grimmjow_r', '"Grind, Pantera!"', { text: 'RESURRECCIÓN', color: '#58b8e8', small: 'Pantera' }, 0x58b8e8, '#a8e4ff');
+    yield* this.changeForm('grimmjow_r', '"Grind, Pantera!"', { text: 'RESURRECCIÓN', color: '#58b8e8', small: 'Pantera' }, 0x58b8e8, '#a8e4ff');
     this.aura.emitting = true;
     this.spd = 1.3; this.walkSpeed = 120;
     yield* this.brain();
@@ -1570,7 +1570,7 @@ class Ulquiorra extends Duelist {
     else if (this.phase === 2 && this.hp <= this.maxHp * 0.3) { this.phase = 3; this.setScript(this.segunda()); }
   }
   *release() {
-    yield* this.transform('ulquiorra_r', '"Enclose, Murcielago."', { text: 'RESURRECCIÓN', color: '#3ae88a', small: 'Murciélago' }, 0x3ae88a, '#b8f8d0');
+    yield* this.changeForm('ulquiorra_r', '"Enclose, Murcielago."', { text: 'RESURRECCIÓN', color: '#3ae88a', small: 'Murciélago' }, 0x3ae88a, '#b8f8d0');
     this.aura.emitting = true;
     this.flying = true; this.walker = false;
     this.body.setAllowGravity(false);
@@ -1717,7 +1717,7 @@ class Aaroniero extends Duelist {
   }
   *release() {
     this.scene.setDarkness(0.82);
-    yield* this.transform('aaroniero_r', '"Devour, Gloteneria."', { text: 'RESURRECCIÓN', color: '#b48aff', small: 'Glotonería' }, 0x8a5ad8, '#d8c8ff');
+    yield* this.changeForm('aaroniero_r', '"Devour, Gloteneria."', { text: 'RESURRECCIÓN', color: '#b48aff', small: 'Glotonería' }, 0x8a5ad8, '#d8c8ff');
     this.aura.emitting = true;
     this.spd = 1.2;
     yield* this.brain();
@@ -1790,7 +1790,7 @@ class HollowIchigo extends Duelist {
     let e = 0;
     const T = 0.45 / this.spd;
     const pos = () => {
-      const k = e < T ? Phaser.Math.Easing.Quad.Out(e / T) : 1 - Phaser.Math.Easing.Quad.In((e - T) / T);
+      const k = e < T ? Phaser.Math.Easing.Quadratic.Out(e / T) : 1 - Phaser.Math.Easing.Quadratic.In((e - T) / T);
       return { x: this.x + (tx - this.x) * k, y: this.y - 4 + (ty - this.y + 4) * k - Math.sin(Math.PI * Math.min(1, e / (2 * T))) * 30 };
     };
     while (e < T * 2) {
@@ -1819,10 +1819,10 @@ class HollowIchigo extends Duelist {
     }
   }
   checkPhase() {
-    if (this.phase === 1 && this.hp <= this.maxHp * 0.66) { this.phase = 2; this.setScript(this.mask()); }
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.66) { this.phase = 2; this.setScript(this.wearMask()); }
     else if (this.phase === 2 && this.hp <= this.maxHp * 0.33) { this.phase = 3; this.setScript(this.bankai()); }
   }
-  *mask() {
+  *wearMask() {
     this.body.setVelocity(0, 0); this.body.setAllowGravity(true);
     this.invulnerable = true;
     yield () => this.body.blocked.down;
@@ -1838,7 +1838,7 @@ class HollowIchigo extends Duelist {
     yield* this.brain();
   }
   *bankai() {
-    yield* this.transform('final_b', '"Then let us both stop holding back. Bankai."', { text: 'BANKAI', color: '#e0303c', small: 'Tensa Zangetsu' }, 0xc8202c, '#ff9090');
+    yield* this.changeForm('final_b', '"Then let us both stop holding back. Bankai."', { text: 'BANKAI', color: '#e0303c', small: 'Tensa Zangetsu' }, 0xc8202c, '#ff9090');
     this.aura.emitting = true;
     this.scene.setDarkness(0.7);
     this.spd = 1.35;
