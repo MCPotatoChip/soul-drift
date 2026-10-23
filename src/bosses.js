@@ -16,6 +16,8 @@ class Boss extends Enemy {
     super(scene, x, feetY, key, cfg);
     this.isBoss = true;
     this.id = cfg.id;
+    // A sharper Zanpakutō (forge levels) means a tougher boss, so the upgrades do not turn fights into a formality
+    this.hp = this.maxHp = Math.round(this.maxHp * GS.bossHpMul());
     this.fighting = false;
     this.invulnerable = true;
     this.kbRes = 0;
@@ -341,6 +343,11 @@ class Boss extends Enemy {
         wisps(10, c);
         break;
       }
+      case 'urahara':   // a flutter of red, and a fan snapping shut somewhere
+        fx.shatter(x, y, [0xff4060, 0xffe0e4, 0x34453a], 36, 110, 70, 1500);
+        fx.ring(x, y, 0xff4060, 100, 800, 3);
+        wisps(8, 0xffb0c0);
+        break;
       case 'vasto':   // crumbles to sand
         fx.shatter(x, y, [0xe0d8c0, 0xc8bea0, 0xffffff], 40, 120, 110, 1600);
         fx.dust(x, y, 30);
@@ -483,7 +490,7 @@ class BoneSnake {
 // second half sends the bait itself after you.
 class GrandFisher extends Boss {
   constructor(scene, x, feet) {
-    super(scene, x, feet, 'fisher', { id: 'fisher', hp: 150, dmg: 1, drop: 20, bw: 46, bh: 56, kind: 'fisher', frame: 'idle0', frameFeet: 84, burst: 0x2a1e18 });
+    super(scene, x, feet, 'fisher', { id: 'fisher', hp: 320, dmg: 1, drop: 20, bw: 46, bh: 56, kind: 'fisher', frame: 'idle0', frameFeet: 84, burst: 0x2a1e18 });
     this.telePose = 'windup';
     this.introPose = 'roar';
     this.introLine = '"You can see it, can\'t you? My pretty little lure."';
@@ -660,7 +667,7 @@ class LureDecoy extends Enemy {
 // ---------------------------------------------------------------------------
 class Menos extends Boss {
   constructor(scene, x, feet) {
-    super(scene, x, feet, 'menos', { id: 'menos', hp: 135, dmg: 1, drop: 20, bw: 40, bh: 100, kind: 'menos', frame: 'idle0', frameFeet: 120 });
+    super(scene, x, feet, 'menos', { id: 'menos', hp: 340, dmg: 1, drop: 20, bw: 40, bh: 100, kind: 'menos', frame: 'idle0', frameFeet: 120 });
     this.telePose = 'crouch';
     this.introPose = 'cero';
     this.walkSpeed = 34; this.prefer = 70; this.patience = 4; this.pause = 0.6;
@@ -848,7 +855,7 @@ class Duelist extends Boss {
 // lashes and sweeps. In Bankai the blade becomes Hihio Zabimaru, a serpent of bone.
 class Renji extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'renji', key: 'renji', hp: 240, drop: 25, kind: 'renji', bh: 27, auraTint: 0xff5040 });
+    super(scene, x, feet, { id: 'renji', key: 'renji', hp: 440, drop: 25, kind: 'renji', bh: 27, auraTint: 0xff5040 });
     this.walkSpeed = 80; this.prefer = 120; this.patience = 3;
     this.introLine = '"You will not reach Rukia. Not while I still stand."';
     this.lineColor = '#ffc0b0';
@@ -1042,7 +1049,7 @@ class Renji extends Duelist {
 // you, sweep the floor and close around you; in Bankai a thousand blades rise.
 class Byakuya extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'byakuya', key: 'byakuya', hp: 300, drop: 25, kind: 'byakuya', bh: 26, auraTint: 0xff90b8 });
+    super(scene, x, feet, { id: 'byakuya', key: 'byakuya', hp: 560, drop: 25, kind: 'byakuya', bh: 26, auraTint: 0xff90b8 });
     this.walker = false; this.patience = 2.6; this.prefer = 140; this.pause = 0.5;
     this.introLine = '"You will not take another step toward my sister."';
     this.lineColor = '#ffd0e0';
@@ -1213,7 +1220,7 @@ class Byakuya extends Duelist {
 // never flinches, and with the eyepatch off his Reiatsu flares yellow.
 class Kenpachi extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'kenpachi', key: 'kenpachi', hp: 420, drop: 35, kind: 'kenpachi', bh: 28, armor: 0.75, auraTint: 0xf2d040 });
+    super(scene, x, feet, { id: 'kenpachi', key: 'kenpachi', hp: 640, drop: 35, kind: 'kenpachi', bh: 28, armor: 0.75, auraTint: 0xf2d040 });
     this.noFlinch = true;
     this.walkSpeed = 62; this.prefer = 40; this.patience = 2; this.pause = 0.25; this.nearDist = 80;
     this.introLine = '"Finally. Someone worth cutting."';
@@ -1318,7 +1325,7 @@ class Kenpachi extends Duelist {
 // Pantera, Desgarron tears five blades of light out of the air.
 class Grimmjow extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'grimmjow', key: 'grimmjow', hp: 340, drop: 30, kind: 'grimmjow', bh: 26, auraTint: 0x58b8e8 });
+    super(scene, x, feet, { id: 'grimmjow', key: 'grimmjow', hp: 600, drop: 30, kind: 'grimmjow', bh: 26, auraTint: 0x58b8e8 });
     this.walkSpeed = 95; this.prefer = 70; this.patience = 2.2; this.pause = 0.3;
     this.introLine = '"Come on, Shinigami! Show me that face again!"';
     this.lineColor = '#a8e4ff';
@@ -1433,7 +1440,7 @@ class Grimmjow extends Duelist {
 // throws the Lanza del Relampago, and at the last fires Cero Oscuras.
 class Ulquiorra extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'ulquiorra', key: 'ulquiorra', hp: 420, drop: 35, kind: 'ulquiorra', bh: 26, auraTint: 0x3ae88a });
+    super(scene, x, feet, { id: 'ulquiorra', key: 'ulquiorra', hp: 680, drop: 35, kind: 'ulquiorra', bh: 26, auraTint: 0x3ae88a });
     this.walker = true; this.walkSpeed = 50; this.prefer = 150; this.patience = 2.6;
     this.introLine = '"Trash. Is that all the heart you have?"';
     this.lineColor = '#b8f8d0';
@@ -1604,7 +1611,7 @@ class Ulquiorra extends Duelist {
 // (Gloteneria), he spits back up the Hollows he devoured.
 class Aaroniero extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'espada', key: 'aaroniero', hp: 380, drop: 30, kind: 'espada', bh: 27, auraTint: 0x8a5ad8 });
+    super(scene, x, feet, { id: 'espada', key: 'aaroniero', hp: 600, drop: 30, kind: 'espada', bh: 27, auraTint: 0x8a5ad8 });
     this.walkSpeed = 70; this.prefer = 110; this.patience = 3;
     this.waitsForReveal = true;
     this.revealed = false;
@@ -1737,20 +1744,27 @@ class Aaroniero extends Duelist {
 // the Getsuga coming.
 class HollowIchigo extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'final', key: 'final', hp: 480, drop: 0, kind: 'final', bh: 26, auraTint: 0xc8202c });
-    this.walkSpeed = 90; this.prefer = 90; this.patience = 2.4; this.pause = 0.35;
-    this.spd = 1.1;
+    super(scene, x, feet, { id: 'final', key: 'final', hp: 1700, drop: 0, kind: 'final', bh: 26, auraTint: 0xc8202c });
+    this.walkSpeed = 100; this.prefer = 90; this.patience = 2.0; this.pause = 0.32;
+    this.spd = 1.2;
     this.introLine = '"Which one of us is the King, and which one the horse?"';
     this.lineColor = '#ffffff';
   }
+  // Four phases: the white Hollow, the masked one, Bankai, and what is left when he stops holding back.
   moveList() {
     return [
       { name: 'getsuga', w: 3, range: [100, 700], punish: true },
       { name: 'chainThrow', w: 2.5, range: [80, 360], punish: true, cd: 3 },
       { name: 'flashCross', w: 3 },
-      { name: 'combo', w: 2.5, range: [0, 80] },
+      { name: 'comboMove', w: 2.5, range: [0, 80] },
+      { name: 'getsugaRain', w: 2.4, cd: 5, punish: true },
       { name: 'whiteCero', w: 2, phase: 2, range: [120, 700], cd: 3 },
+      { name: 'ceroSweep', w: 2.2, phase: 2, range: [100, 700], cd: 5, punish: true },
+      { name: 'mirrorStep', w: 2.4, phase: 2, cd: 3 },
       { name: 'tensaFlurry', w: 2.5, phase: 3, cd: 4, punish: true },
+      { name: 'kingsSpire', w: 2.4, phase: 3, cd: 6, punish: true },
+      { name: 'hollowNova', w: 2.6, phase: 4, cd: 5 },
+      { name: 'finalStorm', w: 2.2, phase: 4, cd: 8, punish: true },
     ];
   }
   *brain() {
@@ -1769,20 +1783,44 @@ class HollowIchigo extends Duelist {
     this.scene.fx.floatText(this.x, this.y - 30, '"Too slow, King."', '#ffffff');
     yield* this.dashSlash(560, 0.4, 0xffffff);
   }
+  *comboMove() { yield* this.combo(2 + this.phase, this.phase >= 3 ? 0xff4050 : 0xffffff); }
   *getsuga() {
     this.face();
     yield* this.tele(0.38, 0xffffff, 'windup');
     const key = this.phase >= 3 ? 'getsuga_b' : 'getsuga_w';
     const f = this.facing, s = this.scene;
-    const n = this.phase >= 3 ? 2 : 1;
+    const n = this.phase >= 4 ? 3 : this.phase >= 3 ? 2 : 1;
     for (let i = 0; i < n; i++) {
       this.setPose('strike', 0.25);
-      new EnemyShot(s, this.x + f * 16, this.arena.floor - 22, key, f * 330, 0, { dmg: 1, life: 2.4, w: 16, h: 40, pierce: true, flipX: f < 0 });
+      new EnemyShot(s, this.x + f * 16, this.arena.floor - 22, key, f * (330 + 20 * i), 0, { dmg: 1, life: 2.4, w: 16, h: 40, pierce: true, flipX: f < 0 });
       Sfx.play('wave');
       s.fx.ring(this.x + f * 14, this.y, 0xffffff, 26, 260, 2);
       yield 0.32 / this.spd;
     }
     yield 0.3;
+  }
+  // Getsuga falling from the roof of the world in columns: the white flags show where
+  *getsugaRain() {
+    this.face();
+    yield* this.tele(0.42, 0xffffff, 'cast');
+    const s = this.scene, g = this.gfx, n = 3 + this.phase, key = this.phase >= 3 ? 'getsuga_b' : 'getsuga_w';
+    const px = this.player.x, xs = [];
+    for (let i = 0; i < n; i++) xs.push(Phaser.Math.Clamp(px + (i - (n - 1) / 2) * 60 + Phaser.Math.Between(-12, 12), this.arena.left + 10, this.arena.right - 10));
+    let e = 0;
+    const T = 0.75 / this.spd, top = this.arena.top, floor = this.arena.floor;
+    while (e < T) {
+      e += this.dt;
+      g.clear();
+      xs.forEach(x => g.fillStyle(0xffffff, 0.06 + 0.2 * Math.abs(Math.sin(e * 22))).fillRect(x - 5, top, 10, floor - top));
+      yield 0;
+    }
+    g.clear();
+    xs.forEach((x, i) => s.time.delayedCall(i * 80, () => {
+      if (!this.alive) return;
+      new EnemyShot(s, x, top + 6, key, 0, 430, { dmg: 1, life: 1.6, w: 14, h: 30, pierce: true, rotate: true });
+      Sfx.play('wave');
+    }));
+    yield (n * 80) / 1000 + 0.7;
   }
   // Zangetsu thrown on its cloth: out to where you stand, and back
   *chainThrow() {
@@ -1811,23 +1849,127 @@ class HollowIchigo extends Duelist {
     }
     g.clear();
     blade.destroy();
+    // from the third phase on he throws it a second time, once you think it is over
+    if (this.phase >= 3) {
+      yield 0.18;
+      this.face();
+      const ex = this.player.x, ey = this.player.body.center.y;
+      const b2 = s.add.image(this.x, this.y, 'thrownblade').setDepth(29);
+      let e2 = 0;
+      Sfx.play('whip');
+      while (e2 < T * 2) {
+        e2 += this.dt;
+        const k = e2 < T ? Phaser.Math.Easing.Quadratic.Out(e2 / T) : 1 - Phaser.Math.Easing.Quadratic.In((e2 - T) / T);
+        const bx = this.x + (ex - this.x) * k, by = this.y - 4 + (ey - this.y + 4) * k;
+        b2.setPosition(bx, by).setRotation(e2 * 22);
+        g.clear(); g.lineStyle(1, 0x15141b, 1).lineBetween(this.x + this.facing * 6, this.y - 2, bx, by);
+        if (this.player.state !== 'dead' && Math.hypot(this.player.x - bx, this.player.body.center.y - by) < 16) this.player.takeDamage(1, bx);
+        yield 0;
+      }
+      g.clear(); b2.destroy();
+    }
     yield 0.3;
   }
   *flashCross() {
     yield* this.flashStep(0xffffff, 0.28);
     if (this.phase >= 2) yield* this.flashStep(0xff4050, 0.22);
+    if (this.phase >= 4) yield* this.flashStep(0xffffff, 0.18);
+  }
+  // Two or three steps in a row from alternating sides, each ending in a cut
+  *mirrorStep() {
+    const n = this.phase >= 3 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const p = this.player, side = i % 2 ? 1 : -1;
+      let tx = p.x + side * 46;
+      if (tx < this.arena.left + 10 || tx > this.arena.right - 10) tx = p.x - side * 46;
+      yield* this.blink(tx, this.floorY());
+      yield* this.tele(0.2, 0xff6060);
+      this.slashBox(38, 26, 0.12, 0xffffff);
+      yield 0.16 / this.spd;
+    }
+    yield 0.3;
   }
   *whiteCero() { yield* this.cero([0xc8202c, 0xff4050, 0xffffff], 0.7, 0.5, 12); }
+  // A Cero that does not stop where it was aimed: it sweeps down through the arena
+  *ceroSweep() {
+    this.face();
+    const o = () => ({ x: this.x + this.facing * 10, y: this.y - 6 });
+    const a = this.aimAt(o().x, o().y), dir = this.facing;
+    const start = a - dir * 0.5, sweep = dir * (this.phase >= 4 ? 1.35 : 1.05);
+    this.setPose('cast', 1.8);
+    yield* this.aimLine(o().x, o().y, start, 0.65 / this.spd, 0xff4050);
+    yield* this.beam(o, 0, start, 0.85, sweep, 14, 760, [0xc8202c, 0xff4050, 0xffffff]);
+    yield 0.4;
+  }
   // three Tensa dashes, back and forth across the arena
   *tensaFlurry() {
-    for (let i = 0; i < 3; i++) {
+    const n = this.phase >= 4 ? 4 : 3;
+    for (let i = 0; i < n; i++) {
       this.face();
       yield* this.dashSlash(620, 0.3, 0xc8202c);
     }
   }
+  // Black blades of reishi rise across the whole floor from the middle out, leaving one gap
+  *kingsSpire() {
+    this.setPose('raise', 1.8);
+    Sfx.play('wave');
+    const g = this.gfx, a = this.arena, p = this.player;
+    // the gap opens near where you are standing, so there is always somewhere to be
+    const gap = Phaser.Math.Clamp(p.x + Phaser.Math.Between(-30, 30), a.left + 40, a.right - 40);
+    const cols = [];
+    for (let x = a.left + 14; x < a.right - 10; x += 34) if (Math.abs(x - gap) > 34) cols.push({ x, t: Math.abs(x - this.x) / 380 });
+    const lead = 0.7 / this.spd, fired = new Set();
+    let e = 0;
+    while (e < lead + 1.6) {
+      e += this.dt;
+      g.clear();
+      for (const c of cols) {
+        const until = c.t + lead - e;
+        if (until > 0) g.fillStyle(0x15141b, 0.25 + 0.45 * Math.min(1, 1 - until / lead)).fillRect(c.x - 7, a.floor - 5, 14, 5);
+        if (until > 0 && until < lead) g.lineStyle(1, 0xc8202c, 0.5).lineBetween(c.x, a.floor - 130, c.x, a.floor - 6);
+        if (until <= 0 && !fired.has(c)) {
+          fired.add(c);
+          this.scene.addHurt(c.x - 7, a.floor - 120, 14, 120, 1, 0.3);
+          const img = this.scene.add.image(c.x, a.floor, 'giantblade').setOrigin(0.5, 1).setDepth(17).setScale(1.1, 0.1).setTint(0x30303c);
+          this.scene.tweens.add({ targets: img, scaleY: 1.5, duration: 90, ease: 'Back.out', yoyo: true, hold: 180, onComplete: () => img.destroy() });
+          if (fired.size % 3 === 0) Sfx.play('slash');
+        }
+      }
+      if (fired.size >= cols.length) break;
+      yield 0;
+    }
+    g.clear();
+    yield 0.45;
+  }
+  // The air bursts: shock waves along the floor to both sides, a second one over the first's heels
+  *hollowNova() {
+    this.body.setVelocity(0, 0);
+    this.setPose('charge', 1.2);
+    this.telegraph(0xff4050);
+    Sfx.play('telegraph');
+    yield 0.55 / this.spd;
+    this.untelegraph();
+    const s = this.scene;
+    for (let i = 0; i < 2; i++) {
+      s.fx.ring(this.x, this.y, 0xff4050, 70, 500, 4);
+      s.fx.shake(300, 0.012);
+      Sfx.play('roarSmall');
+      this.shock(this.x, -1, 0x1a1a22, 270, 1.3);
+      this.shock(this.x, 1, 0x1a1a22, 270, 1.3);
+      yield 0.55 / this.spd;
+    }
+    yield 0.3;
+  }
+  // The last thing he has: a cut, a Cero, a rain, one after another with no breath between them
+  *finalStorm() {
+    yield* this.flashStep(0xff4050, 0.2);
+    yield* this.whiteCero();
+    yield* this.getsugaRain();
+  }
   checkPhase() {
-    if (this.phase === 1 && this.hp <= this.maxHp * 0.66) { this.phase = 2; this.setScript(this.wearMask()); }
-    else if (this.phase === 2 && this.hp <= this.maxHp * 0.33) { this.phase = 3; this.setScript(this.bankai()); }
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.7) { this.phase = 2; this.setScript(this.wearMask()); }
+    else if (this.phase === 2 && this.hp <= this.maxHp * 0.45) { this.phase = 3; this.setScript(this.bankai()); }
+    else if (this.phase === 3 && this.hp <= this.maxHp * 0.2) { this.phase = 4; this.setScript(this.noHolding()); }
   }
   *wearMask() {
     this.body.setVelocity(0, 0); this.body.setAllowGravity(true);
@@ -1840,7 +1982,7 @@ class HollowIchigo extends Duelist {
     s.fx.flash(0xffffff, 200, 0.6);
     s.fx.burst(this.x, this.y - 8, 0xf4f1ea, 24);
     this.setSheet('final_m');
-    this.spd = 1.2;
+    this.spd = 1.35; this.pause = 0.26;
     this.invulnerable = false;
     yield* this.brain();
   }
@@ -1848,15 +1990,152 @@ class HollowIchigo extends Duelist {
     yield* this.changeForm('final_b', '"Then let us both stop holding back. Bankai."', { text: 'BANKAI', color: '#e0303c', small: 'Tensa Zangetsu' }, 0xc8202c, '#ff9090');
     this.aura.emitting = true;
     this.scene.setDarkness(0.7);
-    this.spd = 1.35;
+    this.spd = 1.5; this.pause = 0.2;
+    yield* this.brain();
+  }
+  // Under a fifth of his strength left, and no reason left to hold any of it
+  *noHolding() {
+    yield* this.changeForm('final_k', '"There is no King. There is no horse. There is only the blade."', { text: 'UNBOUND', color: '#ff2a3c', small: 'Hollow Ichigo, with nothing held back' }, 0xff2a3c, '#ff9090');
+    this.aura.emitting = true;
+    this.scene.setDarkness(0.82);
+    this.spd = 1.75; this.pause = 0.12; this.noFlinch = true;
     yield* this.brain();
   }
 }
 
 // ---------------------------------------------------------------------------
+// Kisuke Urahara: the shopkeeper who was once a captain. His cane is a sword, Hadō and Bakudō are tools to him,
+// and he never stops talking. At half health the hat comes off: "Nake, Benihime."
+class Urahara extends Duelist {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, { id: 'urahara', key: 'urahara', hp: 640, drop: 30, kind: 'urahara', bh: 26, auraTint: 0xff5070 });
+    this.walkSpeed = 80; this.prefer = 110; this.patience = 2.8; this.pause = 0.42;
+    this.introLine = '"Ah. The light exercise is over. Shall we be serious?"';
+    this.lineColor = '#ffe0e4';
+  }
+  moveList() {
+    return [
+      { name: 'combo', w: 2.2, range: [0, 90] },
+      { name: 'flashCut', w: 3, range: [0, 600] },
+      { name: 'shakkaho', w: 2.6, range: [100, 700], punish: true, cd: 3 },
+      { name: 'sokatsui', w: 2, range: [140, 700], cd: 4 },
+      { name: 'benihimeWave', w: 2.4, range: [80, 500], cd: 3.5, punish: true },
+      { name: 'rikujo', w: 1.8, cd: 8, punish: true },
+      { name: 'crimsonRain', w: 2.4, phase: 2, cd: 6, punish: true },
+      { name: 'akahimeWeb', w: 2.2, phase: 2, cd: 6 },
+    ];
+  }
+  // Hadō #31: a volley of red fireballs, aimed anew each time
+  *shakkaho() {
+    yield* this.tele(0.35, 0xff9a60, 'cast');
+    const n = this.phase >= 2 ? 4 : 3, s = this.scene;
+    for (let i = 0; i < n; i++) {
+      this.face();
+      const o = { x: this.x + this.facing * 12, y: this.y - 8 }, a = this.aimAt(o.x, o.y);
+      Sfx.play('hado');
+      s.fx.ring(o.x, o.y, 0xff7a4a, 16, 200, 2);
+      new EnemyShot(s, o.x, o.y, 'bala', Math.cos(a) * 300, Math.sin(a) * 300, { dmg: 1, life: 2.2, tint: 0xff7a4a, scale: 1.3, burst: 0xff7a4a });
+      yield 0.4 / this.spd;
+    }
+    yield 0.3;
+  }
+  // Hadō #73: a blue cannon down the line
+  *sokatsui() { yield* this.cero([0x4a8aff, 0x8ac0ff, 0xffffff], 0.75, 0.4, 10); }
+  // A crimson crescent, and in the second phase three of them fanned
+  *benihimeWave() {
+    this.face();
+    yield* this.tele(0.4, 0xff6070, 'windup');
+    const f = this.facing, s = this.scene, fan = this.phase >= 2 ? [-90, 0, 90] : [0];
+    this.setPose('strike', 0.3);
+    Sfx.play('wave');
+    s.fx.ring(this.x + f * 14, this.y, 0xff4060, 26, 260, 2);
+    fan.forEach(vy => new EnemyShot(s, this.x + f * 16, this.arena.floor - 24, 'getsuga_w', f * 320, vy, { dmg: 1, life: 2.2, w: 16, h: 38, pierce: true, flipX: f < 0, tint: 0xff4a60 }));
+    yield 0.6;
+  }
+  // Bakudō #61: six rods of light close on where you stand
+  *rikujo() {
+    const p = this.player, cx = p.x, cy = p.body.center.y, g = this.gfx;
+    this.setPose('cast', 1.1);
+    Sfx.play('bakudo');
+    let e = 0;
+    const T = 0.8 / this.spd;
+    while (e < T) {
+      e += this.dt;
+      const k = e / T, r = 70 - 52 * k;
+      g.clear();
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * Math.PI * 2 + k * 0.6, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+        g.fillStyle(0xffd75e, 0.5 + 0.5 * k).fillRect(x - 2, y - 9, 4, 18);
+      }
+      g.lineStyle(1, 0xffd75e, 0.3 + 0.4 * k).strokeCircle(cx, cy, r);
+      yield 0;
+    }
+    g.clear();
+    this.scene.fx.ring(cx, cy, 0xffd75e, 24, 300, 3);
+    if (Math.hypot(p.x - cx, p.body.center.y - cy) < 22 && p.state !== 'dead' && p.state !== 'dash') {
+      p.bindStun(0.9);
+      this.scene.fx.chain(cx - 18, cy, cx + 18, cy);
+      yield 0.25;
+      yield* this.flashStep(0xffc0d8, 0.25);
+    }
+    yield 0.3;
+  }
+  *flashCut() {
+    yield* this.flashStep(0xffd0d8, this.phase >= 2 ? 0.22 : 0.3);
+    if (this.phase >= 2) yield* this.flashStep(0xff6070, 0.2);
+  }
+  // Red columns burst from the floor across your side of the room, one after another
+  *crimsonRain() {
+    this.setPose('raise', 1.4);
+    Sfx.play('wave');
+    const g = this.gfx, a = this.arena, p = this.player, cols = [];
+    for (let i = -3; i <= 3; i++) {
+      const x = Phaser.Math.Clamp(p.x + i * 38 + Phaser.Math.Between(-10, 10), a.left + 8, a.right - 8);
+      if (i !== 0 && i !== 1) cols.push({ x, t: Math.abs(i) * 0.12 });
+    }
+    cols.push({ x: p.x, t: 0.6 });
+    const lead = 0.6 / this.spd, fired = new Set();
+    let e = 0;
+    while (e < lead + 1.2) {
+      e += this.dt;
+      g.clear();
+      for (const c of cols) {
+        const until = c.t + lead - e;
+        if (until > 0) g.fillStyle(0xff4060, 0.15 + 0.35 * Math.min(1, 1 - until / lead)).fillRect(c.x - 8, a.floor - 6, 16, 6);
+        if (until <= 0 && !fired.has(c)) {
+          fired.add(c);
+          this.scene.addHurt(c.x - 8, a.floor - 100, 16, 100, 1, 0.28);
+          const img = this.scene.add.image(c.x, a.floor, 'giantblade').setOrigin(0.5, 1).setDepth(17).setScale(1, 0.1).setTint(0xff4060);
+          this.scene.tweens.add({ targets: img, scaleY: 1.2, duration: 90, ease: 'Back.out', yoyo: true, hold: 140, onComplete: () => img.destroy() });
+        }
+      }
+      if (fired.size >= cols.length) break;
+      yield 0;
+    }
+    g.clear();
+    yield 0.35;
+  }
+  // Benihime's red light: two Cero-wide beams, one after the other
+  *akahimeWeb() {
+    yield* this.cero([0xff2a50, 0xff6a80, 0xffe0e4], 0.6, 0.35, 9);
+    yield* this.cero([0xff2a50, 0xff6a80, 0xffe0e4], 0.45, 0.35, 9);
+  }
+  checkPhase() {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.shikai()); }
+  }
+  *shikai() {
+    yield* this.changeForm('urahara_r', '"Wail, Benihime."', { text: 'SHIKAI', color: '#ff5070', small: 'Benihime' }, 0xff4060, '#ffb0c0');
+    this.aura.emitting = true;
+    this.spd = 1.25; this.pause = 0.3;
+    yield* this.brain();
+  }
+  onDie() { this.aura.destroy(); }
+}
+
+// ---------------------------------------------------------------------------
 class Vasto extends Boss {
   constructor(scene, x, feet) {
-    super(scene, x, feet, 'vasto', { id: 'vasto', hp: 320, dmg: 1, drop: 30, bw: 16, bh: 38, kind: 'vasto', fly: true, frame: 'float0', frameFeet: HF.FEET });
+    super(scene, x, feet, 'vasto', { id: 'vasto', hp: 600, dmg: 1, drop: 30, bw: 16, bh: 38, kind: 'vasto', fly: true, frame: 'float0', frameFeet: HF.FEET });
     this.telePose = 'cast';
     this.introPose = 'cast';
     this.walker = false; this.patience = 2.5;
@@ -2014,5 +2293,5 @@ class Vasto extends Boss {
 
 const BOSS_CLASSES = {
   fisher: GrandFisher, menos: Menos, renji: Renji, kenpachi: Kenpachi, byakuya: Byakuya,
-  grimmjow: Grimmjow, vasto: Vasto, ulquiorra: Ulquiorra, espada: Aaroniero, final: HollowIchigo,
+  grimmjow: Grimmjow, vasto: Vasto, ulquiorra: Ulquiorra, espada: Aaroniero, final: HollowIchigo, urahara: Urahara,
 };

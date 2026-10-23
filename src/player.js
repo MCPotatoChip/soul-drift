@@ -102,7 +102,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.boundT = t;
     Sfx.play('bakudo');
   }
-  spellMul() { return (GS.sealOn('focus') ? 1.5 : 1) * (GS.run.maskOn ? 1.3 : 1) * (this.bankai ? 1.3 : 1); }
+  spellMul() { return (GS.sealOn('focus') ? 1.5 : 1) * (GS.run.maskOn ? 1.3 : 1) * (this.bankai ? 1.3 : 1) * (1 + 0.2 * GS.upgrade('kidoPower')); }
+  // How much larger the Kidō bolts and blasts grow (Kidō Reach)
+  kidoSize() { return 1 + 0.25 * GS.upgrade('kidoReach'); }
 
   touchingWall(dir, lowOnly) {
     const b = this.body, s = this.scene;
@@ -704,7 +706,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   updateSafe() {
     if (this.state !== 'normal' || !this.body.blocked.down) return;
     const b = this.body, s = this.scene, y = b.bottom + 3;
-    const solidSafe = (x) => { const t = s.solid.getTileAtWorldXY(x, y); return t && t.collides && t.index !== T.COLLAPSE; };
+    const solidSafe = (x) => { const t = s.solid.getTileAtWorldXY(x, y); return (t && t.collides && t.index !== T.COLLAPSE) || !!s.oneway.getTileAtWorldXY(x, y); };
     if (solidSafe(b.left + 1) && solidSafe(b.right - 1) && !s.nearHazard(b.center.x, b.bottom - 6)) {
       this.lastSafe = { x: b.center.x, y: b.bottom };
     }

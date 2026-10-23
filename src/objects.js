@@ -343,9 +343,9 @@ class Pickup extends Phaser.GameObjects.Image {
     scene.add.existing(this);
     this.type = type; this.id = id; this.key = key;
     this.setDepth(8);
-    const color = type === 'ability' || type === 'item' ? (PICKUP_COLORS[id] || 0xffffff) : type === 'seal' ? 0xffd75e : type === 'ore' ? 0xb89aff : type === 'petal' ? 0xffb0d0 : 0xffffff;
+    const color = type === 'ability' || type === 'item' || type === 'upgrade' ? (PICKUP_COLORS[id] || 0xffffff) : type === 'seal' ? 0xffd75e : type === 'ore' ? 0xb89aff : type === 'petal' ? 0xffb0d0 : 0xffffff;
     this.halo = scene.add.image(x, y, 'glow').setDepth(7).setTint(color).setAlpha(0.5).setScale(type === 'ability' ? 1.6 : 1);
-    if (type === 'ability') this.setTint(color);
+    if (type === 'ability' || type === 'upgrade') this.setTint(color);
     scene.tweens.add({ targets: [this, this.halo], y: y - 4, yoyo: true, repeat: -1, duration: 1100, ease: 'Sine.inOut' });
     scene.tweens.add({ targets: this.halo, alpha: 0.2, yoyo: true, repeat: -1, duration: 700 });
     this.color = color;
@@ -361,6 +361,7 @@ const PICKUP_COLORS = {
   dash: 0x9fb4ff, hado: 0xff6a4a, grip: 0x7fe8ff, bakudo: 0xffd75e, wings: 0xe8f4ff,
   konso: 0xbfe6ff, burst: 0xff8a3a, bankai: 0xe0303c, hollow: 0xf4f1ea, getsuga: 0x9ac8ff, raiko: 0xff4a30, compass: 0x7fe8ff,
   zangetsu: 0xe8e4d8, odachi: 0xbfe0ff, kodachi: 0xffd890, soten: 0xffb0d0, gikongan: 0x3ac86a, petal: 0xffd0e4,
+  kidoPower: 0xff7a4a, kidoReach: 0xffb06a, moonEdge: 0x9ac8ff, flow: 0xbfffd8,
 };
 
 class Shard extends Phaser.Physics.Arcade.Image {

@@ -647,6 +647,7 @@ const ICON_GLYPH = {
   edge: '刃', swift: '速', harvest: '魂', focus: '集', quick: '癒', magnet: '磁', long: '長', grace: '恩', moonfang: '月', phantom: '蝉', will: '志',
   kaido: '回', bell: '鈴', shunko: '鬨', hierro: '鋼', gentei: '限',
   raiko: '雷', recall: '憶', compass: '針',
+  kidoPower: '威', kidoReach: '範', moonEdge: '弦', flow: '流',
   pride: '獅', shiba: '花', zangetsu: '斬', odachi: '大', kodachi: '小', soten: '舜', gikongan: '丸', petal: '華',
   unknown: '?',
 };

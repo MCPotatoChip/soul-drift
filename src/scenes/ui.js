@@ -15,7 +15,7 @@ function fmtClock(t, tenths = false) {
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 // The kanji shown faintly behind each release banner
-const BANNER_KANJI = { BANKAI: '卍解', 'RESURRECCIÓN': '帰刃', UNLEASHED: '剣八' };
+const BANNER_KANJI = { BANKAI: '卍解', 'RESURRECCIÓN': '帰刃', UNLEASHED: '剣八', SHIKAI: '始解', UNBOUND: '虚' };
 
 class UIScene extends Phaser.Scene {
   constructor() { super('ui'); }
@@ -630,6 +630,12 @@ class UIScene extends Phaser.Scene {
       this.popName.setText(a.name);
       this.popKey.setText(Controls.fmt(a.key)).setVisible(true);
       this.popDesc.setText(Controls.fmt(a.desc));
+    } else if (p.kind === 'upgrade') {
+      const u = UPGRADES[p.id], lv = GS.upgrade(p.id);
+      this.popEyebrow.setText('POWER UPGRADE');
+      this.popName.setText(u.name);
+      this.popKey.setText(`Level ${lv} of ${u.max}  ·  ${u.per}`).setVisible(true);
+      this.popDesc.setText(u.desc);
     } else if (p.kind === 'form') {
       const f = FORMS[p.id];
       this.popEyebrow.setText('ZANPAKUTŌ FORM');
