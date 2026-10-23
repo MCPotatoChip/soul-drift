@@ -5,14 +5,20 @@
 // screen for rebinding. Up/down move, jump/Enter confirms, slash/Esc goes back.
 // ---------------------------------------------------------------------------
 
+// The faint kanji in the corner of each screen
+const MENU_KANJI = { pause: '休', rest: '休息', seals: '封印', travel: '門', shop: '浦原商店', forge: '鍛冶', map: '地図', inventory: '持物', journal: '記録', settings: '設定', controls: '操作' };
+
 class MenuScene extends Phaser.Scene {
   constructor() { super('menu'); }
   init(data) { this.type = data.type; }
 
   create() {
-    this.add.rectangle(0, 0, GAME_W, GAME_H, 0x07070b, 0.95).setOrigin(0);
+    this.add.rectangle(0, 0, GAME_W, GAME_H, 0x07070b, 0.94).setOrigin(0);
+    // a faint kanji for the screen, large in the corner, and ink pooling at the edges
+    this.add.image(0, GAME_H, 'ui_ink').setOrigin(0, 1).setTint(0x1a1424).setAlpha(0.8).setScale(2.2, 2);
+    this.watermark = this.add.text(GAME_W - 40, GAME_H - 30, '', { fontFamily: FONT_DISPLAY, fontSize: '150px', fontStyle: '800', color: CRIMSON }).setOrigin(1, 1).setAlpha(0.07);
     this.layer = this.add.container(0, 0);
-    this.sel = 0;
+    this.sel = 0; this.col = 0;
     this.view = this.type;
     this.msg = '';
     this.listening = null;
@@ -38,21 +44,25 @@ class MenuScene extends Phaser.Scene {
     return t;
   }
   title(s, sub) {
+    const st = this.add.image(GAME_W / 2, 110, 'ui_stroke').setTint(0xd8343f).setAlpha(0.55).setScale(0, 0.5);
+    this.layer.add(st);
+    this.tweens.add({ targets: st, scaleX: 0.55, duration: 380, ease: 'Cubic.out' });
     this.txt(GAME_W / 2, 70, s, 52, INK, { display: true, origin: 0.5 });
+    if (sub) this.txt(GAME_W / 2, 136, sub, 18, MUTED, { origin: 0.5 });
+    this.watermark.setText(MENU_KANJI[this.view] || '');
+  }
+  // A brush stroke behind the chosen row, swept in each time the choice changes
+  selectStroke(x, y, w, h) {
+    const st = this.add.image(x - 22, y + h / 2, 'ui_stroke').setOrigin(0, 0.5).setTint(0xd8343f).setAlpha(0.32).setScale(0.1, h / 52);
     const g = this.add.graphics();
-    g.lineStyle(2, 0xd8343f, 1).lineBetween(GAME_W / 2 - 50, 112, GAME_W / 2 + 50, 112);
-    this.layer.add(g);
-    if (sub) this.txt(GAME_W / 2, 134, sub, 18, MUTED, { origin: 0.5 });
+    g.fillStyle(0xd8343f, 1).fillPoints([{ x: x - 10, y: y + h / 2 - 5 }, { x: x - 5, y: y + h / 2 }, { x: x - 10, y: y + h / 2 + 5 }, { x: x - 15, y: y + h / 2 }], true);
+    this.layer.add([st, g]);
+    this.tweens.add({ targets: st, scaleX: w / 470, duration: 180, ease: 'Cubic.out' });
   }
   list(items, x, y, gap = 46, w = 420) {
     items.forEach((it, i) => {
       const on = i === this.sel;
-      if (on) {
-        const g = this.add.graphics();
-        g.fillStyle(0xe9e4d8, 0.08).fillRect(x - 16, y + i * gap - 6, w, gap - 6);
-        g.fillStyle(0xd8343f, 1).fillRect(x - 16, y + i * gap - 6, 3, gap - 6);
-        this.layer.add(g);
-      }
+      if (on) this.selectStroke(x - 8, y + i * gap - 6, w, gap - 6);
       if (it.icon) this.icon(it.icon, x + 16, y + i * gap + 13, 32, it.disabled ? 0.4 : 1);
       this.txt(x + (it.icon ? 46 : 0), y + i * gap, it.label, 24, it.disabled ? '#5c5868' : on ? INK : '#b8b2c4', { bold: on });
       this.hit(x - 16, y + i * gap - 6, w, gap - 6, () => this.tapItem(i));
@@ -90,18 +100,19 @@ class MenuScene extends Phaser.Scene {
     const d = GS.data;
     switch (this.view) {
       case 'pause': {
-        this.title('Paused', ROOMS[d.room].name);
-        this.items = [{ label: 'Resume', act: () => this.close() }, { label: 'Controls', act: () => this.go('controls') }, { label: 'Map', act: () => this.go('map') },
-          { label: 'Inventory', act: () => this.go('inventory') }, { label: 'Settings', act: () => this.go('settings') },
+        this.title('Paused', `${REGIONS[ROOMS[d.room].region].kanji}  ·  ${ROOMS[d.room].name}`);
+        this.items = [{ label: 'Resume', act: () => this.close() }, { label: 'Map', act: () => this.go('map') },
+          { label: 'Inventory', act: () => this.go('inventory') }, { label: 'Journal', act: () => this.go('journal') },
+          { label: 'Controls', act: () => this.go('controls') }, { label: 'Settings', act: () => this.go('settings') },
           { label: 'Quit to title', act: () => this.quit() }];
-        this.list(this.items, GAME_W / 2 - 190, 210);
+        this.list(this.items, GAME_W / 2 - 190, 196, 50);
         this.footer('Progress saves at rest gates and when you collect things. Quitting returns you to your last rest gate.');
         break;
       }
       case 'controls': { this.renderControls(); break; }
       case 'settings': { this.renderSettings(); break; }
       case 'rest': {
-        this.title('Senkaimon Rest Gate', 'Progress saved · health restored');
+        this.title('Rest Gate', 'Progress saved · health restored · the Senkaimon hums'); 
         const gates = Object.keys(d.gates).length;
         this.items = [{ label: 'Equip seals', right: `${GS.usedSlots()}/${d.sealSlots} slots`, act: () => this.go('seals') },
           { label: 'Travel', right: gates > 1 ? `${gates} gates` : 'find more gates', disabled: gates < 2, act: () => gates > 1 && this.go('travel') },
@@ -142,7 +153,7 @@ class MenuScene extends Phaser.Scene {
         break;
       }
       case 'shop': {
-        this.title('Spirit Goods', 'The merchant tips a striped hat. "Reishi only, no refunds."');
+        this.title('Urahara Shop', 'Kisuke Urahara tips his striped hat. "Reishi only, no refunds!"');
         this.items = SHOP_STOCK.map(it => {
           const sold = it.type === 'seal' ? d.seals.includes(it.id) : !!d.bought[it.id];
           const name = it.type === 'seal' ? SEALS[it.id].name + ' (seal)' : it.type === 'tool' ? TOOLS[it.id].name : 'Soul Fragment';
@@ -163,6 +174,7 @@ class MenuScene extends Phaser.Scene {
       case 'forge': this.renderForge(); break;
       case 'map': this.renderMap(); break;
       case 'inventory': this.renderInventory(); break;
+      case 'journal': this.renderJournal(); break;
     }
   }
 
@@ -291,7 +303,7 @@ class MenuScene extends Phaser.Scene {
 
   renderForge() {
     const d = GS.data, lvl = d.swordLevel || 0, next = FORGE[lvl];
-    this.title('Swordsmith', '"Bring me reishi and the ore that grows where Hollows die. I will give that blade its teeth back."');
+    this.title('Swordsmith', '"Bring me reishi and the ore that grows where Hollows die. I will give that Zanpakutō its teeth back."');
     this.txt(GAME_W / 2, 186, `Zanpakuto edge  ·  level ${lvl} of ${FORGE.length}`, 26, INK, { origin: 0.5, display: true });
     const g = this.add.graphics();
     this.layer.add(g);
@@ -353,6 +365,26 @@ class MenuScene extends Phaser.Scene {
     const P = (x, y) => ({ x: ox + ex + (x - minX) * sc, y: oy + ey + (y - minY) * sc });
     const g = this.add.graphics();
     this.layer.add(g);
+    // the ways between rooms you have walked, door to door
+    g.lineStyle(2, 0xd9b35a, 0.35);
+    ids.forEach(id => {
+      if (!d.visited[id]) return;
+      const r = ROOMS[id];
+      Object.entries(r.doors).forEach(([dd, [to, td]]) => {
+        if (!d.visited[to] || id > to) return;
+        const a2 = this.doorPoint(id, dd, box, P), b2 = this.doorPoint(to, td, box, P);
+        if (a2 && b2) g.lineBetween(a2.x, a2.y, b2.x, b2.y);
+      });
+    });
+    // a region's name in kanji above the rooms of it you have seen
+    Object.keys(REGIONS).forEach(reg => {
+      const mine = ids.filter(id => d.visited[id] && ROOMS[id].region === reg);
+      if (!mine.length) return;
+      let x0 = Infinity, y0 = Infinity;
+      mine.forEach(id => { const b = box(id); x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); });
+      const p = P(x0, y0);
+      this.txt(p.x, p.y - 4, REGIONS[reg].kanji + '  ' + REGIONS[reg].name, 14, '#' + REGIONS[reg].color.toString(16).padStart(6, '0'), { bold: true, origin: [0, 1] });
+    });
     ids.forEach(id => {
       const b = box(id), p = P(b.x, b.y), w = b.w * sc, h = b.h * sc;
       if (d.visited[id]) {
@@ -384,6 +416,16 @@ class MenuScene extends Phaser.Scene {
     this.items = [];
     this.hit(0, 0, GAME_W, GAME_H, () => this.back());
     this.footer(Controls.fmt('Red marker: you · gold dot: rest gate · {map} or {attack} close'));
+  }
+
+  // Where a door sits on the map: its tile, scaled into the room's box
+  doorPoint(id, door, box, P) {
+    const r = ROOMS[id], b = box(id);
+    for (let y = 0; y < r.tiles.length; y++) {
+      const x = r.tiles[y].indexOf(door);
+      if (x >= 0) return P(b.x + (x + 0.5) / 10, b.y + (y + 0.5) / 10);
+    }
+    return null;
   }
 
   // Landmarks always show on rooms you have seen; with the Pin Compass, so does what is left to find
@@ -434,20 +476,21 @@ class MenuScene extends Phaser.Scene {
   renderInventory() {
     const d = GS.data;
     this.title('Inventory', `${GS.completion()}% complete · ${this.fmtTime(d.time)}${d.plus ? ` · New Game+ ${d.plus}` : ''}`);
-    this.txt(150, 180, 'ABILITIES', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+    this.txt(150, 172, 'POWERS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     ABILITY_ORDER.forEach((id, i) => {
       const a = ABILITIES[id], has = !!d.abilities[id];
-      this.icon(has ? 'icon_' + id : 'icon_unknown', 166, 228 + i * 40, 32, has ? 1 : 0.6);
-      this.txt(196, 208 + i * 40, has ? a.name : '? ? ?', 20, has ? INK : '#4c4858', { bold: has });
-      if (has) this.txt(196, 230 + i * 40, Controls.fmt(a.key), 13, GOLD);
+      this.icon(has ? 'icon_' + id : 'icon_unknown', 166, 214 + i * 40, 32, has ? 1 : 0.6);
+      this.txt(196, 194 + i * 40, has ? a.name : '? ? ?', 19, has ? INK : '#4c4858', { bold: has });
+      if (has) this.txt(196, 216 + i * 40, Controls.fmt(a.key), 13, GOLD);
     });
     const x = 700;
     this.txt(x, 180, 'SOUL', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+    const T = GS.totals();
     const rows = [
-      ['Health', `${d.maxHp} masks`], ['Soul fragments', `${d.fragments} / 4  (${d.fragmentsTotal} of 8 found)`],
-      ['Zanpakuto edge', `level ${d.swordLevel || 0} of ${FORGE.length}`], ['Reishi ore', String(d.ore || 0)],
-      ['Lost pluses sent on', `${d.pluses} / 6`], ['Seal slots', `${GS.usedSlots()} / ${d.sealSlots} used`],
-      ['Reishi', String(d.reishi)], ['Bosses felled', `${Object.keys(d.bosses).length} / 5`],
+      ['Health', `${d.maxHp} masks`], ['Soul fragments', `${d.fragments} / 4  (${d.fragmentsTotal} of ${T.fragments} found)`],
+      ['Zanpakutō edge', `level ${d.swordLevel || 0} of ${FORGE.length}`], ['Reishi ore', String(d.ore || 0)],
+      ['Lost pluses sent on', `${d.pluses} / ${T.pluses}`], ['Seal slots', `${GS.usedSlots()} / ${d.sealSlots} used`],
+      ['Reishi', String(d.reishi)], ['Bosses felled', `${Object.keys(d.bosses).filter(b => BOSSES[b]).length} / ${T.bosses}`],
     ];
     rows.forEach(([k, v], i) => {
       this.txt(x, 214 + i * 36, k, 20, '#b8b2c4');
@@ -459,7 +502,52 @@ class MenuScene extends Phaser.Scene {
     this.txt(x, d.equipped.length ? 590 : 548, eq.length ? eq.join(' · ') : 'None. Equip seals at a rest gate.', 19, eq.length ? INK : MUTED, { wrap: 470 });
     this.items = [];
     this.hit(0, 0, GAME_W, GAME_H, () => this.back());
-    this.footer(Controls.fmt('{inventory} or {attack} close'));
+    this.footer(Controls.fmt('{inventory} or {attack} close · Journal from the pause menu'));
+  }
+
+  // The Journal: every kind of foe you have met, how many you have sent on, and what the
+  // Konso let you hear them remember
+  renderJournal() {
+    const d = GS.data;
+    const seen = (k) => (d.kills[k] || 0) > 0 || d.memories[k] || d.bosses[k];
+    const met = BESTIARY.filter(([k]) => seen(k)).length;
+    this.title('Journal', `Hollows, Shinigami and Arrancar you have faced · ${met} of ${BESTIARY.length}`);
+    this.items = BESTIARY.map(([k, name]) => ({ k, label: seen(k) ? name : '? ? ?', disabled: false, act: () => {} }));
+    const per = 11, first = Phaser.Math.Clamp(this.sel - 5, 0, Math.max(0, this.items.length - per));
+    const x = 120, y = 186, gap = 40;
+    this.items.slice(first, first + per).forEach((it, j) => {
+      const i = first + j, on = i === this.sel, known = seen(it.k);
+      if (on) this.selectStroke(x - 8, y + j * gap - 6, 400, gap - 6);
+      const boss = BOSS_KINDS.includes(it.k);
+      this.txt(x, y + j * gap, it.label, 20, !known ? '#4c4858' : on ? INK : '#b8b2c4', { bold: on });
+      if (boss && known) this.txt(x + 380, y + j * gap + 2, d.bosses[it.k] ? '討' : '', 18, CRIMSON, { display: true, origin: [1, 0] });
+      this.hit(x - 16, y + j * gap - 6, 400, gap - 6, () => { this.sel = i; this.render(); });
+    });
+    if (first > 0) this.txt(x + 180, y - 30, '▲', 14, MUTED, { origin: 0.5 });
+    if (first + per < this.items.length) this.txt(x + 180, y + per * gap - 4, '▼', 14, MUTED, { origin: 0.5 });
+    const cur = BESTIARY[this.sel];
+    if (cur) {
+      const [k, name, about] = cur, known = seen(k), boss = BOSS_KINDS.includes(k);
+      const px = 620;
+      const g = this.add.graphics();
+      g.fillStyle(0x16141f, 0.8).fillRect(px - 20, 176, 560, 430);
+      g.lineStyle(1, 0xe9e4d8, 0.18).strokeRect(px - 19.5, 176.5, 559, 429);
+      this.layer.add(g);
+      if (!known) {
+        this.txt(px + 260, 380, 'You have not met this one yet.', 20, MUTED, { origin: 0.5 });
+      } else {
+        this.txt(px, 196, name, 32, INK, { display: true });
+        if (boss) this.txt(px + 520, 204, BOSSES[k].jp, 20, CRIMSON, { display: true, origin: [1, 0] });
+        this.txt(px, 246, boss ? BOSSES[k].title : '', 17, GOLD, { bold: true });
+        this.txt(px, 282, about, 19, INK, { wrap: 510 });
+        const kills = d.kills[k] || 0;
+        this.txt(px, 392, boss ? (d.bosses[k] ? 'Defeated' : 'Not yet defeated') : `Sent on: ${kills}`, 18, '#7fe8ff', { bold: true });
+        this.txt(px, 440, 'MEMORY', 14, MUTED, { bold: true, style: { letterSpacing: 3 } });
+        const mem = d.memories[k] && MEMORIES[k] ? MEMORIES[k][0] : Controls.fmt('Strike it with the Konso hilt ({konso}) to hear what it remembers.');
+        this.txt(px, 466, mem, 19, d.memories[k] ? '#cfe8ff' : '#5c5868', { wrap: 510, style: { fontStyle: d.memories[k] ? 'italic' : 'normal' } });
+      }
+    }
+    this.footer(Controls.fmt('{up} {down} choose · {attack} back'));
   }
 
   fmtTime(t) { const m = Math.floor(t / 60), s = Math.floor(t % 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}:${String(s).padStart(2, '0')}`; }
@@ -469,7 +557,7 @@ class MenuScene extends Phaser.Scene {
   back() {
     const parent = { seals: 'rest', travel: 'rest', controls: 'pause', settings: 'pause' }[this.view];
     if (parent && this.type !== this.view) { this.view = parent; this.sel = 0; this.msg = ''; Sfx.play('select'); this.render(); this.popIn(); }
-    else if ((this.view === 'map' || this.view === 'inventory') && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); this.popIn(); }
+    else if (['map', 'inventory', 'journal'].includes(this.view) && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); this.popIn(); }
     else this.close();
   }
   toggleSeal(id) {

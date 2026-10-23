@@ -91,8 +91,8 @@ function renderKeyLegend() {
   if (!el) return;
   const items = [
     [`${Controls.key('left')} ${Controls.key('right')}`, 'move'], [Controls.keys('jump'), 'jump'], [Controls.key('attack'), 'slash'],
-    [Controls.key('heal'), 'heal (hold)'], [Controls.key('dash'), 'Black Step'], [Controls.key('kido'), `Kido (${Controls.key('up')}+${Controls.key('kido')} Bakudo)`],
-    [Controls.key('konso'), 'Konso'], [Controls.key('burst'), 'Burst'], [Controls.key('bankai'), 'Bankai'], [Controls.key('mask'), 'Mask'],
+    [Controls.key('heal'), 'heal (hold)'], [Controls.key('dash'), 'Shunpo'], [Controls.key('kido'), `Kidō (${Controls.key('up')}+${Controls.key('kido')} Bakudō)`],
+    [Controls.key('konso'), 'Konsō'], [Controls.key('burst'), 'Burst'], [Controls.key('bankai'), 'Bankai'], [Controls.key('mask'), 'Mask'],
     [Controls.key('interact'), 'interact'], [`${Controls.key('map')} ${Controls.key('inventory')} ${Controls.key('pause')}`, 'map, inventory, pause'],
   ];
   el.replaceChildren(...items.map(([k, v]) => {
@@ -106,14 +106,19 @@ function renderKeyLegend() {
 renderKeyLegend();
 Controls.onChange(renderKeyLegend);
 
+const JAPANESE_TEXT = [...new Set((Object.values(ICON_GLYPH).join('') + Object.values(REGIONS).map(r => r.kanji).join('') +
+  Object.values(BOSSES).map(b => b.jp).join('') + Object.values(MENU_KANJI).join('') + Object.values(BANNER_KANJI).join('') +
+  '霊圧魂の漂流討浦原商店').split(''))].join('');
+
 (function boot() {
   const fonts = document.fonts
     ? Promise.all([
         document.fonts.load('800 40px "Shippori Mincho B1"'),
         document.fonts.load('400 20px "Zen Kaku Gothic New"'),
         document.fonts.load('700 20px "Zen Kaku Gothic New"'),
-        // the kanji used on the icons, so their font subset is ready before the textures are drawn
-        document.fonts.load('800 25px "Shippori Mincho B1"', '瞬破握縛翼牙葬門解虚刃速魂集癒磁長恩月幻志雷憶針'),
+        // every kanji and kana the game draws (icons, regions, bosses, menus), so their font
+        // subsets are loaded before any text or texture uses them
+        document.fonts.load('800 25px "Shippori Mincho B1"', JAPANESE_TEXT),
       ])
     : Promise.resolve();
   let started = false;
