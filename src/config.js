@@ -105,6 +105,13 @@ const FORMS = {
     desc: 'A short blade for close work. Quick strikes that hit softer and come one after another.', how: 'Earned in the Study Room under Urahara\'s shop.' },
 };
 const FORM_ORDER = ['zangetsu', 'odachi', 'kodachi'];
+// Tempers: what the swordsmith does with spare ore once the edge is as sharp as it goes. Every level stacks.
+const TEMPERS = {
+  keen:  { name: 'Keen Temper', max: 3, reishi: 200, ore: 1, per: '+8% slash damage', desc: 'The edge bites deeper.' },
+  quick: { name: 'Quick Temper', max: 2, reishi: 250, ore: 1, per: '6% less time between slashes', desc: 'The blade sits lighter in the hand.' },
+  long:  { name: 'Long Temper', max: 2, reishi: 250, ore: 1, per: '+8% slash reach', desc: 'The slash arc carries further.' },
+};
+const TEMPER_ORDER = ['keen', 'quick', 'long'];
 // The swordsmith's price for the Ōdachi (after the first sharpening)
 const ODACHI_COST = { reishi: 400, ore: 1 };
 

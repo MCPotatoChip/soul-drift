@@ -48,6 +48,7 @@ const GS = {
       shade: null,           // { room, x, y, amount } lingering reiatsu after death
       bought: {},
       swordLevel: 0,         // swordsmith upgrades (0-3)
+      temper: {},            // spare ore spent on the blade: keen, quick, long (see TEMPERS)
       ore: 0,                // reishi ore carried
       time: 0,
       cleared: false,
@@ -118,7 +119,7 @@ const GS = {
     const d = this.fresh();
     Object.assign(d, {
       abilities: Object.assign({}, old.abilities), seals: old.seals.slice(), equipped: old.equipped.slice(),
-      sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, maxHp: old.maxHp, hp: old.maxHp,
+      sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, temper: Object.assign({}, old.temper), maxHp: old.maxHp, hp: old.maxHp,
       fragmentsTotal: old.fragmentsTotal, ore: old.ore || 0, reishi: old.reishi || 0, plus: (old.plus || 0) + 1,
       gifts: Object.assign({}, old.gifts), forms: Object.assign({}, old.forms), form: old.form,
       rush: old.rush, trueEnding: old.trueEnding, palace: old.palace, upgrades: Object.assign({}, old.upgrades),
@@ -135,8 +136,10 @@ const GS = {
   // The edge of the blade: forge levels (unless a trial binds it back to the plain edge) and the form's weight
   slashDamage() {
     const lvl = this.rush && this.rush.bind.blade ? 0 : (this.data.swordLevel || 0);
-    return (COMBAT.slashDamage + lvl * COMBAT.swordBonus) * this.form().dmg;
+    return (COMBAT.slashDamage + lvl * COMBAT.swordBonus) * this.form().dmg * (1 + 0.08 * this.temper('keen'));
   },
+  // Levels of a temper (a trial that binds the blade back to its first edge sets them aside too)
+  temper(id) { return this.rush && this.rush.bind.blade ? 0 : ((this.data.temper || {})[id] || 0); },
   swordLevel() { return this.rush && this.rush.bind.blade ? 0 : (this.data.swordLevel || 0); },
 
   // How full the Reiatsu vessel can get (a bound trial holds only a third)
@@ -247,6 +250,7 @@ const GS = {
     }
     d.upgrades = d.upgrades || {};
     d.notes = d.notes || [];
+    d.temper = d.temper || {};
     const restOK = (id) => id && ROOMS[id] && ROOMS[id].tiles.some(r => r.includes('R'));
     const moved = { hm_boss: 'hm_2', forest_2: 'forest_1' };
     if (d.restRoom && !restOK(d.restRoom)) d.restRoom = moved[d.restRoom] || null;
