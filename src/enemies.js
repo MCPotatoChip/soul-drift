@@ -116,6 +116,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.stunT -= dt;
       this.body.velocity.x *= 0.9;
       if (!this.body.allowGravity) this.body.velocity.y *= 0.9;
+    } else if (!this.isBoss && this.scene.entryCalm > 0) {
+      this.body.velocity.x *= 0.8;   // just arrived: nobody pounces on the first heartbeat
+      if (!this.body.allowGravity) this.body.velocity.y *= 0.8;
     } else this.think(dt);
     this.setFlipX(this.facing < 0);
     this.afterTick && this.afterTick(dt);
