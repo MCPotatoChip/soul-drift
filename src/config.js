@@ -277,7 +277,7 @@ const QUESTS = {
   kon:     { name: 'A Body for Kon', giver: 'Kon', where: 'Karakura Town',
     todo: 'Find Kon\'s spare Gikongan, locked away somewhere in the Seireitei.', reward: 'The Lion\'s Pride seal' },
   urahara: { name: 'The Study Room', giver: 'Kisuke Urahara', where: 'under the Urahara Shop',
-    todo: 'Survive three waves of Urahara\'s "light exercise".', reward: 'The Kodachi form' },
+    todo: 'Survive three waves of Urahara\'s "light exercise". Then, if you dare, the real lesson: Urahara himself.', reward: 'The Kodachi form, and for beating him a seal slot and 300 reishi' },
   ganju:   { name: 'Ganju\'s Rematch', giver: 'Ganju Shiba', where: 'Inuzuri, Rukongai',
     todo: 'Beat Ganju in a fair fight. He insists.', reward: 'The Shiba Crest seal' },
   orihime: { name: 'The Six Flowers', giver: 'Orihime Inoue', where: 'Las Noches',

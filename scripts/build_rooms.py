@@ -82,7 +82,8 @@ R['kar_hub'] = dict(
             'Oi, Ichigo! While you run around as a Shinigami, I am stuck in this stuffed lion. Do you know how humiliating that is?',
             'Strike things with {attack} and your Reiatsu swells. Hold {heal} while standing still to press it into your wounds.',
             'Urahara\'s shop is right there. He sells seals, if you have the reishi. Do not let him talk you into anything weird.',
-            'That shaft between the towers? Only someone who can grip a wall with their spirit could climb it. And the tunnel under the planks is sealed by a Senkaimon.']},
+            'That shaft between the towers? Only someone who can grip a wall with their spirit could climb it. And the tunnel under the planks is sealed by a Senkaimon.',
+            'Past that gate is some sort of sideways city inside your own head, Ichigo. Urahara says its last door only opens for someone who has every power there is. Every one. Even the mask you will not talk about.']},
     ],
     tiles=None)
 g.put(14, 18, '.').put(27, 18, 'N').put(40, 18, 'N')
@@ -392,7 +393,7 @@ R['dangai_2'] = dict(name='Precipice Shrine', region='dan', pos=[-5.5, 5.6],
 
 # =========================================================================== the Inner World
 g = old('end_1')
-R['end_1'] = dict(name='Sideways City', region='end', pos=[12, 12.4],
+R['end_1'] = dict(name='Sideways City', region='end', pos=[12, 12.4], sealAll=True,
     doors={'1': ['kar_hub', '4'], '2': ['end_boss', '1']}, tiles=g.rows())
 
 g = old('end_boss')
@@ -477,6 +478,53 @@ R['palace'] = dict(name='Hall of the Royal Guard', region='rei', pos=[18, 4.5], 
         'Carry all of it through to the end, and you will see what lies under the last name. Bind yourself, if you want a harder road. The altar remembers both.']}],
     tiles=g.rows())
 
+# =========================================================================== world 3
+from new_rooms import add_rooms
+NEW_ROOMS = add_rooms(R, Grid)
+
+
+# Where each room sits on the map (top-left corner, in map units: a room's box is its size in tiles divided by ten).
+# Rooms stand beside the door that leads to them, with a gap between neighbours so names and marks never crowd.
+LAYOUT = {
+    # Karakura, and the worlds beside it
+    'kar_alley': (-5.0, 0.0), 'kar_hub': (0.0, 0.0), 'kar_study': (2.2, 3.2), 'end_1': (-6.8, 3.4), 'end_boss': (-12.4, 3.4),
+    'kar_roof': (3.8, -3.2), 'kar_river': (6.9, 0.0), 'kar_canal': (14.7, 0.0), 'kar_grave': (14.7, -3.2),
+    'dangai_1': (-16.0, -8.0), 'dangai_2': (-0.2, -8.0), 'dangai_3': (4.6, -8.0),
+    # Rukongai
+    'ruk_1': (22.7, 0.0), 'ruk_orchard': (30.5, -0.7), 'ruk_kido_hall': (30.5, -3.9), 'ruk_2': (38.3, 0.0), 'ruk_3': (45.1, 0.0),
+    'ruk_ravine_edge': (52.3, 0.0), 'ruk_boss': (59.1, 0.0),
+    # the Seireitei
+    'sei_gate': (44.5, -6.4), 'sei_canal': (50.5, -6.4), 'sei_ward': (57.7, -6.4), 'sei_barracks': (64.9, -6.4),
+    'sei_11': (66.6, -3.4), 'sei_1': (71.7, -7.0), 'sei_2': (75.6, -12.5), 'sei_infirmary': (81.2, -10.3), 'sei_4': (87.6, -10.3),
+    'sei_renji': (94.0, -10.3), 'sei_lantern': (87.5, -6.9),
+    # Sokyoku Hill
+    'sok_1': (81.3, -15.3), 'sok_shrine': (75.4, -19.5), 'sok_stair': (87.0, -14.9), 'sok_boss': (93.9, -14.9),
+    # Hueco Mundo
+    'hm_1': (98.8, -16.4), 'hm_sand': (99.5, -20.3), 'hm_dunes': (106.0, -17.1), 'hm_vault': (110.8, -20.3),
+    'hm_2': (115.3, -17.2), 'hm_side': (116.4, -20.4), 'hm_3': (121.8, -17.2), 'hm_dome': (122.2, -20.9), 'hm_boss': (121.8, -12.5),
+    'hm_hall2': (128.7, -16.4), 'hm_grimm': (136.0, -16.4),
+    'forest_1': (102.3, -13.2), 'forest_depths': (107.6, -11.1), 'forest_2': (115.7, -10.8),
+    'palace': (6.0, -14.0),
+}
+
+
+def apply_layout(R):
+    boxes = {}
+    for rid, r in R.items():
+        x, y = LAYOUT[rid]
+        r['pos'] = [x, y]
+        boxes[rid] = (x, y, len(r['tiles'][0]) / 10, len(r['tiles']) / 10)
+    ids = sorted(boxes)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            ax, ay, aw, ah = boxes[a]
+            bx, by, bw, bh = boxes[b]
+            assert not (ax < bx + bw + 0.3 and bx < ax + aw + 0.3 and ay < by + bh + 0.3 and by < ay + ah + 0.3), ('map boxes touch', a, b)
+
+
+assert set(LAYOUT) == set(R), set(LAYOUT) ^ set(R)
+apply_layout(R)
+
 # --------------------------------------------------------------------------- write
 ORDER = ['kar_hub', 'kar_alley', 'kar_roof', 'kar_river', 'kar_grave',
          'ruk_1', 'ruk_2', 'ruk_3', 'ruk_boss',
@@ -484,7 +532,7 @@ ORDER = ['kar_hub', 'kar_alley', 'kar_roof', 'kar_river', 'kar_grave',
          'sok_1', 'sok_boss',
          'hm_1', 'hm_2', 'hm_3', 'hm_grimm', 'hm_side', 'hm_boss', 'hm_dome',
          'forest_1', 'forest_2', 'dangai_1', 'dangai_2', 'end_1', 'end_boss',
-         'sei_lantern', 'hm_sand', 'sok_shrine', 'kar_study', 'palace']
+         'sei_lantern', 'hm_sand', 'sok_shrine', 'kar_study', 'palace'] + NEW_ROOMS
 assert sorted(ORDER) == sorted(R), set(R) ^ set(ORDER)
 
 HEADER = '''// Room layouts, generated by scripts/build_rooms.py (edit that file, then run it).
@@ -501,7 +549,8 @@ HEADER = '''// Room layouts, generated by scripts/build_rooms.py (edit that file
 //          i acidwire crawler m onmitsukido agent  x exequias   b eleventh division brawler
 //          t lantern (strike it)   Q gold barrier (open while a lantern burns)   K blue barrier (solid only then)
 //          s quicksand   p spirit pressure (air that drags you down)   r Shun Shun Rikka petal   C Kon's Gikongan
-//          U ladder up to the shop   A altar of the trials
+//          U ladder up to the shop   A altar of the trials   w power upgrade (read from the room's `upgrades`)
+// A room with sealAll: its Bankai seal doors open only to someone holding every power.
 // NPC entries: name, lines, and optionally gives (an ability), seal (a seal they hand over once),
 // heals (talking restores health) and after (what they say once they have given their gift).
 'use strict';
@@ -521,7 +570,7 @@ with open(OUT, 'w') as f:
         w = max(len(x) for x in rows)
         assert all(len(x) == w for x in rows), (rid, [len(x) for x in rows])
         f.write('  %s: {\n' % rid)
-        for k in ['name', 'region', 'pos', 'doors', 'boss', 'reward', 'rewardItems', 'chase', 'abilities', 'seals', 'platforms', 'npcs']:
+        for k in ['name', 'region', 'pos', 'doors', 'boss', 'reward', 'rewardItems', 'chase', 'sealAll', 'abilities', 'seals', 'upgrades', 'platforms', 'npcs']:
             if k in r and r[k] is not None:
                 f.write('    %s: %s,\n' % (k, js(r[k], 4)))
         f.write('    tiles: [\n')

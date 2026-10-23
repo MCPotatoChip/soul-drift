@@ -31,14 +31,14 @@ function makeGrid(room, A) {
   const rows = room.tiles, H = rows.length, W = Math.max(...rows.map(r => r.length));
   const solid = new Uint8Array(W * H), oneway = new Uint8Array(W * H), spike = new Uint8Array(W * H), press = new Uint8Array(W * H);
   const doors = [], targets = [], plats = [];
-  const cnt = { k: 0, c: 0, N: 0, M: 0 };
+  const cnt = { k: 0, c: 0, N: 0, M: 0, w: 0 };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const ch = rows[y][x] || '.', i = y * W + x;
     switch (ch) {
       case '#': case '~': solid[i] = 1; break;
       case 'X': if (!A.hado) solid[i] = 1; break;
       case 'G': if (!A.burst) solid[i] = 1; break;
-      case 'D': if (!A.bankai) solid[i] = 1; break;
+      case 'D': if (!(room.sealAll ? A.sealAll : A.bankai)) solid[i] = 1; break;   // the Inner World's seal wants every power
       case '=': oneway[i] = 1; break;
       case 'H': if (A.konso) oneway[i] = 1; break;
       case '^': case 's': spike[i] = 1; break;
@@ -50,6 +50,7 @@ function makeGrid(room, A) {
     if (ch >= '1' && ch <= '9') doors.push({ id: ch, x, y, edge: x === 0 ? 'left' : x === W - 1 ? 'right' : y === 0 ? 'top' : 'bottom' });
     else if (ch === 'k') targets.push({ kind: 'ability', id: (room.abilities || [])[cnt.k++], x: cx, feet, r: 14 });
     else if (ch === 'c') targets.push({ kind: 'seal', id: (room.seals || [])[cnt.c++], x: cx, feet, r: 14 });
+    else if (ch === 'w') targets.push({ kind: 'upgrade', id: (room.upgrades || [])[cnt.w++], x: cx, feet, r: 14 });
     else if (ch === 'N') { const npc = (room.npcs || [])[cnt.N++] || {}; targets.push({ kind: 'npc', id: npc.name, npc, x: cx, feet, r: 24, ground: true }); }
     else if ('florC'.includes(ch)) targets.push({ kind: { f: 'fragment', l: 'plus', o: 'ore', r: 'petal', C: 'gikongan' }[ch], x: cx, feet, r: ch === 'l' ? 24 : 14 });
     else if (ch === 'R') targets.push({ kind: 'rest', x: cx, feet, r: 24, ground: true });
@@ -231,7 +232,8 @@ const roomCache = new Map();
 function relevant(rid, A) {
   const t = ROOMS[rid].tiles.join('');
   const R = { konso: A.konso && t.includes('H'), dash: A.dash, grip: A.grip, wings: A.wings, hado: A.hado && t.includes('X'),
-    burst: A.burst, bankai: A.bankai && t.includes('D'), bakudo: A.bakudo && t.includes('M') };
+    burst: A.burst, bankai: A.bankai && t.includes('D') && !ROOMS[rid].sealAll, bakudo: A.bakudo && t.includes('M'),
+    sealAll: ROOMS[rid].sealAll && ABIL.every(a => A[a]) };
   return Object.fromEntries(Object.entries(R).filter(([, v]) => v));
 }
 function explore(rid, Afull, entry) {
@@ -292,7 +294,7 @@ function explore(rid, Afull, entry) {
 // ------------------------------------------------------------------ the whole journey
 const ABIL = ['konso', 'dash', 'hado', 'grip', 'bakudo', 'wings', 'raiko', 'burst', 'bankai', 'getsuga', 'hollow'];
 function journey() {
-  const A = {}, got = [], seen = new Set(), bosses = new Set(), seals = new Set(), items = { fragment: 0, plus: 0, ore: 0, petal: 0, gikongan: 0 };
+  const A = {}, got = [], seen = new Set(), bosses = new Set(), seals = new Set(), items = { fragment: 0, plus: 0, ore: 0, petal: 0, gikongan: 0, upgrade: 0 };
   const log = (what, rid, via) => got.push({ what, rid, via });
   let changed = true, rounds = 0;
   const rooms = Object.keys(ROOMS);
@@ -336,7 +338,6 @@ function journey() {
             seen.add(tag); bosses.add(tg.id); log('boss ' + tg.id, rid, entry);
             const r = ROOMS[rid];
             if (r.reward && !A[r.reward]) { A[r.reward] = true; log('ability ' + r.reward, rid, 'reward'); }
-            if (tg.id === 'byakuya') { A.raiko = true; }
             (r.rewardItems || []).forEach(it => { if (it.startsWith('seal:')) { seals.add(it.slice(5)); log('seal ' + it.slice(5), rid, 'reward'); } else items[it] = (items[it] || 0) + 1; });
             changed = true; break outer;
           }
@@ -347,6 +348,7 @@ function journey() {
             continue;
           }
           if (tg.kind === 'seal') { seen.add(tag); if (!seals.has(tg.id)) { seals.add(tg.id); log('seal ' + tg.id, rid, entry); } continue; }
+          if (tg.kind === 'upgrade') { seen.add(tag); items.upgrade++; log('upgrade ' + tg.id, rid, entry); continue; }
           if (['fragment', 'plus', 'ore', 'petal', 'gikongan'].includes(tg.kind)) { seen.add(tag); items[tg.kind]++; continue; }
         }
       }
@@ -446,7 +448,7 @@ const missing = ABIL.filter(a => !J.A[a]);
 const bossMissing = Object.keys(BOSSES).filter(b => !J.bosses.has(b));
 console.log(`\nPowers never reached: ${missing.join(', ') || 'none'}`);
 console.log(`Bosses never reached: ${bossMissing.join(', ') || 'none'}`);
-console.log(`Seals: ${J.seals.size}  fragments: ${J.items.fragment}  lost pluses: ${J.items.plus}  ore: ${J.items.ore}  petals: ${J.items.petal}  Kon's pill: ${J.items.gikongan}`);
+console.log(`Seals: ${J.seals.size}  upgrades: ${J.items.upgrade}  fragments: ${J.items.fragment}  lost pluses: ${J.items.plus}  ore: ${J.items.ore}  petals: ${J.items.petal}  Kon's pill: ${J.items.gikongan}`);
 // the palace opens at 100% (by fast travel), so it is never walked into
 const unreached = Object.keys(ROOMS).filter(r => !journey.reach.has(r) && r !== 'palace');
 console.log(`Rooms never entered: ${unreached.join(', ') || 'none'} (the Soul King Palace opens at 100%)`);

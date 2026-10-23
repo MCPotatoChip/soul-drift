@@ -1871,9 +1871,9 @@ class HollowIchigo extends Duelist {
     yield 0.3;
   }
   *flashCross() {
-    yield* this.flashStep(0xffffff, 0.28);
-    if (this.phase >= 2) yield* this.flashStep(0xff4050, 0.22);
-    if (this.phase >= 4) yield* this.flashStep(0xffffff, 0.18);
+    yield* this.flashStep(0xffffff, 0.34);
+    if (this.phase >= 2) yield* this.flashStep(0xff4050, 0.3);
+    if (this.phase >= 4) yield* this.flashStep(0xffffff, 0.3);
   }
   // Two or three steps in a row from alternating sides, each ending in a cut
   *mirrorStep() {
@@ -1883,7 +1883,7 @@ class HollowIchigo extends Duelist {
       let tx = p.x + side * 46;
       if (tx < this.arena.left + 10 || tx > this.arena.right - 10) tx = p.x - side * 46;
       yield* this.blink(tx, this.floorY());
-      yield* this.tele(0.2, 0xff6060);
+      yield* this.tele(0.3, 0xff6060);
       this.slashBox(38, 26, 0.12, 0xffffff);
       yield 0.16 / this.spd;
     }
@@ -1982,7 +1982,7 @@ class HollowIchigo extends Duelist {
     s.fx.flash(0xffffff, 200, 0.6);
     s.fx.burst(this.x, this.y - 8, 0xf4f1ea, 24);
     this.setSheet('final_m');
-    this.spd = 1.35; this.pause = 0.26;
+    this.spd = 1.3; this.pause = 0.26;
     this.invulnerable = false;
     yield* this.brain();
   }
@@ -1990,7 +1990,7 @@ class HollowIchigo extends Duelist {
     yield* this.changeForm('final_b', '"Then let us both stop holding back. Bankai."', { text: 'BANKAI', color: '#e0303c', small: 'Tensa Zangetsu' }, 0xc8202c, '#ff9090');
     this.aura.emitting = true;
     this.scene.setDarkness(0.7);
-    this.spd = 1.5; this.pause = 0.2;
+    this.spd = 1.4; this.pause = 0.2;
     yield* this.brain();
   }
   // Under a fifth of his strength left, and no reason left to hold any of it
@@ -1998,7 +1998,7 @@ class HollowIchigo extends Duelist {
     yield* this.changeForm('final_k', '"There is no King. There is no horse. There is only the blade."', { text: 'UNBOUND', color: '#ff2a3c', small: 'Hollow Ichigo, with nothing held back' }, 0xff2a3c, '#ff9090');
     this.aura.emitting = true;
     this.scene.setDarkness(0.82);
-    this.spd = 1.75; this.pause = 0.12; this.noFlinch = true;
+    this.spd = 1.55; this.pause = 0.15; this.noFlinch = true;
     yield* this.brain();
   }
 }
