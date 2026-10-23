@@ -508,7 +508,7 @@ class GameScene extends Phaser.Scene {
   startSwing(p, kind) {
     const bank = p.bankai;
     const form = GS.form();
-    const scale = (bank ? 1.25 : 1) * (GS.sealOn('long') ? 1.35 : 1) * form.reach;
+    const scale = (bank ? 1.25 : 1) * (GS.sealOn('long') ? 1.35 : 1) * form.reach * (1 + 0.08 * GS.temper('long'));
     p.swingAlt = !p.swingAlt;
     const img = this.add.image(p.x, p.y, bank ? 'slash_b' : 'slash').setDepth(21).setScale(scale * 0.8).setFlipY(p.swingAlt);
     if (GS.run.maskOn && !bank) img.setTint(0xffd0d0);

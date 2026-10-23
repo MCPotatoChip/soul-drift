@@ -176,7 +176,15 @@ class MenuScene extends Phaser.Scene {
       case 'duels': this.renderDuels(); break;
       case 'travel': {
         this.title('Travel', 'Step through the gate to any rest gate you have found');
-        this.items = Object.keys(ROOMS).filter(id => d.gates[id] || (id === 'palace' && d.palace >= 1)).map(id => ({
+        // in the order of the journey (rooms the list does not name go last, west to east)
+        const journey = ['kar_hub', 'kar_alley', 'kar_roof', 'kar_river', 'kar_canal', 'kar_grave', 'ruk_1', 'ruk_orchard', 'ruk_kido_hall', 'ruk_2', 'ruk_3', 'ruk_ravine_edge', 'ruk_boss',
+          'sei_gate', 'sei_canal', 'sei_ward', 'sei_barracks', 'sei_11', 'sei_1', 'sei_2', 'sei_infirmary', 'sei_4', 'sei_renji', 'sei_lantern', 'sok_1', 'sok_shrine', 'sok_stair', 'sok_boss',
+          'hm_1', 'hm_sand', 'hm_dunes', 'hm_vault', 'hm_2', 'hm_side', 'hm_3', 'hm_dome', 'hm_boss', 'hm_hall2', 'hm_grimm', 'forest_1', 'forest_depths', 'forest_2',
+          'end_1', 'end_boss', 'dangai_1', 'dangai_2', 'dangai_3', 'kar_study', 'palace'];
+        const rank = (id) => { const i = journey.indexOf(id); return i < 0 ? 999 : i; };
+        const gateIds = Object.keys(ROOMS).filter(id => d.gates[id] || (id === 'palace' && d.palace >= 1))
+          .sort((a, b) => rank(a) - rank(b) || ROOMS[a].pos[0] - ROOMS[b].pos[0]);
+        this.items = gateIds.map(id => ({
           label: ROOMS[id].name, right: id === d.room ? 'here' : REGIONS[ROOMS[id].region].name, disabled: id === d.room,
           act: () => { if (id !== d.room) this.travel(id); },
         }));
@@ -427,7 +435,7 @@ class MenuScene extends Phaser.Scene {
       g.fillStyle(i < lvl ? 0xd9b35a : 0x2a2733, 1);
       g.fillPoints([{ x: cx, y: cy - 10 }, { x: cx + 10, y: cy }, { x: cx, y: cy + 10 }, { x: cx - 10, y: cy }], true);
     }
-    const dmgAt = (l) => Math.round((COMBAT.slashDamage + l * COMBAT.swordBonus) * GS.form().dmg * 10) / 10;
+    const dmgAt = (l) => Math.round((COMBAT.slashDamage + l * COMBAT.swordBonus) * GS.form().dmg * (1 + 0.08 * GS.temper('keen')) * 10) / 10;
     this.txt(GAME_W / 2, 262, next ? `Slash damage ${dmgAt(lvl)} → ${dmgAt(lvl + 1)}` : `Slash damage ${dmgAt(lvl)}`, 20, GOLD, { origin: 0.5, bold: true });
     this.items = [];
     if (next) {
@@ -439,12 +447,41 @@ class MenuScene extends Phaser.Scene {
       const ok = d.reishi >= ODACHI_COST.reishi && (d.ore || 0) >= ODACHI_COST.ore;
       this.items.push({ label: 'Forge an Ōdachi form', right: `${ODACHI_COST.reishi} reishi  ·  ${ODACHI_COST.ore} ore`, rightColor: ok ? GOLD : MUTED, act: () => this.forgeOdachi() });
     }
+    // spare ore: tempers, once the edge is as sharp as it goes
+    if (!next) {
+      TEMPER_ORDER.forEach(id => {
+        const t = TEMPERS[id], n = d.temper && d.temper[id] || 0;
+        if (n >= t.max) { this.items.push({ label: `${t.name}  ${'◆'.repeat(n)}`, right: 'done', disabled: true, act: () => {} }); return; }
+        const ok = d.reishi >= t.reishi && (d.ore || 0) >= t.ore;
+        this.items.push({ label: `${t.name}  ${'◆'.repeat(n)}${'◇'.repeat(t.max - n)}`, right: `${t.reishi} reishi  ·  ${t.ore} ore`, rightColor: ok ? GOLD : MUTED, tip: `${t.per}. ${t.desc}`, act: () => this.forgeTemper(id) });
+      });
+    }
     this.items.push({ label: 'Leave', act: () => this.close() });
-    this.list(this.items, GAME_W / 2 - 270, 330, 52, 540);
-    this.txt(GAME_W / 2, 470, `You carry ${d.reishi} reishi and ${d.ore || 0} reishi ore`, 20, '#7fe8ff', { origin: 0.5, bold: true });
-    if (!next) this.txt(GAME_W / 2, 510, '"That edge cannot get any sharper. Go cut something worth cutting."', 19, MUTED, { origin: 0.5 });
+    this.list(this.items, GAME_W / 2 - 270, next ? 330 : 300, 48, 540);
+    const cur = this.items[this.sel];
+    if (cur && cur.tip) this.txt(GAME_W / 2, 612, cur.tip, 18, INK, { origin: 0.5 });
+    this.txt(GAME_W / 2, 580, `You carry ${d.reishi} reishi and ${d.ore || 0} reishi ore`, 20, '#7fe8ff', { origin: 0.5, bold: true });
+    if (!next) this.txt(GAME_W / 2, 284, '"The edge is as sharp as it goes. Spare ore can still temper it."', 17, MUTED, { origin: 0.5 });
     if (this.msg) this.txt(GAME_W / 2, GAME_H - 82, this.msg, 18, CRIMSON, { origin: 0.5 });
-    this.footer(Controls.fmt('{jump} sharpen · {attack} leave'));
+    this.footer(Controls.fmt('{jump} forge · {attack} leave'));
+  }
+  forgeTemper(id) {
+    const d = GS.data, t = TEMPERS[id];
+    d.temper = d.temper || {};
+    if ((d.temper[id] || 0) >= t.max) return;
+    if (d.reishi < t.reishi || (d.ore || 0) < t.ore) {
+      Sfx.play('deny');
+      this.msg = `You need ${t.reishi} reishi and ${t.ore} ore.`;
+      this.render();
+      return;
+    }
+    d.reishi -= t.reishi; d.ore -= t.ore;
+    d.temper[id] = (d.temper[id] || 0) + 1;
+    GS.save();
+    Sfx.play('clang'); Sfx.play('pickup');
+    this.msg = '';
+    this.game.events.emit('toast', `${t.name} ${d.temper[id]}: ${t.per}`);
+    this.render();
   }
   forge() {
     const d = GS.data, next = FORGE[d.swordLevel || 0];

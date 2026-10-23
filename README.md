@@ -43,7 +43,7 @@ The game detects a touch screen and shows an on-screen stick and buttons. Turn y
 
 There are three save slots (**Journeys** on the title screen). Each shows where you are, how complete it is, the time played and deaths, with 討 once the story is finished and 真 once the true ending has been seen. From a slot you can continue, start New Game+, start over or erase it (both ask twice). **Continue** on the title screen picks up the slot played last. A save from before slots existed loads as slot 1.
 
-**Old saves carry over** (the save has a layout version, now 3, and an older one is upgraded when it loads). Nothing you found is lost or found twice: seals and powers are remembered by what you own, so the ones that moved (Raikōhō now sits in the Kidō Corps Shrine, Yoruichi's Shunkō in the Barracks Yard, Long Reach in the Atrium, Moon Fang past the Precipice Shrine) are not handed out again. Map pins move with the rooms they were placed in. A Pin Compass bought before the story's end is taken back and refunded (180 reishi), since it now goes on sale after the Hollow within has fallen.
+**Old saves carry over** (the save has a layout version, now 4, and an older one is upgraded when it loads). Nothing you found is lost or found twice: seals and powers are remembered by what you own, so the ones that moved (Raikōhō now sits in the Kidō Corps Shrine, Yoruichi's Shunkō in the Barracks Yard, Long Reach in the Atrium, Moon Fang past the Precipice Shrine) are not handed out again. Map pins move with the rooms they were placed in. A Pin Compass bought before the story's end is taken back and refunded (180 reishi), since it now goes on sale after the Hollow within has fallen.
 
 ## Settings and assist
 
@@ -65,6 +65,8 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
 
 - **Wide doorways**: every room with a doorway on its edge has a 9-tile run-up beside it, and the builder moves any foe that stood within 22 tiles of a doorway toward the middle of the room (`widen` and `steer_foes` in `scripts/build_rooms.py`). Rest gates count as doorways too, and foes hold still for 1.6 seconds after you arrive anywhere. Boss arenas keep their size. Saves from before this (world 3) have their map pins carried along.
 - **Wall grip** holds only while you press toward the wall; let go and you drop. The map marks every exit into a room you have never entered with a gold `?`, and the compass also lists what is left in rooms you know a way into. Travel lists its gates in two columns.
+- **Tempers**: once the edge is fully sharpened, the swordsmith spends spare reishi ore on Keen (+8% slash damage, ×3), Quick (6% less time between slashes, ×2) and Long (+8% slash reach, ×2). The world holds 7 ore: 3 go to the edge and 1 to the Ōdachi, so the rest is a choice.
+- **Travel** lists gates in journey order: region by region, west to east.
 - **Records** spells out every favour: what is done, what is left and the room each step is in.
 - **Touch controls**: buttons for powers you do not own yet stay hidden, and hints in dialogue and prompts name the on-screen button (USE, KONSŌ) instead of a keyboard key.
 - **49 rooms in 10 regions**: Karakura Town (空座町), Rukongai (流魂街), the Seireitei (瀞霊廷), Sōkyoku Hill (双殛の丘), Hueco Mundo (虚圏), the Inner World (精神世界), the optional Dangai (断界) and Forest of Menos (大虚の森), Urahara's Study Room (勉強部屋) under the shop, and the Soul King Palace (霊王宮), which opens at 100%.

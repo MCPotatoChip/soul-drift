@@ -326,7 +326,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   // ---------------- Zanpakuto ----------------
   attack(inp, grounded) {
-    this.t.atkCD = (this.bankai ? COMBAT.bankaiSlashCooldown : COMBAT.slashCooldown) * GS.form().cd;
+    this.t.atkCD = (this.bankai ? COMBAT.bankaiSlashCooldown : COMBAT.slashCooldown) * GS.form().cd * (1 - 0.06 * GS.temper('quick'));
     let kind = 'side';
     if (inp.up) kind = 'up';
     else if (inp.down && (!grounded || this.scene.crackBelow(this))) kind = 'down';   // strike down into cracked ground
