@@ -90,6 +90,10 @@ class GameScene extends Phaser.Scene {
     // A new journey opens with Rukia, who hands over the Konso
     const rukia = this.interactables.find(it => it.info && it.info.gives === 'konso');
     if (rukia && !d.gifts[rukia.info.name] && this.entry.spawn === 'start') this.time.delayedCall(1100, () => { if (!this.transitioning) this.talkTo(rukia); });
+    // What an update changed in this save (see GS.migrate), told once
+    if (d.notes && d.notes.length && !GS.rush) {
+      d.notes.splice(0).forEach((msg, i) => this.time.delayedCall(2600 + i * 4200, () => this.toast(msg)));
+    }
     GS.save();
   }
 
@@ -124,7 +128,7 @@ class GameScene extends Phaser.Scene {
 
     const get = (x, y) => (y >= 0 && y < H && x >= 0 && x < W) ? (rows[y][x] || '.') : '.';
     const solidAbove = (x, y) => '#XGOD~'.includes(get(x, y - 1)) && !GS.isBroken(room, x, y - 1);
-    const cnt = { k: 0, c: 0, N: 0, M: 0, f: 0, l: 0, o: 0, r: 0 };
+    const cnt = { k: 0, c: 0, N: 0, M: 0, f: 0, l: 0, o: 0, r: 0, w: 0 };
     let bossPos = null;
 
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -158,6 +162,11 @@ class GameScene extends Phaser.Scene {
         case 'c': {
           const i = cnt.c++, id = (def.seals || [])[i], key = `${room}:c${i}`;
           if (id && !GS.isTaken(key) && !d.seals.includes(id)) this.pickups.push(new Pickup(this, cx, feet - 10, 'seal', id, key));
+          break;
+        }
+        case 'w': {   // a power upgrade: found once each, until the track is full
+          const i = cnt.w++, id = (def.upgrades || [])[i], key = `${room}:w${i}`;
+          if (id && !GS.isTaken(key) && GS.upgrade(id) < UPGRADES[id].max) this.pickups.push(new Pickup(this, cx, feet - 12, 'upgrade', id, key));
           break;
         }
         case 'f': {
@@ -474,8 +483,11 @@ class GameScene extends Phaser.Scene {
 
   validSafe(pt) {
     const ok = (x, y) => {
+      // Planks count as ground too: without them a spot on a plank was refused and the search
+      // picked the nearest wall top, often on the ceiling blocks outside the room
       const t = this.solid.getTileAtWorldXY(x, y + 3);
-      return t && t.collides && t.index !== T.COLLAPSE && !this.isSolidAt(x, y - 4) && !this.isSolidAt(x, y - 18) && !this.nearHazard(x, y - 6);
+      const ground = (t && t.collides && t.index !== T.COLLAPSE) || !!this.oneway.getTileAtWorldXY(x, y + 3);
+      return ground && y >= 2 * TILE && !this.isSolidAt(x, y - 4) && !this.isSolidAt(x, y - 18) && !this.nearHazard(x, y - 6);
     };
     if (pt && ok(pt.x, pt.y)) return pt;
     const tx0 = Math.floor((pt ? pt.x : this.pxW / 2) / TILE), ty0 = Math.floor((pt ? pt.y : this.pxH / 2) / TILE);
@@ -631,7 +643,9 @@ class GameScene extends Phaser.Scene {
   }
 
   castHado(p) {
-    new PlayerShot(this, p.x + p.facing * 12, p.body.center.y - 3, 'hado', p.facing * 480, { dmg: COMBAT.hadoDamage * p.spellMul(), life: 1.3, kind: 'hado', w: 12, h: 12 });
+    const k = p.kidoSize();
+    const bolt = new PlayerShot(this, p.x + p.facing * 12, p.body.center.y - 3, 'hado', p.facing * 480, { dmg: COMBAT.hadoDamage * p.spellMul(), life: 1.3 + 0.12 * (k - 1) / 0.25, kind: 'hado', w: 12, h: 12 });
+    if (k > 1) bolt.setScale(k);
     Sfx.play('hado');
     this.fx.ring(p.x + p.facing * 10, p.y, 0xff7a4a, 18, 200);
   }
@@ -639,13 +653,13 @@ class GameScene extends Phaser.Scene {
   // Hado #63: a heavy bolt that bursts on the first thing it meets
   castRaiko(p) {
     const shot = new PlayerShot(this, p.x + p.facing * 14, p.body.center.y - 3, 'hado', p.facing * 400, { dmg: COMBAT.raikoDamage * p.spellMul(), life: 1.1, kind: 'raiko', w: 20, h: 20 });
-    shot.setScale(2.2);
+    shot.setScale(2.2 * (1 + 0.2 * GS.upgrade('kidoReach')));
     Sfx.play('hado'); Sfx.play('wave');
     this.fx.ring(p.x + p.facing * 12, p.body.center.y, 0xff4a30, 30, 260, 3);
     this.fx.shake(150, 0.006);
   }
   raikoBlast(x, y, dmg) {
-    const R = COMBAT.raikoRadius;
+    const R = COMBAT.raikoRadius * (1 + 0.18 * GS.upgrade('kidoReach'));
     this.fx.ring(x, y, 0xff4a30, R * 1.4, 420, 4);
     this.fx.ring(x, y, 0xffffff, R, 260, 2);
     this.fx.burst(x, y, 0xff4a30, 26);
@@ -670,15 +684,17 @@ class GameScene extends Phaser.Scene {
   }
 
   castGetsuga(p) {
-    const dmg = (COMBAT.getsugaDamage + GS.swordLevel() * 4) * p.dmgMul();
-    new PlayerShot(this, p.x + p.facing * 18, p.body.center.y - 4, p.bankai ? 'getsuga_b' : 'getsuga', p.facing * 430, { dmg, life: 0.75, kind: 'getsuga', w: 18, h: 44 });
+    const edge = GS.upgrade('moonEdge');
+    const dmg = (COMBAT.getsugaDamage + GS.swordLevel() * 4) * p.dmgMul() * (1 + 0.25 * edge);
+    const crescent = new PlayerShot(this, p.x + p.facing * 18, p.body.center.y - 4, p.bankai ? 'getsuga_b' : 'getsuga', p.facing * 430, { dmg, life: 0.75, kind: 'getsuga', w: 18, h: 44 });
+    if (edge) crescent.setScale(1 + 0.2 * edge);
     Sfx.play('wave'); Sfx.play('hado');
     this.fx.shake(140, 0.007);
     this.fx.ring(p.x + p.facing * 16, p.body.center.y, p.bankai ? 0xc8202c : 0x9ac8ff, 26, 260, 2);
   }
 
   castBakudo(p) {
-    const range = 260;
+    const range = 260 + 60 * GS.upgrade('kidoReach');
     let best = null, bestScore = Infinity;
     const consider = (obj, x, y) => {
       const dx = x - p.x, dy = y - p.y, dist = Math.hypot(dx, dy);
@@ -915,6 +931,15 @@ class GameScene extends Phaser.Scene {
       p.body.setVelocity(0, p.body.velocity.y);
       p.setPose('raise', 1.0);
       this.showPopup({ kind: 'ability', id: pk.id });
+    } else if (pk.type === 'upgrade') {
+      d.upgrades[pk.id] = Math.min(UPGRADES[pk.id].max, GS.upgrade(pk.id) + 1);
+      Sfx.play('ability');
+      this.fx.flash(0xffe0c0, 220, 0.4);
+      GS.save();
+      pk.collect();
+      p.body.setVelocity(0, p.body.velocity.y);
+      p.setPose('raise', 1.0);
+      this.showPopup({ kind: 'upgrade', id: pk.id });
     } else if (pk.type === 'seal') {
       if (!d.seals.includes(pk.id)) d.seals.push(pk.id);
       Sfx.play('pickup');
@@ -1034,14 +1059,22 @@ class GameScene extends Phaser.Scene {
       }[t.index];
       if (msg && !this.hinted[t.index]) { this.hinted[t.index] = true; this.toast(msg); }
     }
-    if (this.bankaiCells.length && !this.bankaiOpened && GS.has('bankai')) {
+    // The seal doors: Bankai opens the old ones; the one into the Inner World answers only to every power at once
+    if (this.bankaiCells.length && !this.bankaiOpened) {
+      const all = this.def.sealAll, missing = all ? ABILITY_ORDER.filter(a => !GS.has(a)) : [];
       const c = this.bankaiCells.find(cell => this.solid.getTileAt(cell.x, cell.y));
-      if (c && this.bankaiCells.some(cell => Math.abs(p.x - cell.x * TILE) < 6 * TILE && Math.abs(p.y - cell.y * TILE) < 3 * TILE)) {
+      const near = c && this.bankaiCells.some(cell => Math.abs(p.x - cell.x * TILE) < 6 * TILE && Math.abs(p.y - cell.y * TILE) < 3 * TILE);
+      if (near && all && missing.length) {
+        if (!this.sealHint || this.time.now - this.sealHint > 7000) {
+          this.sealHint = this.time.now;
+          this.denied(`The seal refuses you. Powers still missing: ${missing.map(a => ABILITIES[a].name.split(':')[0]).join(', ')}.`);
+        }
+      } else if (near && (all || GS.has('bankai'))) {
         this.bankaiOpened = true;
         this.breakCluster(c.x, c.y, T.BANKAI);
         Sfx.play('door');
         this.fx.flash(0xc8202c, 200, 0.4);
-        this.toast('The seal recognizes your Bankai.');
+        this.toast(all ? 'Every power answers. The seal gives way.' : 'The seal recognizes your Bankai.');
       }
     }
   }
@@ -1090,10 +1123,7 @@ class GameScene extends Phaser.Scene {
       GS.recordSplit(boss.id, d.time);
     }
     d.bosses[boss.id] = true;
-    if (boss.id === 'byakuya' && !GS.has('raiko')) {
-      d.abilities.raiko = true;
-      this.time.delayedCall(3200, () => { this.fx.flash(0xff4a30, 200, 0.3); this.showPopup({ kind: 'ability', id: 'raiko' }); });
-    }
+    if (boss.id === 'urahara') this.uraharaWon();
     if (boss.id === 'final') {
       d.cleared = true;
       GS.save();
@@ -1215,7 +1245,18 @@ class GameScene extends Phaser.Scene {
       }
       case 'Kisuke Urahara': {
         if (!info.study) return null;
-        if (q.urahara === 2) return { lines: ['Splendid work earlier! The Kodachi suits you. Short blades, short tempers.', 'The ladder is behind you. Mind the third rung.'] };
+        if (q.urahara === 2) {
+          if (!d.bosses.urahara) {
+            // the first time, a warning; the second, the fight
+            if (!d.items.uraharaAsked) {
+              d.items.uraharaAsked = true; GS.save();
+              return { lines: ['Hm? You want the real lesson? Marvellous. Heal up first: I intend to be a little less polite this time.',
+                'When you are ready, speak to me again. I will not move until you do. I will fan myself, though.'] };
+            }
+            return { lines: ['Ready? Splendid. Please try not to dent Tessai\'s ceiling.'], after: () => this.startUraharaFight(npc) };
+          }
+          return { lines: ['Splendid work earlier! The Kodachi suits you. Short blades, short tempers.', 'The ladder is behind you. Mind the third rung.'] };
+        }
         return { lines: ['Now then! A little light exercise before tea. Three waves of opponents, one after the other. Nothing serious.',
           'Beat them all, and I will give that Zanpakuto of yours a new shape. Ready? Of course you are.'], after: () => this.startWaves() };
       }
@@ -1237,9 +1278,33 @@ class GameScene extends Phaser.Scene {
     Sfx.play('boss');
     Music.setBoss(true);
   }
+  // Places a standing foe can be put: floor with three tiles of clear air above it, never inside a boulder or a wall
+  waveSpots() {
+    if (this.waveSpotCache) return this.waveSpotCache;
+    const out = [];
+    for (let tx = 3; tx < this.W - 3; tx++) {
+      for (let ty = 3; ty < this.H - 1; ty++) {
+        const x = tx * TILE + 8;
+        if (!this.isSolidAt(x, ty * TILE + 8)) continue;
+        const clear = [1, 2, 3].every(n => !this.isGroundAt(x, (ty - n) * TILE + 8) && !this.isSpikeAt(x, (ty - n) * TILE + 8));
+        if (clear && !this.isSolidAt(x - TILE, (ty - 1) * TILE + 8) && !this.isSolidAt(x + TILE, (ty - 1) * TILE + 8)) out.push({ x, feet: ty * TILE });
+        break;   // only the first floor under each column: the open ground, not what lies beneath it
+      }
+    }
+    return (this.waveSpotCache = out);
+  }
   updateWaves(dt) {
     const w = this.waves;
     if (!w.active) return;
+    const spots = this.waveSpots();
+    // A foe that somehow ends up below the ground (or outside the room) is put back on the floor
+    w.foes.forEach(e => {
+      if (!e.alive || e.cfg.fly) return;
+      if (e.y > this.pxH + 8 || e.y < -60 || e.x < 0 || e.x > this.pxW) {
+        const sp = Phaser.Utils.Array.GetRandom(spots.filter(s => Math.abs(s.x - this.player.x) > 5 * TILE)) || spots[0];
+        if (sp) { e.body.reset(sp.x, sp.feet - e.body.height / 2 - 1); e.body.setVelocity(0, 0); }
+      }
+    });
     if (w.foes.some(e => e.alive)) return;
     w.wait -= dt;
     if (w.wait > 0) return;
@@ -1247,15 +1312,19 @@ class GameScene extends Phaser.Scene {
     if (w.i >= w.list.length) { this.wavesWon(); return; }
     if (w.i > 0) this.toast(`Wave ${w.i + 1} of ${w.list.length}`);
     const kinds = { e: Thug, g: Shinigami, j: Adjuchas, a: Arrancar, q: KidoCaster, i: Crawler, m: Onmitsu, x: Exequias, b: Brawler, h: Hollow };
-    const floor = this.arenaFloor || (this.arenaFloor = this.findFloor());
     const p = this.player;
-    w.foes = w.list[w.i].map((k, n) => {
-      let x;
-      do { x = Phaser.Math.Between(4 * TILE, this.pxW - 4 * TILE); } while (Math.abs(x - p.x) < 7 * TILE);
-      const y = k === 'h' ? floor - 90 : floor;
-      this.fx.ring(x, y - 12, 0xbfe6ff, 30, 500, 2);
-      this.fx.motes(x, y - 12, 0xbfe6ff, 12);
-      const e = new kinds[k](this, x, y);
+    const far = spots.filter(s => Math.abs(s.x - p.x) > 7 * TILE);
+    const taken = [];
+    w.foes = w.list[w.i].map((k) => {
+      // spread the foes along the floor: not on top of each other, not next to you
+      let pool = far.filter(s => taken.every(t => Math.abs(t - s.x) > 3 * TILE));
+      if (!pool.length) pool = far.length ? far : spots;
+      const sp = Phaser.Utils.Array.GetRandom(pool);
+      taken.push(sp.x);
+      const y = k === 'h' ? sp.feet - 90 : sp.feet;
+      this.fx.ring(sp.x, y - 12, 0xbfe6ff, 30, 500, 2);
+      this.fx.motes(sp.x, y - 12, 0xbfe6ff, 12);
+      const e = new kinds[k](this, sp.x, y);
       e.summoned = true;
       return e;
     });
@@ -1279,8 +1348,37 @@ class GameScene extends Phaser.Scene {
     this.toast('Urahara applauds with his fan. +200 reishi');
     const urahara = this.interactables.find(it => it.info && it.info.name === 'Kisuke Urahara');
     this.time.delayedCall(900, () => this.startDialog('Kisuke Urahara', ['Bravo, bravo! Not a scratch on the scenery, either. Well, a few scratches.',
-      'As promised: hold out your blade. There. Shorter, lighter, quicker. A Kodachi. Change between its shapes at any rest gate.'],
+      'As promised: hold out your blade. There. Shorter, lighter, quicker. A Kodachi. Change between its shapes at any rest gate.',
+      'Now. You did not think the exercise ended with my little menagerie, did you? Heal up. Speak to me again when you want the real lesson.'],
       () => { Sfx.play('ability'); this.showPopup({ kind: 'form', id: 'kodachi' }); }, urahara));
+  }
+
+  // The real lesson: Urahara himself, in the Study Room's open floor
+  startUraharaFight(npc) {
+    const floor = this.arenaFloor || (this.arenaFloor = this.findFloor());
+    this.arena = { left: TILE + 8, right: this.pxW - TILE - 8, top: 2 * TILE + 8, floor };
+    this.uraharaNpc = npc;
+    npc.setVisible(false);
+    this.interactables = this.interactables.filter(it => it !== npc);
+    // he steps out on the far side of the room from you
+    const px = this.player.x, spot = px < this.pxW / 2 ? this.arena.right - 5 * TILE : this.arena.left + 5 * TILE;
+    this.boss = new Urahara(this, spot, floor);
+    this.boss.facing = px < spot ? -1 : 1;
+    this.fx.dust(spot, floor, 10);
+    this.startBoss();
+  }
+  uraharaWon() {
+    const d = GS.data, npc = this.uraharaNpc;
+    if (npc) { npc.setVisible(true); this.interactables.push(npc); }
+    d.reishi += 300;
+    d.ore = (d.ore || 0) + 1;
+    GS.save();
+    this.time.delayedCall(2600, () => {
+      this.toast('+300 reishi, +1 reishi ore');
+      this.startDialog('Kisuke Urahara', ['Ahh, my back. You know, I really did not expect to need Benihime for that.',
+        'Take this ore, and the reishi. Consider it a discount on everything in the shop. Not that I discount anything.',
+        'That is the most a teacher can hope for: to be beaten by someone who learned just enough from him. Now go and finish what you started.'], null, npc);
+    });
   }
 
   // Ganju's rematch: he steps out of the crowd and fights for real

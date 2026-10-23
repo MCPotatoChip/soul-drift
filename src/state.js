@@ -52,7 +52,9 @@ const GS = {
       plus: 0,               // New Game+ cycles completed
       kills: {},             // enemy kind -> how many fell (the Journal)
       gifts: {},             // NPC name -> true once they have handed over their gift
-      world: 2,              // layout version of the save (2: the expanded world)
+      world: 3,              // layout version of the save (2: the expanded world, 3: upgrades, new rooms, new places for old rewards)
+      upgrades: {},          // power upgrades found: track id -> level (see UPGRADES)
+      notes: [],             // things the game tells the player once on loading (what a migration changed)
       forms: { zangetsu: true },   // Zanpakutō forms owned
       form: 'zangetsu',      // the form in hand
       pins: [],              // map pins: { room, x, y, kind } (x, y in tiles inside the room)
@@ -97,6 +99,12 @@ const GS = {
 
   // New Game+: enemies are tougher and pay more
   hpMul() { return 1 + 0.6 * Math.min(3, this.data.plus || 0); },
+  // Bosses are tougher the sharper the Zanpakutō (a trial's blade binding counts as the plain edge)
+  bossHpMul() { return 1 + BOSS_HP_PER_FORGE * this.swordLevel(); },
+  // Levels of a power upgrade held (a trial that binds the seals leaves them be: upgrades are not seals)
+  upgrade(id) { return (this.data.upgrades && this.data.upgrades[id]) || 0; },
+  // The Pin Compass is not on the shelf until the story is over (a second journey keeps it for sale)
+  shopOpen(it) { const d = this.data; return !(it.type === 'tool' && TOOLS[it.id] && TOOLS[it.id].needsClear) || !!d.cleared || (d.plus || 0) > 0; },
   dropMul() { return 1 + 0.5 * Math.min(3, this.data.plus || 0); },
 
   // A fresh journey that keeps what you earned: powers, seals, the edge of the blade and health
@@ -107,7 +115,7 @@ const GS = {
       sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, maxHp: old.maxHp, hp: old.maxHp,
       fragmentsTotal: old.fragmentsTotal, ore: old.ore || 0, reishi: old.reishi || 0, plus: (old.plus || 0) + 1,
       gifts: Object.assign({}, old.gifts), forms: Object.assign({}, old.forms), form: old.form,
-      rush: old.rush, trueEnding: old.trueEnding, palace: old.palace,
+      rush: old.rush, trueEnding: old.trueEnding, palace: old.palace, upgrades: Object.assign({}, old.upgrades),
     });
     this.data = d;
     this.run = this.freshRun();
@@ -128,7 +136,7 @@ const GS = {
   // How full the Reiatsu vessel can get (a bound trial holds only a third)
   reiCap() { return this.rush && this.rush.bind.reiatsu ? COMBAT.spellCost : COMBAT.maxReiatsu; },
   addReiatsu(n, strike = false) {
-    if (strike) n *= Settings.get('reiatsuGain');
+    if (strike) n *= Settings.get('reiatsuGain') * (1 + 0.25 * this.upgrade('flow'));
     this.data.reiatsu = Phaser.Math.Clamp(this.data.reiatsu + n, 0, this.reiCap());
   },
   // Masks a blow of `n` really takes, after the assist setting: half damage carries the remainder
@@ -182,7 +190,9 @@ const GS = {
     } catch (e) { return false; }
   },
   // Saves from before the world grew: the Rogue Captain became Byakuya, Konso is learned from Rukia
-  // at the start, and two arenas lost the rest gates that sat inside them.
+  // at the start, and two arenas lost the rest gates that sat inside them. World 3 (upgrades, new rooms,
+  // Raikōhō and Shunkō moved out of Byakuya's corner) keeps every old pickup where it was found: seals and
+  // powers are remembered by what you own, so the ones that moved are never handed out twice.
   migrate(d) {
     if (d.bosses.captain) { d.bosses.byakuya = true; delete d.bosses.captain; }
     if ((d.world || 1) < 2) {
@@ -190,6 +200,22 @@ const GS = {
       d.gifts['Rukia Kuchiki'] = true;
       d.world = 2;
     }
+    if ((d.world || 2) < 3) {
+      d.upgrades = d.upgrades || {};
+      d.notes = d.notes || [];
+      // The compass is a reward for the end of the story: one bought early goes back on the shelf, refunded
+      if (d.bought.compass && !d.cleared && !(d.plus > 0)) {
+        delete d.bought.compass;
+        d.reishi = (d.reishi || 0) + 180;
+        d.notes.push('Urahara took the Pin Compass back and refunded 180 reishi. It goes on sale again once the Hollow within has fallen.');
+      }
+      // A body of work from before the update that already finished Byakuya has Raikōhō: nothing to do.
+      // One that is still short of him finds it in the Kidō Shrine of Junrinan instead.
+      if (d.bosses.byakuya && !d.abilities.raiko) d.abilities.raiko = true;
+      d.world = 3;
+    }
+    d.upgrades = d.upgrades || {};
+    d.notes = d.notes || [];
     const restOK = (id) => id && ROOMS[id] && ROOMS[id].tiles.some(r => r.includes('R'));
     const moved = { hm_boss: 'hm_2', forest_2: 'forest_1' };
     if (d.restRoom && !restOK(d.restRoom)) d.restRoom = moved[d.restRoom] || null;
@@ -288,6 +314,7 @@ const GS = {
     total += FORGE.length; have += d.swordLevel || 0;
     total += FORM_ORDER.length; have += FORM_ORDER.filter(f => d.forms && d.forms[f]).length;
     total += QUEST_ORDER.length; have += QUEST_ORDER.filter(q => d.quests[q] === 2).length;
+    UPGRADE_ORDER.forEach(u => { total += UPGRADES[u].max; have += Math.min(UPGRADES[u].max, (d.upgrades && d.upgrades[u]) || 0); });
     return Math.floor(have / total * 100);
   },
 };

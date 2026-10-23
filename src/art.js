@@ -409,6 +409,17 @@ STYLES.aaroniero_r = variant(STYLES.aaroniero, {
   weapon: variant(STYLES.aaroniero.weapon, { shaft: '#2a1e38', head: '#b48aff', water: '#8a5ad8', smear: '#b48aff70' }),
 });
 
+// Kisuke Urahara with the cane drawn: the sword Benihime, the hat still on. In Shikai the hat falls away
+// and the haori turns crimson.
+STYLES.urahara = variant(STYLES.npc_merchant, { anims: BOSS_ANIMS, basePose: null, legLen: 10, torsoLen: 10,
+  weapon: { type: 'katana', blade: '#d8d4dc', edge: '#ffffff', guard: '#c9a227', hilt: '#3a2a20', hiltShade: '#6a5a4a', len: 15, smear: '#ff708060' } });
+STYLES.urahara_r = variant(STYLES.urahara, { hairStyle: 'short', eye: '#ff4060', haori: { col: '#6a1a2c', shade: '#3e0e1a', hem: '#e8e4dc' },
+  weapon: variant(STYLES.urahara.weapon, { blade: '#ff6a7a', edge: '#ffe0e4', smear: '#ff304880' }) });
+// The Hollow with nothing held back: red hair and a black coat
+STYLES.final_k = variant(STYLES.final_b, { skin: '#f2dadf', hair: '#ff2a3c', hairHi: '#ff7080', hairShade: '#a01020', eye: '#ffe030',
+  coat: { col: '#1a0f14', hi: '#4a1a24', lining: '#c8202c' },
+  weapon: variant(STYLES.final_b.weapon, { blade: '#ff2a3c', edge: '#ffffff', smear: '#ff2a3c80' }) });
+
 // ---- Enemies drawn on the rig ----
 Object.assign(STYLES, {
   // Kidō master: a hooded Shinigami in deep blue with glowing eyes, hands free for casting

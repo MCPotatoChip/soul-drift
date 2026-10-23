@@ -123,6 +123,24 @@ const ABILITIES = {
 };
 const ABILITY_ORDER = ['konso', 'dash', 'hado', 'grip', 'bakudo', 'wings', 'raiko', 'burst', 'bankai', 'getsuga', 'hollow'];
 
+// Upgrades to the powers themselves: found in the world (one pickup each), several levels per track.
+// Each level of a track stacks. `per` is what a single level adds, shown in the Inventory.
+const UPGRADES = {
+  kidoPower: { name: 'Kidō Mastery', jp: '威', max: 3, per: '+20% damage on every Kidō',
+    desc: 'Your Kidō hits harder. Shakkahō, Raikōhō and Bakudō each deal 20% more for every level.' },
+  kidoReach: { name: 'Kidō Reach', jp: '範', max: 3, per: 'bigger bolts, wider blasts, longer Bakudō',
+    desc: 'Your Kidō grows. Bolts are larger and pierce further, Raikōhō bursts wider and Bakudō reaches farther for every level.' },
+  moonEdge:  { name: 'Moon Fang Edge', jp: '弦', max: 2, per: '+25% Getsuga damage, a wider crescent',
+    desc: 'Getsuga Tenshō cuts 25% deeper and its crescent grows wider for every level.' },
+  flow:      { name: 'Reiatsu Flow', jp: '流', max: 1, per: '+25% Reiatsu from strikes',
+    desc: 'Your Reiatsu answers the blade more readily: every landed strike draws a quarter more.' },
+};
+const UPGRADE_ORDER = ['kidoPower', 'kidoReach', 'moonEdge', 'flow'];
+
+// Bosses carry more health the sharper your Zanpakutō is, so the forge never makes a fight a formality:
+// each forge level adds this share of their base health (damage per slash rises by 40% of the first, per level).
+const BOSS_HP_PER_FORGE = 0.32;
+
 const SEALS = {
   edge:    { name: 'Whetted Edge', cost: 2, desc: 'Slash damage +40%.' },
   swift:   { name: 'Shunpo Mastery', cost: 1, desc: 'Shunpo recovers twice as fast.' },
@@ -147,13 +165,14 @@ const SEALS = {
 
 // Things the shop sells that are neither seals nor fragments
 const TOOLS = {
-  compass: { name: 'Pin Compass', desc: 'Marks every power, seal, fragment, ore and Lost Plus you have not found yet on the map, in every room you have visited.' },
+  compass: { name: 'Pin Compass', desc: 'Marks every power, seal, fragment, ore, upgrade and Lost Plus you have not found yet on the map, in every room you have visited.',
+    needsClear: true },
 };
 
 const SHOP_STOCK = [
   { type: 'seal', id: 'magnet', price: 80 },
   { type: 'seal', id: 'swift', price: 150 },
-  { type: 'tool', id: 'compass', price: 180 },
+  { type: 'tool', id: 'compass', price: 180 },   // only on the shelf once the Hollow within has fallen (see GS.shopOpen)
   { type: 'seal', id: 'quick', price: 220 },
   { type: 'fragment', id: 'shop', price: 300 },
   { type: 'seal', id: 'gentei', price: 650 },
@@ -189,7 +208,8 @@ const BOSSES = {
   vasto:     { name: 'Vasto Lorde', title: 'Sovereign of the Sand', jp: '最上級大虚', notches: [0.6, 0.25] },
   ulquiorra: { name: 'Ulquiorra Cifer', title: 'Cuarta Espada', jp: 'ウルキオラ', notches: [0.6, 0.3] },
   espada:    { name: 'Aaroniero Arruruerie', title: 'Noveno Espada, Hidden Among the Menos', jp: 'アーロニーロ', notches: [0.5] },
-  final:     { name: 'Hollow Ichigo', title: 'The White One Within', jp: '内なる虚', notches: [0.66, 0.33] },
+  final:     { name: 'Hollow Ichigo', title: 'The White One Within', jp: '内なる虚', notches: [0.7, 0.45, 0.2] },
+  urahara:   { name: 'Kisuke Urahara', title: 'Shopkeeper, Scientist, Captain Once', jp: '浦原喜助', notches: [0.5] },
 };
 
 const MEMORIES = {
@@ -216,6 +236,7 @@ const MEMORIES = {
   byakuya: ['"I made a promise to the law and a promise to my wife. I kept the wrong one."', '"Pride is a cold blade."'],
   grimmjow: ['"I am the King. I will crush anyone who stands above me."', '"Look at me. LOOK at me."'],
   ulquiorra: ['"The heart. Is that what is in this hand?"', '"I see now. That is what it was."'],
+  urahara: ['"Everything I ever built, I built so that someone like you could stand here."', '"A shopkeeper is only a captain who learned to smile."'],
 };
 
 // The enemies the Journal keeps a page for, in the order you meet them: [kind, name, what it does]
@@ -242,8 +263,9 @@ const BESTIARY = [
   ['ulquiorra', 'Ulquiorra Cifer', 'Cero, Sonído and the Lanza del Relámpago. Released, he takes to the sky.'],
   ['espada', 'Aaroniero Arruruerie', 'Hidden in the dark with a stolen trident. Released, he spits up what he devoured.'],
   ['final', 'Hollow Ichigo', 'Everything you can do, turned against you, and a blade thrown on a chain.'],
+  ['urahara', 'Kisuke Urahara', 'The cane was a sword all along. Benihime changes whatever she touches.'],
 ];
-const BOSS_KINDS = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'vasto', 'ulquiorra', 'espada', 'final'];
+const BOSS_KINDS = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'vasto', 'ulquiorra', 'espada', 'final', 'urahara'];
 
 // The old man in Rukongai wants to hear what the dead remember
 const QUEST_NAMES = { npc: 'Old Man of Junrinan', need: ['thug', 'shini', 'hollow'], reishi: 200, seal: 'recall' };

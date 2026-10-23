@@ -27,6 +27,11 @@ class MenuScene extends Phaser.Scene {
     this.msg = '';
     this.listening = null;
     const off = Controls.on((code) => this.onKey(code));
+    this.mapCam = null; this.mapPulse = null; this.mapDrag = null;
+    this.input.on('pointerdown', (p, over) => { if (!(over && over.length)) this.mapPointer('down', p); });
+    this.input.on('pointermove', (p) => this.mapPointer('move', p));
+    this.input.on('pointerup', (p) => this.mapPointer('up', p));
+    this.input.on('wheel', (p, objs, dx, dy) => { if (this.view === 'map') { this.mapWheel = (this.mapWheel || 0) + dy; this.mapWheelAt = { x: p.x, y: p.y }; } });
     Sfx.muffle(true);   // the world's sound goes behind a door while a menu is open
     this.events.once('shutdown', () => { off(); Controls.capture = null; Sfx.muffle(false); });
     this.render();
@@ -141,17 +146,28 @@ class MenuScene extends Phaser.Scene {
           return { id, icon: 'icon_' + id, label: (on ? '● ' : '○ ') + s.name, right: '◆'.repeat(s.cost), rightColor: on ? GOLD : MUTED, act: () => this.toggleSeal(id) };
         });
         if (!owned.length) this.txt(GAME_W / 2, 260, 'You have no seals yet. They hide all over the world, and the shop sells a few.', 20, MUTED, { origin: 0.5 });
-        this.list(this.items, 200, 188, 42, 460);
+        // Two columns, so every seal fits on the screen at once: the first ten down the left, the rest down the right
+        this.sealCols = Math.ceil(Math.max(owned.length, 1) / 2);
+        const colN = Math.max(10, this.sealCols), gap = 40, colW = 390;
+        this.items.forEach((it, i) => {
+          const col = i >= colN ? 1 : 0, row = i % colN, x = 56 + col * (colW + 24), y = 184 + row * gap, on = i === this.sel;
+          if (on) this.selectStroke(x - 8, y - 6, colW - 8, gap - 4);
+          this.icon(it.icon, x + 16, y + 13, 30, 1);
+          this.txt(x + 42, y, it.label, 21, on ? INK : '#b8b2c4', { bold: on });
+          this.txt(x + colW - 34, y + 1, it.right, 18, it.rightColor, { origin: [1, 0] });
+          this.hit(x - 16, y - 6, colW, gap - 4, () => this.tapItem(i));
+        });
+        this.sealColN = colN;
         const cur = this.items[this.sel];
         if (cur) {
           const s = SEALS[cur.id];
-          this.icon('icon_' + cur.id, 770, 208, 64);
-          this.txt(816, 190, s.name, 32, INK, { display: true });
-          this.txt(816, 232, `Cost ${s.cost} slot${s.cost > 1 ? 's' : ''}`, 18, GOLD, { bold: true });
-          this.txt(740, 290, s.desc, 22, INK, { wrap: 440 });
+          this.icon('icon_' + cur.id, 910, 208, 64);
+          this.txt(956, 190, s.name, 30, INK, { display: true, wrap: 300 });
+          this.txt(956, 236, `Cost ${s.cost} slot${s.cost > 1 ? 's' : ''}`, 18, GOLD, { bold: true });
+          this.txt(868, 290, s.desc, 21, INK, { wrap: 340 });
         }
         if (this.msg) this.txt(GAME_W / 2, GAME_H - 80, this.msg, 18, CRIMSON, { origin: 0.5 });
-        this.footer(Controls.fmt('{jump} equip or remove · {attack} back'));
+        this.footer(Controls.fmt('{left} {right} {up} {down} choose · {jump} equip or remove · {attack} back'));
         break;
       }
       case 'forms': this.renderForms(); break;
@@ -170,7 +186,7 @@ class MenuScene extends Phaser.Scene {
       }
       case 'shop': {
         this.title('Urahara Shop', 'Kisuke Urahara tips his striped hat. "Reishi only, no refunds!"');
-        this.items = SHOP_STOCK.map(it => {
+        this.items = SHOP_STOCK.filter(it => GS.shopOpen(it)).map(it => {
           const sold = it.type === 'seal' ? d.seals.includes(it.id) : !!d.bought[it.id];
           const name = it.type === 'seal' ? SEALS[it.id].name + ' (seal)' : it.type === 'tool' ? TOOLS[it.id].name : 'Soul Fragment';
           return { it, icon: it.type === 'seal' || it.type === 'tool' ? 'icon_' + it.id : 'ui_shard', label: name, right: sold ? 'sold' : it.price + ' reishi', disabled: sold, rightColor: !sold && d.reishi >= it.price ? GOLD : MUTED, act: () => this.buy(it) };
@@ -588,6 +604,10 @@ class MenuScene extends Phaser.Scene {
     this.footer(Controls.fmt('{attack} back · splits are when each boss first fell; the best is over every journey'));
   }
 
+  // ------------------------------------------------------------------ the map
+  // A map you can move around in: WASD or the arrows (or dragging) pan it, + and - (or the wheel) zoom, R centres on you.
+  // The cross in the middle of the view is where Enter drops a pin. Room names sit outside their boxes, so they never hide
+  // the marks inside, and the name of whatever is under the cross is always written below the map.
   renderMap() {
     const d = GS.data;
     this.title('Map', 'Rooms you have walked through');
@@ -596,112 +616,265 @@ class MenuScene extends Phaser.Scene {
     // known neighbours appear as faint outlines
     const known = new Set();
     ids.forEach(id => { if (d.visited[id]) Object.values(ROOMS[id].doors).forEach(([to]) => known.add(to)); });
-    // The map frames what you have seen, so it zooms in on a small journey and out on a large one
     const shown = ids.filter(id => d.visited[id] || known.has(id));
+    const VX = 40, VY = 158, VW = GAME_W - 80, VH = 440;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     (shown.length ? shown : ids).forEach(id => { const b = box(id); minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); });
-    const areaW = 1160, areaH = 470, ox = 60, oy = 170;
-    const sc = Math.min(areaW / (maxX - minX), areaH / (maxY - minY), 34);
-    const ex = (areaW - (maxX - minX) * sc) / 2, ey = (areaH - (maxY - minY) * sc) / 2;
-    const P = (x, y) => ({ x: ox + ex + (x - minX) * sc, y: oy + ey + (y - minY) * sc });
-    const g = this.add.graphics();
-    this.layer.add(g);
-    // the ways between rooms you have walked, door to door
-    g.lineStyle(2, 0xd9b35a, 0.35);
-    ids.forEach(id => {
-      if (!d.visited[id]) return;
-      const r = ROOMS[id];
-      Object.entries(r.doors).forEach(([dd, [to, td]]) => {
-        if (!d.visited[to] || id > to) return;
-        const a2 = this.doorPoint(id, dd, box, P), b2 = this.doorPoint(to, td, box, P);
-        // neighbours only: the long ways (Senkaimon shortcuts across the world) are not drawn as roads
-        if (a2 && b2 && Phaser.Math.Distance.Between(a2.x, a2.y, b2.x, b2.y) < sc * 4) g.lineBetween(a2.x, a2.y, b2.x, b2.y);
-      });
+    const game = this.scene.get('game'), pl = game && game.player, cur = box(d.room);
+    const you = pl ? { x: cur.x + pl.x / TILE / 10, y: cur.y + pl.y / TILE / 10 } : { x: cur.x + cur.w / 2, y: cur.y + cur.h / 2 };
+    const fitZ = Math.min(VW / Math.max(1, maxX - minX), VH / Math.max(1, maxY - minY), 60);
+    if (!this.mapCam) this.mapCam = { x: you.x, y: you.y, z: Phaser.Math.Clamp(Math.max(fitZ, 20), 4, 60) };
+    const M = this.mapM = { VX, VY, VW, VH, box, ids, known, you, minX, minY, maxX, maxY, fitZ, game };
+    // what the compass shows, and the landmarks of every room walked through
+    M.marks = this.mapMarks();
+    this.mapObjs = { g: this.add.graphics(), pool: [], used: 0, region: [], pinTx: [] };
+    const c = this.mapC = this.add.container(0, 0);
+    c.add(this.mapObjs.g);
+    this.layer.add(c);
+    const maskG = this.make.graphics({ x: 0, y: 0, add: false }).fillStyle(0xffffff).fillRect(VX, VY, VW, VH);
+    c.setMask(maskG.createGeometryMask());
+    // frame, drawn above the mask
+    const fr = this.add.graphics(); fr.lineStyle(1, 0xe9e4d8, 0.25).strokeRect(VX + 0.5, VY + 0.5, VW - 1, VH - 1);
+    this.layer.add(fr);
+    this.mapInfo = this.txt(VX + 2, VY + VH + 8, '', 19, INK, { bold: true });
+    this.mapInfo2 = this.txt(VX + VW - 2, VY + VH + 9, '', 16, MUTED, { origin: [1, 0] });
+    // zoom and recentre buttons for touch (the keyboard has keys for these)
+    [['＋', 1], ['－', -1], ['◎', 0]].forEach(([ch, dir], i) => {
+      const bx = VX + VW - 38, by = VY + 14 + i * 40;
+      const bg = this.add.rectangle(bx, by, 32, 32, 0x07070b, 0.85).setOrigin(0).setStrokeStyle(1, 0xe9e4d8, 0.45).setInteractive();
+      bg.on('pointerdown', (ptr, lx, ly, ev) => { if (ev) ev.stopPropagation(); this.mapButton(dir); });
+      this.layer.add(bg);
+      this.txt(bx + 16, by + 16, ch, 20, INK, { origin: 0.5 });
     });
-    // a region's name in kanji above the rooms of it you have seen
-    Object.keys(REGIONS).forEach(reg => {
-      const mine = ids.filter(id => d.visited[id] && ROOMS[id].region === reg);
-      if (!mine.length) return;
-      let x0 = Infinity, y0 = Infinity;
-      mine.forEach(id => { const b = box(id); x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); });
-      const p = P(x0, y0);
-      this.txt(p.x, p.y - 4, REGIONS[reg].kanji + '  ' + REGIONS[reg].name, 14, '#' + REGIONS[reg].color.toString(16).padStart(6, '0'), { bold: true, origin: [0, 1] });
-    });
-    ids.forEach(id => {
-      const b = box(id), p = P(b.x, b.y), w = b.w * sc, h = b.h * sc;
-      if (d.visited[id]) {
-        g.fillStyle(REGIONS[ROOMS[id].region].color, id === d.room ? 0.55 : 0.28).fillRect(p.x, p.y, w, h);
-        g.lineStyle(2, id === d.room ? 0xffffff : 0xe9e4d8, id === d.room ? 1 : 0.6).strokeRect(p.x, p.y, w, h);
-        if (sc * b.w > 60) this.txt(p.x + 4, p.y + h - 4, ROOMS[id].name, 13, INK, { origin: [0, 1] });
-      } else if (known.has(id)) {
-        g.lineStyle(1, 0xe9e4d8, 0.25).strokeRect(p.x, p.y, w, h);
-      }
-    });
-    this.drawPins(g, P, box);
-    // your own pins
-    (d.pins || []).forEach(pin => {
-      const pt = P(pin.x, pin.y), [ch, col] = PIN_KINDS[pin.k] || PIN_KINDS[0];
-      g.fillStyle(0x07070b, 0.85).fillCircle(pt.x, pt.y, 11);
-      g.lineStyle(2, Phaser.Display.Color.HexStringToColor(col).color, 1).strokeCircle(pt.x, pt.y, 11);
-      this.txt(pt.x, pt.y + 1, ch, 15, col, { bold: true, origin: 0.5 });
-    });
-    this.mapView = { P, sc, toMap: (sx, sy) => ({ x: minX + (sx - ox - ex) / sc, y: minY + (sy - oy - ey) / sc }) };
-    // the player
-    const cur = box(d.room), game = this.scene.get('game');
-    if (game && game.player) {
-      const px = cur.x + game.player.x / TILE / 10, py = cur.y + game.player.y / TILE / 10;
-      const p = P(px, py);
-      g.fillStyle(0xd8343f, 1).fillCircle(p.x, p.y, 6);
-      g.lineStyle(2, 0xffffff, 1).strokeCircle(p.x, p.y, 8);
-      const pulse = this.add.circle(p.x, p.y, 8).setStrokeStyle(2, 0xd8343f).setFillStyle();
-      this.layer.add(pulse);
-      this.tweens.add({ targets: pulse, radius: 22, alpha: { from: 0.9, to: 0 }, duration: 1100, repeat: -1 });
-    }
     // legend
     const legend = [['gate', 'rest gate'], ['shop', 'shop'], ['forge', 'swordsmith'], ['boss', 'boss']];
-    if (d.bought.compass) legend.push(['power', 'power'], ['seal', 'seal'], ['frag', 'fragment'], ['plus', 'lost plus'], ['ore', 'ore']);
+    if (d.bought.compass) legend.push(['power', 'power'], ['seal', 'seal'], ['upgrade', 'upgrade'], ['frag', 'fragment'], ['plus', 'lost plus'], ['ore', 'ore']);
     const lg = this.add.graphics(); this.layer.add(lg);
-    let lx = GAME_W / 2 - legend.length * 62;
-    legend.forEach(([k, label]) => { this.pin(lg, k, lx, GAME_H - 76); this.txt(lx + 12, GAME_H - 86, label, 15, MUTED); lx += 28 + label.length * 8 + 28; });
+    let lx = GAME_W / 2 - legend.reduce((a, [, l]) => a + 44 + l.length * 8.4, 0) / 2;
+    legend.forEach(([k, label]) => { this.pin(lg, k, lx + 4, GAME_H - 72, 1.5); this.txt(lx + 20, GAME_H - 82, label, 16, '#c8c2d4'); lx += 44 + label.length * 8.4; });
     this.items = [];
-    // a click pins the spot under it; the keyboard and pad move a cursor and pin with confirm
-    this.hit(0, 150, GAME_W, GAME_H - 230, (ptr) => { const m = this.mapView.toMap(ptr.x, ptr.y); this.pinAt(m.x, m.y); });
-    if (!this.cursor) {
-      const cb = box(d.room), pl = game && game.player;
-      this.cursor = pl ? { x: cb.x + pl.x / TILE / 10, y: cb.y + pl.y / TILE / 10 } : { x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 };
-    }
-    this.cursorG = this.add.graphics();
-    this.layer.add(this.cursorG);
-    this.drawCursor();
-    this.footer(Controls.fmt('Red marker: you · {left} {right} {up} {down} or click: place a pin, again to change it, a fourth time to clear · {map} or {attack} close'));
+    this.footer(Controls.fmt('W A S D or {left} {right} {up} {down} move · + / − or wheel zoom · R centre on you · {jump} or click: pin (again to change, a fourth time to clear) · {map} or {attack} close'));
+    this.drawMap();
   }
-  drawCursor() {
-    if (!this.cursorG || !this.mapView) return;
-    const p = this.mapView.P(this.cursor.x, this.cursor.y), g = this.cursorG;
+  // Every landmark in the rooms walked through: [room, kind, tile x, tile y]
+  mapMarks() {
+    const d = GS.data, out = [];
+    Object.keys(ROOMS).forEach(id => {
+      if (!d.visited[id]) return;
+      const r = ROOMS[id], cnt = { k: 0, c: 0, f: 0, l: 0, o: 0, w: 0 };
+      r.tiles.forEach((row, ty) => {
+        for (let tx = 0; tx < row.length; tx++) {
+          const ch = row[tx];
+          let kind = null;
+          switch (ch) {
+            case 'R': kind = d.gates[id] ? 'gate' : null; break;
+            case 'S': kind = 'shop'; break;
+            case 'W': kind = 'forge'; break;
+            case 'B': kind = d.bosses[r.boss] ? 'bossDone' : 'boss'; break;
+            case 'k': { const i = cnt.k++, aid = (r.abilities || [])[i]; if (aid && !GS.isTaken(`${id}:k${i}`) && !GS.has(aid)) kind = 'power'; break; }
+            case 'c': { const i = cnt.c++, sid = (r.seals || [])[i]; if (sid && !GS.isTaken(`${id}:c${i}`) && !d.seals.includes(sid)) kind = 'seal'; break; }
+            case 'w': { const i = cnt.w++, uid = (r.upgrades || [])[i]; if (uid && !GS.isTaken(`${id}:w${i}`) && GS.upgrade(uid) < UPGRADES[uid].max) kind = 'upgrade'; break; }
+            case 'f': { const i = cnt.f++; if (!GS.isTaken(`${id}:f${i}`)) kind = 'frag'; break; }
+            case 'l': { const i = cnt.l++; if (!GS.isTaken(`${id}:l${i}`)) kind = 'plus'; break; }
+            case 'o': { const i = cnt.o++; if (!GS.isTaken(`${id}:o${i}`)) kind = 'ore'; break; }
+          }
+          if (!kind) continue;
+          if (['power', 'seal', 'upgrade', 'frag', 'plus', 'ore'].includes(kind) && !d.bought.compass) continue;
+          out.push([id, kind, tx, ty]);
+        }
+      });
+    });
+    return out;
+  }
+  mapP(x, y) { const M = this.mapM, c = this.mapCam; return { x: M.VX + M.VW / 2 + (x - c.x) * c.z, y: M.VY + M.VH / 2 + (y - c.y) * c.z }; }
+  mapToWorld(sx, sy) { const M = this.mapM, c = this.mapCam; return { x: c.x + (sx - M.VX - M.VW / 2) / c.z, y: c.y + (sy - M.VY - M.VH / 2) / c.z }; }
+  // A text from the pool, kept in the masked container
+  mapText(s, size, color, origin, x, y, bold = true) {
+    const o = this.mapObjs;
+    let t = o.pool[o.used++];
+    if (!t) {
+      t = this.add.text(0, 0, '', { fontFamily: FONT_BODY, fontSize: size + 'px', fontStyle: '700', color, stroke: '#07070b', strokeThickness: 5 });
+      this.mapC.add(t); o.pool.push(t); t._fs = size; t._col = color;
+    }
+    if (t._fs !== size) { t.setFontSize(size); t._fs = size; }
+    if (t._col !== color) { t.setColor(color); t._col = color; }
+    t.setText(s).setOrigin(...[].concat(origin)).setPosition(Math.round(x), Math.round(y)).setVisible(true);
+    return t;
+  }
+  drawMap() {
+    if (!this.mapM || !this.mapObjs || !this.mapC || !this.mapC.scene) return;
+    const d = GS.data, M = this.mapM, c = this.mapCam, o = this.mapObjs, g = o.g, z = c.z;
+    const { VX, VY, VW, VH, box, ids } = M;
     g.clear();
-    g.lineStyle(2, 0xe9e4d8, 0.9).strokeCircle(p.x, p.y, 14);
-    g.lineBetween(p.x - 22, p.y, p.x - 16, p.y).lineBetween(p.x + 16, p.y, p.x + 22, p.y).lineBetween(p.x, p.y - 22, p.x, p.y - 16).lineBetween(p.x, p.y + 16, p.x, p.y + 22);
+    o.used = 0;
+    const view = new Phaser.Geom.Rectangle(VX - 40, VY - 40, VW + 80, VH + 80);
+    const rect = (id) => { const b = box(id), p = this.mapP(b.x, b.y); return new Phaser.Geom.Rectangle(p.x, p.y, b.w * z, b.h * z); };
+    const rects = {};
+    ids.forEach(id => { if (d.visited[id] || M.known.has(id)) rects[id] = rect(id); });
+    // the ways between rooms you have walked, door to door
+    g.lineStyle(Math.max(2, z * 0.12), 0xd9b35a, 0.4);
+    ids.forEach(id => {
+      if (!d.visited[id]) return;
+      Object.entries(ROOMS[id].doors).forEach(([dd, [to, td]]) => {
+        if (!d.visited[to] || id > to) return;
+        const a2 = this.doorPoint(id, dd, box, (x, y) => this.mapP(x, y)), b2 = this.doorPoint(to, td, box, (x, y) => this.mapP(x, y));
+        if (a2 && b2 && Phaser.Math.Distance.Between(a2.x, a2.y, b2.x, b2.y) < z * 6) g.lineBetween(a2.x, a2.y, b2.x, b2.y);
+      });
+    });
+    // rooms
+    ids.forEach(id => {
+      const r = rects[id];
+      if (!r || !Phaser.Geom.Rectangle.Overlaps(r, view)) return;
+      if (d.visited[id]) {
+        g.fillStyle(REGIONS[ROOMS[id].region].color, id === d.room ? 0.6 : 0.3).fillRect(r.x, r.y, r.width, r.height);
+        g.lineStyle(2, id === d.room ? 0xffffff : 0xe9e4d8, id === d.room ? 1 : 0.65).strokeRect(r.x, r.y, r.width, r.height);
+      } else g.lineStyle(1, 0xe9e4d8, 0.3).strokeRect(r.x, r.y, r.width, r.height);
+    });
+    // landmarks, grown with the zoom
+    const k = Phaser.Math.Clamp(z / 16, 0.8, 2.6);
+    M.marks.forEach(([id, kind, tx, ty]) => {
+      const b = box(id), p = this.mapP(b.x + tx / 10, b.y + ty / 10);
+      if (p.x < VX - 12 || p.x > VX + VW + 12 || p.y < VY - 12 || p.y > VY + VH + 12) return;
+      this.pin(g, kind, p.x, p.y, k);
+    });
+    // your own pins
+    (d.pins || []).forEach(pin => {
+      const pt = this.mapP(pin.x, pin.y), [ch, col] = PIN_KINDS[pin.k] || PIN_KINDS[0];
+      if (pt.x < VX - 14 || pt.x > VX + VW + 14 || pt.y < VY - 14 || pt.y > VY + VH + 14) return;
+      g.fillStyle(0x07070b, 0.9).fillCircle(pt.x, pt.y, 13);
+      g.lineStyle(2, Phaser.Display.Color.HexStringToColor(col).color, 1).strokeCircle(pt.x, pt.y, 13);
+      this.mapText(ch, 18, col, 0.5, pt.x, pt.y + 1);
+    });
+    // names: the region's in kanji above the rooms of it you have seen, each room's above or below its box
+    const placed = [];
+    const fits = (rc) => !placed.some(p => Phaser.Geom.Rectangle.Overlaps(p, rc));
+    Object.keys(REGIONS).forEach(reg => {
+      const mine = ids.filter(id => d.visited[id] && ROOMS[id].region === reg && rects[id]);
+      if (!mine.length) return;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity;
+      mine.forEach(id => { const r = rects[id]; x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.right); });
+      if (x1 < VX - 200 || x0 > VX + VW) return;
+      const size = Phaser.Math.Clamp(Math.round(14 + z * 0.35), 18, 28);
+      const t = this.mapText(REGIONS[reg].kanji + '  ' + REGIONS[reg].name, size, '#' + REGIONS[reg].color.toString(16).padStart(6, '0'), [0, 1], Math.max(x0, VX + 6), Math.max(y0 - (z > 12 ? 30 : 8), VY + size + 4));
+      placed.push(new Phaser.Geom.Rectangle(t.x, t.y - t.height, t.width, t.height));
+    });
+    if (z >= 11) {
+      const size = Phaser.Math.Clamp(Math.round(13 + z * 0.2), 16, 22);
+      // bigger rooms first, so the small ones take what is left
+      const order = ids.filter(id => d.visited[id] && rects[id] && Phaser.Geom.Rectangle.Overlaps(rects[id], view)).sort((a, b) => rects[b].width - rects[a].width);
+      order.forEach(id => {
+        const r = rects[id], name = ROOMS[id].name;
+        const t = this.mapText(name, size, id === d.room ? '#ffffff' : '#e6e0d2', [0, 1], r.x, r.y - 3);
+        const w = t.width, h = t.height;
+        const cands = [[r.x, r.y - 3, [0, 1]], [r.x, r.bottom + 3 + h, [0, 1]], [r.right, r.y - 3, [1, 1]], [r.right, r.bottom + 3 + h, [1, 1]],
+          [r.x, r.y - 3 - h, [0, 1]], [r.x, r.bottom + 3 + 2 * h, [0, 1]], [r.right, r.y - 3 - h, [1, 1]], [r.right, r.bottom + 3 + 2 * h, [1, 1]]];
+        let best = null, bestS = Infinity;
+        for (const [x, y, org] of cands) {
+          const rc = new Phaser.Geom.Rectangle(org[0] ? x - w : x, y - h, w, h);
+          let s = 0;
+          placed.forEach(p => { if (Phaser.Geom.Rectangle.Overlaps(p, rc)) s += 1e6; });
+          ids.forEach(oid => { if (oid !== id && rects[oid] && d.visited[oid]) { const ix = Phaser.Geom.Rectangle.Intersection(rects[oid], rc); s += ix.width * ix.height; } });
+          if (s < bestS) { bestS = s; best = { x, y, org, rc }; }
+        }
+        t.setOrigin(...best.org).setPosition(Math.round(best.x), Math.round(best.y));
+        placed.push(best.rc);
+      });
+    }
+    // you
+    if (M.game && M.game.player) {
+      const p = this.mapP(M.you.x, M.you.y);
+      g.fillStyle(0xd8343f, 1).fillCircle(p.x, p.y, 7);
+      g.lineStyle(2, 0xffffff, 1).strokeCircle(p.x, p.y, 9);
+      if (!this.mapPulse) {
+        this.mapPulse = this.add.circle(0, 0, 8).setStrokeStyle(2, 0xd8343f).setFillStyle();
+        this.mapC.add(this.mapPulse);
+        this.tweens.add({ targets: this.mapPulse, radius: 24, alpha: { from: 0.9, to: 0 }, duration: 1100, repeat: -1 });
+      }
+      this.mapPulse.setPosition(p.x, p.y);
+    }
+    // hide the pool texts nobody asked for this frame
+    for (let i = o.used; i < o.pool.length; i++) o.pool[i].setVisible(false);
+    // the cross in the middle: where a pin lands
+    const cx = VX + VW / 2, cy = VY + VH / 2;
+    g.lineStyle(2, 0xe9e4d8, 0.9).strokeCircle(cx, cy, 14);
+    g.lineBetween(cx - 24, cy, cx - 17, cy).lineBetween(cx + 17, cy, cx + 24, cy).lineBetween(cx, cy - 24, cx, cy - 17).lineBetween(cx, cy + 17, cx, cy + 24);
+    // what lies under the cross
+    const here = ids.find(id => d.visited[id] && rects[id] && rects[id].contains(cx, cy));
+    if (this.mapInfo) {
+      if (here) {
+        const r = ROOMS[here], tags = [];
+        if (d.gates[here]) tags.push('rest gate');
+        if (r.boss) tags.push(d.bosses[r.boss] ? `${BOSSES[r.boss].name} felled` : `${BOSSES[r.boss].name} waits`);
+        if (r.tiles.join('').includes('S')) tags.push('shop');
+        if (r.tiles.join('').includes('W')) tags.push('swordsmith');
+        this.mapInfo.setText(`${REGIONS[r.region].kanji}  ${r.name}`);
+        this.mapInfo2.setText(tags.join(' · '));
+      } else { this.mapInfo.setText(''); this.mapInfo2.setText(''); }
+    }
+  }
+  // Zoom keeping the point under (sx, sy) where it is
+  mapZoom(factor, sx, sy) {
+    const c = this.mapCam, M = this.mapM;
+    if (!c || !M) return;
+    const lo = Math.max(3, M.fitZ * 0.7), hi = 70;
+    const nz = Phaser.Math.Clamp(c.z * factor, lo, hi);
+    if (sx === undefined) { c.z = nz; return; }
+    const before = this.mapToWorld(sx, sy);
+    c.z = nz;
+    const after = this.mapToWorld(sx, sy);
+    c.x += before.x - after.x; c.y += before.y - after.y;
+  }
+  mapButton(dir) {
+    const c = this.mapCam, M = this.mapM;
+    if (!c) return;
+    if (dir === 0) { c.x = M.you.x; c.y = M.you.y; Sfx.play('select'); }
+    else this.mapZoom(dir > 0 ? 1.35 : 1 / 1.35);
+    this.drawMap();
   }
   // Add a pin, step an existing one to its next kind, or clear it after the last
   pinAt(x, y) {
-    const d = GS.data, pins = d.pins || (d.pins = []), near = 14 / this.mapView.sc;
+    const d = GS.data, pins = d.pins || (d.pins = []), near = 16 / this.mapCam.z;
     const i = pins.findIndex(p => Math.hypot(p.x - x, p.y - y) < near);
     if (i < 0) { pins.push({ x, y, k: 0 }); Sfx.play('confirm'); }
     else if (pins[i].k + 1 < PIN_KINDS.length) { pins[i].k++; Sfx.play('select'); }
     else { pins.splice(i, 1); Sfx.play('deny'); }
-    this.cursor = { x, y };
     GS.save();
-    this.render();
+    this.drawMap();
   }
-  // The map cursor glides while a direction is held
+  // The map glides while a direction is held; + and − zoom
   update(time, delta) {
-    if (this.view !== 'map' || !this.mapView || this.listening) return;
-    const dx = (Controls.isDown('right') ? 1 : 0) - (Controls.isDown('left') ? 1 : 0);
-    const dy = (Controls.isDown('down') ? 1 : 0) - (Controls.isDown('up') ? 1 : 0);
-    if (!dx && !dy) return;
-    const v = 340 / this.mapView.sc * delta / 1000;
-    this.cursor.x += dx * v; this.cursor.y += dy * v;
-    this.drawCursor();
+    if (this.view !== 'map' || !this.mapM || !this.mapCam || this.listening) return;
+    const c = this.mapCam, dt = Math.min(delta, 50) / 1000, H = Controls.held;
+    const dx = ((Controls.isDown('right') || H.has('KeyD') || H.has('ArrowRight')) ? 1 : 0) - ((Controls.isDown('left') || H.has('KeyA') || H.has('ArrowLeft')) ? 1 : 0);
+    const dy = ((Controls.isDown('down') || H.has('KeyS') || H.has('ArrowDown')) ? 1 : 0) - ((Controls.isDown('up') || H.has('KeyW') || H.has('ArrowUp')) ? 1 : 0);
+    const zin = H.has('Equal') || H.has('NumpadAdd') || H.has('PageUp') || H.has('Pad5'), zout = H.has('Minus') || H.has('NumpadSubtract') || H.has('PageDown') || H.has('Pad4');
+    let dirty = false;
+    if (dx || dy) {
+      const sp = 560 / c.z * dt * (H.has('ShiftLeft') || H.has('ShiftRight') ? 2.2 : 1);
+      c.x += dx * sp; c.y += dy * sp; dirty = true;
+    }
+    if (zin !== zout) { this.mapZoom(Math.exp((zin ? 1 : -1) * 1.7 * dt)); dirty = true; }
+    if (this.mapWheel) { this.mapZoom(Math.exp(-this.mapWheel * 0.0012), this.mapWheelAt.x, this.mapWheelAt.y); this.mapWheel = 0; dirty = true; }
+    if (dirty) {
+      const M = this.mapM;
+      c.x = Phaser.Math.Clamp(c.x, M.minX - 4, M.maxX + 4); c.y = Phaser.Math.Clamp(c.y, M.minY - 4, M.maxY + 4);
+      this.drawMap();
+    }
+  }
+  // Dragging pans the map; a tap or click that did not move pins the spot
+  mapPointer(kind, ptr) {
+    if (this.view !== 'map' || !this.mapM) return;
+    const M = this.mapM, inside = ptr.x >= M.VX && ptr.x <= M.VX + M.VW && ptr.y >= M.VY && ptr.y <= M.VY + M.VH;
+    const c = this.mapCam;
+    if (kind === 'down') { if (!inside) return; this.mapDrag = { x: ptr.x, y: ptr.y, cx: c.x, cy: c.y, moved: false }; }
+    else if (kind === 'move' && this.mapDrag) {
+      const dr = this.mapDrag;
+      if (Math.hypot(ptr.x - dr.x, ptr.y - dr.y) > 6) dr.moved = true;
+      if (dr.moved) { c.x = dr.cx - (ptr.x - dr.x) / c.z; c.y = dr.cy - (ptr.y - dr.y) / c.z; this.drawMap(); }
+    } else if (kind === 'up' && this.mapDrag) {
+      const dr = this.mapDrag; this.mapDrag = null;
+      if (!dr.moved) { const w = this.mapToWorld(ptr.x, ptr.y); this.pinAt(w.x, w.y); }
+    }
   }
 
   // Where a door sits on the map: its tile, scaled into the room's box
@@ -714,48 +887,21 @@ class MenuScene extends Phaser.Scene {
     return null;
   }
 
-  // Landmarks always show on rooms you have seen; with the Pin Compass, so does what is left to find
-  drawPins(g, P, box) {
-    const d = GS.data;
-    Object.keys(ROOMS).forEach(id => {
-      if (!d.visited[id]) return;
-      const r = ROOMS[id], b = box(id), cnt = { k: 0, c: 0, f: 0, l: 0, o: 0 };
-      r.tiles.forEach((row, ty) => {
-        for (let tx = 0; tx < row.length; tx++) {
-          const ch = row[tx];
-          let kind = null;
-          switch (ch) {
-            case 'R': kind = 'gate'; break;
-            case 'S': kind = 'shop'; break;
-            case 'W': kind = 'forge'; break;
-            case 'B': kind = d.bosses[r.boss] ? 'bossDone' : 'boss'; break;
-            case 'k': { const i = cnt.k++, aid = (r.abilities || [])[i]; if (aid && !GS.isTaken(`${id}:k${i}`) && !GS.has(aid)) kind = 'power'; break; }
-            case 'c': { const i = cnt.c++, sid = (r.seals || [])[i]; if (sid && !GS.isTaken(`${id}:c${i}`) && !d.seals.includes(sid)) kind = 'seal'; break; }
-            case 'f': { const i = cnt.f++; if (!GS.isTaken(`${id}:f${i}`)) kind = 'frag'; break; }
-            case 'l': { const i = cnt.l++; if (!GS.isTaken(`${id}:l${i}`)) kind = 'plus'; break; }
-            case 'o': { const i = cnt.o++; if (!GS.isTaken(`${id}:o${i}`)) kind = 'ore'; break; }
-          }
-          if (!kind) continue;
-          if (['power', 'seal', 'frag', 'plus', 'ore'].includes(kind) && !d.bought.compass) continue;
-          if (kind === 'gate' && !d.gates[id]) continue;
-          const pt = P(b.x + tx / 10, b.y + ty / 10);
-          this.pin(g, kind, pt.x, pt.y);
-        }
-      });
-    });
-  }
-  pin(g, kind, x, y) {
+  // One landmark, drawn at size k (1 at the smallest)
+  pin(g, kind, x, y, k = 1) {
+    const s = (v) => v * k;
     switch (kind) {
-      case 'gate': g.fillStyle(0xffe8b0, 1).fillCircle(x, y, 4); g.lineStyle(1, 0x07070b, 0.8).strokeCircle(x, y, 4); break;
-      case 'shop': g.fillStyle(0x7fe8ff, 1).fillRect(x - 3, y - 3, 6, 6); break;
-      case 'forge': g.fillStyle(0xff9a50, 1).fillTriangle(x, y - 4, x - 4, y + 3, x + 4, y + 3); break;
-      case 'boss': g.fillStyle(0xd8343f, 1).fillPoints([{ x, y: y - 5 }, { x: x + 5, y }, { x, y: y + 5 }, { x: x - 5, y }], true); break;
-      case 'bossDone': g.lineStyle(1.5, 0x8a8497, 1).strokePoints([{ x, y: y - 5 }, { x: x + 5, y }, { x, y: y + 5 }, { x: x - 5, y }], true); break;
-      case 'power': g.fillStyle(0xffffff, 1).fillCircle(x, y, 3.5); g.lineStyle(1.5, 0xffe8b0, 1).strokeCircle(x, y, 6); break;
-      case 'seal': g.fillStyle(0xffd75e, 1).fillPoints([{ x, y: y - 4 }, { x: x + 3, y }, { x, y: y + 4 }, { x: x - 3, y }], true); break;
-      case 'frag': g.fillStyle(0x7fe8ff, 1).fillCircle(x, y, 2.5); break;
-      case 'plus': g.fillStyle(0xe8f4ff, 1).fillCircle(x, y, 2.5); g.lineStyle(1, 0x7fe8ff, 1).strokeCircle(x, y, 4); break;
-      case 'ore': g.fillStyle(0xb89aff, 1).fillCircle(x, y, 2.5); break;
+      case 'gate': g.fillStyle(0xffe8b0, 1).fillCircle(x, y, s(4.5)); g.lineStyle(1.5, 0x07070b, 0.9).strokeCircle(x, y, s(4.5)); break;
+      case 'shop': g.fillStyle(0x7fe8ff, 1).fillRect(x - s(3.5), y - s(3.5), s(7), s(7)); g.lineStyle(1.5, 0x07070b, 0.9).strokeRect(x - s(3.5), y - s(3.5), s(7), s(7)); break;
+      case 'forge': g.fillStyle(0xff9a50, 1).fillTriangle(x, y - s(5), x - s(5), y + s(4), x + s(5), y + s(4)); break;
+      case 'boss': g.fillStyle(0xd8343f, 1).fillPoints([{ x, y: y - s(6) }, { x: x + s(6), y }, { x, y: y + s(6) }, { x: x - s(6), y }], true); g.lineStyle(1.5, 0x07070b, 0.9).strokePoints([{ x, y: y - s(6) }, { x: x + s(6), y }, { x, y: y + s(6) }, { x: x - s(6), y }], true); break;
+      case 'bossDone': g.lineStyle(2, 0x8a8497, 1).strokePoints([{ x, y: y - s(6) }, { x: x + s(6), y }, { x, y: y + s(6) }, { x: x - s(6), y }], true); break;
+      case 'power': g.fillStyle(0xffffff, 1).fillCircle(x, y, s(4)); g.lineStyle(2, 0xffe8b0, 1).strokeCircle(x, y, s(7)); break;
+      case 'seal': g.fillStyle(0xffd75e, 1).fillPoints([{ x, y: y - s(5) }, { x: x + s(4), y }, { x, y: y + s(5) }, { x: x - s(4), y }], true); break;
+      case 'upgrade': g.fillStyle(0xff9a6a, 1).fillPoints([{ x: x - s(3), y: y - s(5) }, { x: x + s(3), y: y - s(5) }, { x: x + s(6), y }, { x: x + s(3), y: y + s(5) }, { x: x - s(3), y: y + s(5) }, { x: x - s(6), y }], true); g.lineStyle(1.5, 0x07070b, 0.9).strokeCircle(x, y, s(7.5)); break;
+      case 'frag': g.fillStyle(0x7fe8ff, 1).fillCircle(x, y, s(3)); break;
+      case 'plus': g.fillStyle(0xe8f4ff, 1).fillCircle(x, y, s(3)); g.lineStyle(1.5, 0x7fe8ff, 1).strokeCircle(x, y, s(5)); break;
+      case 'ore': g.fillStyle(0xb89aff, 1).fillCircle(x, y, s(3)); break;
     }
   }
 
@@ -779,13 +925,21 @@ class MenuScene extends Phaser.Scene {
       ['Reishi', String(d.reishi)], ['Bosses felled', `${Object.keys(d.bosses).filter(b => BOSSES[b]).length} / ${T.bosses}`],
     ];
     rows.forEach(([k, v], i) => {
-      this.txt(x, 214 + i * 36, k, 20, '#b8b2c4');
-      this.txt(x + 460, 214 + i * 36, v, 20, INK, { bold: true, origin: [1, 0] });
+      this.txt(x, 210 + i * 31, k, 19, '#b8b2c4');
+      this.txt(x + 460, 210 + i * 31, v, 19, INK, { bold: true, origin: [1, 0] });
     });
-    this.txt(x, 520, 'EQUIPPED SEALS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+    // what has been found to sharpen the powers themselves
+    this.txt(x, 470, 'POWER UPGRADES', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+    UPGRADE_ORDER.forEach((id, i) => {
+      const u = UPGRADES[id], lv = GS.upgrade(id), ux = x + (i % 2) * 240, uy = 496 + Math.floor(i / 2) * 44;
+      this.icon('icon_' + id, ux + 16, uy + 14, 30, lv ? 1 : 0.5);
+      this.txt(ux + 40, uy - 2, u.name, 16, lv ? INK : '#5c5868', { bold: !!lv });
+      this.txt(ux + 40, uy + 17, '◆'.repeat(lv) + '◇'.repeat(u.max - lv), 14, lv ? GOLD : '#4c4858');
+    });
+    this.txt(x, 596, 'EQUIPPED SEALS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     const eq = d.equipped.map(id => SEALS[id].name);
-    d.equipped.forEach((id, i) => this.icon('icon_' + id, x + 18 + i * 42, 562, 34));
-    this.txt(x, d.equipped.length ? 590 : 548, eq.length ? eq.join(' · ') : 'None. Equip seals at a rest gate.', 19, eq.length ? INK : MUTED, { wrap: 470 });
+    d.equipped.forEach((id, i) => this.icon('icon_' + id, x + 18 + i * 38, 630, 30));
+    this.txt(x, d.equipped.length ? 650 : 620, eq.length ? eq.join(' · ') : 'None. Equip seals at a rest gate.', 15, eq.length ? INK : MUTED, { wrap: 520 });
     this.items = [];
     this.hit(0, 0, GAME_W, GAME_H, () => this.back());
     this.footer(Controls.fmt('{inventory} or {attack} close · Journal from the pause menu'));
@@ -839,7 +993,7 @@ class MenuScene extends Phaser.Scene {
   fmtTime(t) { const m = Math.floor(t / 60), s = Math.floor(t % 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}:${String(s).padStart(2, '0')}`; }
 
   // ------------------------------------------------------------------ actions
-  go(view) { this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); this.popIn(); }
+  go(view) { if (view === 'map') { this.mapCam = null; this.mapPulse = null; } this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); this.popIn(); }
   back() {
     const parent = { seals: 'rest', travel: 'rest', forms: 'rest', controls: 'pause', settings: 'pause', assist: 'settings', slot: 'slots', records: 'pause', duels: 'trial' }[this.view];
     if (parent && this.type !== this.view) { this.view = parent; this.sel = parent === 'slots' ? this.slotSel || 0 : 0; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); this.popIn(); }
@@ -896,8 +1050,17 @@ class MenuScene extends Phaser.Scene {
       const it = this.items[this.sel], L = Controls.isLeft(code), R = Controls.isRight(code);
       if (it && it.row && (L || R)) { this.adjustSetting(it.row, L ? -1 : 1); return; }
     }
-    if (this.view === 'map' && Controls.isConfirm(code)) { this.pinAt(this.cursor.x, this.cursor.y); return; }
-    if (this.view === 'map' && (Controls.isUp(code) || Controls.isDownKey(code))) return;
+    if (this.view === 'seals' && (Controls.isLeft(code) || Controls.isRight(code)) && this.sealColN) {
+      const to = this.sel + (Controls.isRight(code) ? this.sealColN : -this.sealColN);
+      if (to >= 0 && to < n) { this.sel = to; this.msg = ''; Sfx.play('select'); this.render(); }
+      else if (Controls.isRight(code) && n && this.sel < this.sealColN) { this.sel = n - 1; Sfx.play('select'); this.render(); }
+      return;
+    }
+    if (this.view === 'map') {
+      if (Controls.isConfirm(code)) { if (this.mapCam) this.pinAt(this.mapCam.x, this.mapCam.y); return; }
+      if (code === 'KeyR' || code === 'Home') { this.mapButton(0); return; }
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract', 'PageUp', 'PageDown'].includes(code) || Controls.isUp(code) || Controls.isDownKey(code) || Controls.isLeft(code) || Controls.isRight(code)) return;
+    }
     if (Controls.isUp(code)) { if (n) { this.sel = (this.sel + n - 1) % n; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); } return; }
     if (Controls.isDownKey(code)) { if (n) { this.sel = (this.sel + 1) % n; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); } return; }
     if (this.view === 'controls') return;
