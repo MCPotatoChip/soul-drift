@@ -522,7 +522,7 @@ def steer_foes(R):
     for rid, r in R.items():
         rows = [list(x) for x in r['tiles']]
         h, w = len(rows), len(rows[0])
-        doors = [(x, y) for y in range(h) for x in range(w) if rows[y][x] in '123456789']
+        doors = [(x, y) for y in range(h) for x in range(w) if rows[y][x] in '123456789R']   # ways in, and rest gates
         if not doors:
             continue
 
@@ -532,6 +532,8 @@ def steer_foes(R):
         def legal(c, x, y):
             if not (1 <= x < w - 1) or rows[y][x] != '.':
                 return False
+            if c in CEILING_FOES:                        # hangs from the ceiling, one row under it
+                return y >= 1 and rows[y - 1][x] == '#'
             if y < 1 or rows[y - 1][x] != '.':          # foes are two tiles tall
                 return False
             below = rows[y + 1][x] if y + 1 < h else '#'
@@ -541,14 +543,27 @@ def steer_foes(R):
         for y in range(h):
             for x in range(w):
                 c = rows[y][x]
-                if c not in FOES or c in CEILING_FOES or near(x, y) >= SAFE:
+                if c not in FOES or near(x, y) >= SAFE:
                     continue
+                spot = None
                 for nx in sorted(range(1, w - 1), key=lambda v: abs(v - x)):
                     if near(nx, y) >= SAFE and legal(c, nx, y):
-                        rows[y][x] = '.'
-                        rows[y][nx] = c
-                        moved += 1
+                        spot = (nx, y)
                         break
+                if spot is None:     # nothing on this row: the nearest legal place on any other
+                    best = None
+                    for ny in range(2, h - 1):
+                        for nx in range(1, w - 1):
+                            if near(nx, ny) >= SAFE and legal(c, nx, ny):
+                                dist = abs(nx - x) + 2 * abs(ny - y)
+                                if best is None or dist < best[0]:
+                                    best = (dist, nx, ny)
+                    if best:
+                        spot = (best[1], best[2])
+                if spot:
+                    rows[y][x] = '.'
+                    rows[spot[1]][spot[0]] = c
+                    moved += 1
         r['tiles'] = [''.join(x) for x in rows]
     return moved
 

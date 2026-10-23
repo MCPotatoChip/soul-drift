@@ -56,6 +56,7 @@ class GameScene extends Phaser.Scene {
     this.buildBackground();
     this.buildMap();
     this.spawnPlayer();
+    this.entryCalm = 1.6;   // foes hold still for a moment after you arrive, at a door or a rest gate
     // Flyers find their way to the player through this field (see nav.js)
     this.flow = new FlowField(this, () => ({ x: this.player.x, y: this.player.body.center.y }), 0.2);
     this.flow.build();
@@ -365,6 +366,7 @@ class GameScene extends Phaser.Scene {
     if (this.waves) this.updateWaves(dt);
     this.updateSwing(dt);
     this.flow.update(dt);
+    if (this.entryCalm > 0) this.entryCalm -= dt;
     for (const e of this.enemies.slice()) if (e.active) e.tick(dt);
     this.enemies = this.enemies.filter(e => e.active);
     for (const s of this.pShots.slice()) {

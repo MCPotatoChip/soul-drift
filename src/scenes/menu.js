@@ -597,20 +597,55 @@ class MenuScene extends Phaser.Scene {
     const qx = 650;
     this.txt(qx, 178, 'FAVOURS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     QUEST_ORDER.forEach((id, i) => {
-      const q = QUESTS[id], st = d.quests[id] || 0, y = 208 + i * 58;
+      const q = QUESTS[id], st = d.quests[id] || 0, y = 204 + i * 72;
       this.txt(qx, y, st ? q.name : '? ? ?', 20, st === 2 ? GOLD : st ? INK : '#4c4858', { bold: true });
       this.txt(qx + 520, y, st === 2 ? '✓ done' : st ? 'under way' : '', 16, st === 2 ? GOLD : '#7fe8ff', { origin: [1, 0] });
-      this.txt(qx, y + 26, st === 2 ? `${q.giver} · ${q.reward}` : st ? `${q.giver}, ${q.where}: ${q.todo}${id === 'orihime' ? ` (${d.items.petals || 0}/${PETALS})` : ''}` : 'Someone in the world has a favour to ask.', 15, st ? '#b8b2c4' : '#5c5868', { wrap: 540 });
+      this.txt(qx, y + 24, this.questText(id, st), 15, st ? '#b8b2c4' : '#7a7486', { wrap: 540 });
     });
     if (d.palace >= 1) {
       const r = d.rush;
-      this.txt(qx, 520, 'THE SOUL KING PALACE', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
-      this.txt(qx, 548, r.wins ? `Trial of the Ten: won ${r.wins}× · best ${fmtClock(r.best, true)}` : 'Trial of the Ten: not yet won', 18, r.wins ? GOLD : INK);
-      this.txt(qx, 578, BINDING_ORDER.map(k => BINDINGS[k].jp).join('  '), 24, r.bound.all ? GOLD : '#7a7486', { display: true });
+      this.txt(qx, 574, 'THE SOUL KING PALACE', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+      this.txt(qx, 600, r.wins ? `Trial of the Ten: won ${r.wins}× · best ${fmtClock(r.best, true)}` : 'Trial of the Ten: not yet won', 18, r.wins ? GOLD : INK);
+      this.txt(qx, 628, BINDING_ORDER.map(k => BINDINGS[k].jp).join('  '), 24, r.bound.all ? GOLD : '#7a7486', { display: true });
     }
     this.items = [];
     this.hit(0, 0, GAME_W, GAME_H, () => this.back());
     this.footer(Controls.fmt('{attack} back · splits are when each boss first fell; the best is over every journey'));
+  }
+
+  // Where something is, in room names, so a favour can be followed without guessing
+  questText(id, st) {
+    const d = GS.data, q = QUESTS[id];
+    const rooms = (pred) => { const ids = Object.keys(ROOMS).filter(pred); return ids.length ? ids.map(r => ROOMS[r].name).join(' or ') : q.where; };
+    const npcAt = (name) => rooms(r => (ROOMS[r].npcs || []).some(n => n.name === name));
+    if (st === 2) return `${q.giver} · ${q.reward}`;
+    if (!st) {
+      const need = { names: 'konso', kon: 'grip', ganju: 'hado', urahara: 'bakudo' }[id];
+      return `Not yet asked. ${q.giver} waits in ${npcAt(q.giver)}${need ? `, once you have ${ABILITIES[need].name}` : ''}.`;
+    }
+    switch (id) {
+      case 'names': {
+        const mark = (k) => (d.memories[k] ? '✓' : '✗');
+        const done = QUEST_NAMES.need.every(k => d.memories[k]);
+        return `Read a living foe's memory with the Konsō hilt: ruffian ${mark('thug')} · Shinigami ${mark('shini')} · Hollow ${mark('hollow')}. ` +
+          (done ? `Now tell the ${q.giver} in ${npcAt(q.giver)}.` : 'Ruffians: Rukongai. Shinigami: Seireitei.');
+      }
+      case 'kon':
+        return d.items.gikongan ? `You hold the Gikongan: bring it to Kon in ${npcAt('Kon')}.`
+          : `Find Kon's Gikongan in ${rooms(r => ROOMS[r].tiles.some(row => row.includes('C')))}, under the Fourth Division's floor, then take it to Kon in ${npcAt('Kon')}.`;
+      case 'orihime': {
+        const n = d.items.petals || 0;
+        if (n >= PETALS) return `All ${PETALS} spirits found: return to Orihime in ${npcAt('Orihime Inoue')}.`;
+        const left = Object.keys(ROOMS).filter(r => {
+          const count = ROOMS[r].tiles.join('').split('r').length - 1;
+          for (let i = 0; i < count; i++) if (!GS.isTaken(`${r}:r${i}`)) return true;
+          return false;
+        });
+        return `Spirits found ${n}/${PETALS}. ${left.length ? 'Still hiding in: ' + left.map(r => ROOMS[r].name).join(', ') + '.' : ''} Orihime: ${npcAt('Orihime Inoue')}.`;
+      }
+      case 'urahara': return `Go down the trapdoor in the shop (${rooms(r => r === 'kar_study')}) and talk to Kisuke Urahara: three waves, then the real lesson.`;
+      default: return `${q.giver}, ${q.where}: ${q.todo}`;
+    }
   }
 
   // ------------------------------------------------------------------ the map
