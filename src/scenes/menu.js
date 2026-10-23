@@ -250,6 +250,7 @@ class MenuScene extends Phaser.Scene {
       reiatsuGain: 'How much Reiatsu each slash that lands draws out, for healing and Kidō.',
       speed: 'Slows the whole world: you, your foes, their attacks. Menus are unaffected.',
       warnings: 'Bold: a red mark appears over every foe while it winds up an attack.',
+      bossHard: 'Hard: every boss has 35% more health and acts 12% faster. Nothing is locked away by either choice.',
     }[cur && cur.row && cur.row[0]];
     if (about) this.txt(GAME_W / 2, GAME_H - 96, about, 18, '#b8b2c4', { origin: 0.5, wrap: 900, style: { align: 'center' } });
     this.footer(Controls.fmt('{left} {right} change · {jump} next value · {attack} back'));
@@ -730,7 +731,7 @@ class MenuScene extends Phaser.Scene {
       this.txt(bx + 16, by + 16, ch, 20, INK, { origin: 0.5 });
     });
     // legend
-    const legend = [['gate', 'rest gate'], ['shop', 'shop'], ['forge', 'swordsmith'], ['boss', 'boss'], ['door', 'unexplored exit']];
+    const legend = [['gate', 'rest gate'], ['shop', 'shop'], ['forge', 'swordsmith'], ['boss', 'boss'], ['door', 'unexplored exit'], ['quest', 'favour']];
     if (d.bought.compass) legend.push(['power', 'power'], ['seal', 'seal'], ['upgrade', 'upgrade'], ['frag', 'fragment'], ['plus', 'lost plus'], ['ore', 'ore']);
     const lg = this.add.graphics(); this.layer.add(lg);
     let lx = GAME_W / 2 - legend.reduce((a, [, l]) => a + 44 + l.length * 8.4, 0) / 2;
@@ -772,6 +773,39 @@ class MenuScene extends Phaser.Scene {
         }
       });
     });
+    // where the next step of each favour is, drawn whether or not you own the compass
+    this.questMarks().forEach(m => out.push(m));
+    return out;
+  }
+  // [room, 'quest', tile x, tile y] for the next step of every favour that has one
+  questMarks() {
+    const d = GS.data, out = [], known = this.mapM ? this.mapM.known : new Set();
+    const shown = (id) => d.visited[id] || known.has(id);
+    const npcAt = (name) => {
+      for (const id of Object.keys(ROOMS)) {
+        const r = ROOMS[id], i = (r.npcs || []).findIndex(n => n.name === name);
+        if (i < 0) continue;
+        let n = 0;
+        for (let y = 0; y < r.tiles.length; y++) for (let x = 0; x < r.tiles[y].length; x++) if (r.tiles[y][x] === 'N' && n++ === i) return shown(id) ? [id, 'quest', x, y] : null;
+      }
+      return null;
+    };
+    const tilesOf = (ch, taken) => {
+      const res = [];
+      Object.keys(ROOMS).forEach(id => {
+        if (!shown(id)) return;
+        let n = 0;
+        ROOMS[id].tiles.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === ch) { const key = `${id}:${ch}${n++}`; if (!taken(key)) res.push([id, 'quest', x, y]); } });
+      });
+      return res;
+    };
+    const q = d.quests, add = (m) => m && out.push(m);
+    if ((q.names || 0) === 0 && GS.has('konso')) add(npcAt(QUEST_NAMES.npc));
+    if (q.names === 1 && QUEST_NAMES.need.every(k => d.memories[k])) add(npcAt(QUEST_NAMES.npc));
+    if ((q.kon || 0) === 0 && GS.has('grip')) add(npcAt('Kon'));
+    if (q.kon === 1) { if (d.items.gikongan) add(npcAt('Kon')); else tilesOf('C', (k) => d.items.gikongan || GS.isTaken(k)).forEach(m => out.push(m)); }
+    if ((q.ganju || 0) === 0 && GS.has('hado')) add(npcAt('Ganju Shiba'));
+    if (q.orihime === 1) { if ((d.items.petals || 0) >= PETALS) add(npcAt('Orihime Inoue')); else tilesOf('r', (k) => GS.isTaken(k)).forEach(m => out.push(m)); }
     return out;
   }
   mapP(x, y) { const M = this.mapM, c = this.mapCam; return { x: M.VX + M.VW / 2 + (x - c.x) * c.z, y: M.VY + M.VH / 2 + (y - c.y) * c.z }; }
@@ -829,6 +863,7 @@ class MenuScene extends Phaser.Scene {
       const b = box(id), p = this.mapP(b.x + tx / 10, b.y + ty / 10);
       if (p.x < VX - 12 || p.x > VX + VW + 12 || p.y < VY - 12 || p.y > VY + VH + 12) return;
       this.pin(g, kind, p.x, p.y, k);
+      if (kind === 'quest') this.mapText('!', Math.round(12 + k * 4), '#ffd75e', 0.5, p.x, p.y + 1);
       if (kind === 'door') this.mapText('?', Math.round(12 + k * 4), '#ffe8b0', 0.5, p.x, p.y + 1);
     });
     // your own pins
@@ -1000,6 +1035,7 @@ class MenuScene extends Phaser.Scene {
       case 'frag': g.fillStyle(0x7fe8ff, 1).fillCircle(x, y, s(3)); break;
       case 'plus': g.fillStyle(0xe8f4ff, 1).fillCircle(x, y, s(3)); g.lineStyle(1.5, 0x7fe8ff, 1).strokeCircle(x, y, s(5)); break;
       case 'ore': g.fillStyle(0xb89aff, 1).fillCircle(x, y, s(3)); break;
+      case 'quest': g.fillStyle(0x07070b, 0.9).fillCircle(x, y, s(7)); g.lineStyle(2, 0xffd75e, 1).strokeCircle(x, y, s(7)); break;
       case 'door': g.fillStyle(0x07070b, 0.9).fillCircle(x, y, s(7)); g.lineStyle(2, 0xffe8b0, 1).strokeCircle(x, y, s(7)); break;
     }
   }
@@ -1030,10 +1066,10 @@ class MenuScene extends Phaser.Scene {
     // what has been found to sharpen the powers themselves
     this.txt(x, 470, 'POWER UPGRADES', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     UPGRADE_ORDER.forEach((id, i) => {
-      const u = UPGRADES[id], lv = GS.upgrade(id), ux = x + (i % 2) * 240, uy = 496 + Math.floor(i / 2) * 44;
-      this.icon('icon_' + id, ux + 16, uy + 14, 30, lv ? 1 : 0.5);
-      this.txt(ux + 40, uy - 2, u.name, 16, lv ? INK : '#5c5868', { bold: !!lv });
-      this.txt(ux + 40, uy + 17, '◆'.repeat(lv) + '◇'.repeat(u.max - lv), 14, lv ? GOLD : '#4c4858');
+      const u = UPGRADES[id], lv = GS.upgrade(id), ux = x + (i % 4) * 132, uy = 492 + Math.floor(i / 4) * 52;
+      this.icon('icon_' + id, ux + 12, uy + 14, 26, lv ? 1 : 0.5);
+      this.txt(ux + 30, uy - 2, u.name, 13, lv ? INK : '#5c5868', { bold: !!lv, wrap: 96 });
+      this.txt(ux + 30, uy + 31, '◆'.repeat(lv) + '◇'.repeat(u.max - lv), 13, lv ? GOLD : '#4c4858');
     });
     this.txt(x, 596, 'EQUIPPED SEALS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     const eq = d.equipped.map(id => SEALS[id].name);
@@ -1080,7 +1116,11 @@ class MenuScene extends Phaser.Scene {
         this.txt(px, 246, boss ? BOSSES[k].title : '', 17, GOLD, { bold: true });
         this.txt(px, 282, about, 19, INK, { wrap: 510 });
         const kills = d.kills[k] || 0;
-        this.txt(px, 392, boss ? (d.bosses[k] ? 'Defeated' : 'Not yet defeated') : `Sent on: ${kills}`, 18, '#7fe8ff', { bold: true });
+        this.txt(px, 392, boss ? (d.bosses[k] ? 'Defeated' : 'Not yet defeated') : `Sent on: ${kills} / ${STUDY_KILLS}`, 18, '#7fe8ff', { bold: true });
+        if (!boss) {
+          const a = kills >= STUDY_KILLS, b = !!d.memories[k];
+          this.txt(px, 414, `Studied: ${a ? '◆' : '◇'} ${STUDY_KILLS} sent on · ${b ? '◆' : '◇'} memory heard  =  +${(a ? 5 : 0) + (b ? 5 : 0)}% damage against it`, 15, a || b ? GOLD : '#5c5868');
+        }
         this.txt(px, 440, 'MEMORY', 14, MUTED, { bold: true, style: { letterSpacing: 3 } });
         const mem = d.memories[k] && MEMORIES[k] ? MEMORIES[k][0] : Controls.fmt('Strike it with the Konso hilt ({konso}) to hear what it remembers.');
         this.txt(px, 466, mem, 19, d.memories[k] ? '#cfe8ff' : '#5c5868', { wrap: 510, style: { fontStyle: d.memories[k] ? 'italic' : 'normal' } });

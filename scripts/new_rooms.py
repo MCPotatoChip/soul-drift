@@ -250,4 +250,24 @@ def add_rooms(R, Grid):
     g = Grid.of(R['sok_shrine']['tiles'])
     R['sok_shrine']['tiles'] = g.rows()
 
+    # ----------------------------------------------------------------------- world 4: two optional Espada
+    # Nnoitra waits past the east wall of the Mask Shrine, Yammy past the east wall of the Bone Vault
+    def espada_arena(rid, name, boss, items, planks, back):
+        g = Grid(48, 23, '#')
+        g.rect(1, 2, 46, 18, '.')
+        for (x0, x1, y) in planks:
+            g.rect(x0, y, x1, y, '=')
+        g.put(0, 18, '1')
+        g.rect(0, 15, 0, 17, 'L')   # sealed once the fight starts
+        g.put(38, 18, 'B')
+        R[rid] = dict(name=name, region='hm', pos=[0, 0], doors={}, boss=boss, rewardItems=items, tiles=g.rows())
+        new.append(rid)
+        door = '2'
+        g2 = Grid.of(R[back]['tiles'])
+        g2.put(g2.w - 1, 18, door).put(g2.w - 1, 17, '.')
+        R[back]['tiles'] = g2.rows()
+        link(back, door, rid, '1')
+    espada_arena('hm_nnoitra', 'Scythe Hall', 'nnoitra', ['seal:tesla', 'ore'], [(8, 14, 14), (33, 39, 14)], 'hm_side')
+    espada_arena('hm_yammy', 'Hall of Ten', 'yammy', ['seal:might', 'fragment'], [(6, 12, 14), (35, 41, 14)], 'hm_vault')
+
     return new

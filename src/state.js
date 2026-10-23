@@ -105,6 +105,11 @@ const GS = {
   },
 
   // New Game+: enemies are tougher and pay more
+  // Damage bonus against a kind of foe you have studied: slain STUDY_KILLS of them, and heard its memory with the Konsō hilt
+  studyMul(kind) {
+    const d = this.data;
+    return 1 + 0.05 * ((d.kills[kind] || 0) >= STUDY_KILLS ? 1 : 0) + 0.05 * (d.memories[kind] ? 1 : 0);
+  },
   hpMul() { return 1 + 0.6 * Math.min(3, this.data.plus || 0); },
   // Bosses are tougher the sharper the Zanpakutō (a trial's blade binding counts as the plain edge)
   bossHpMul() { return 1 + BOSS_HP_PER_FORGE * this.swordLevel(); },

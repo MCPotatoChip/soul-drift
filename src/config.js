@@ -141,8 +141,16 @@ const UPGRADES = {
     desc: 'Getsuga Tenshō cuts 25% deeper and its crescent grows wider for every level.' },
   flow:      { name: 'Reiatsu Flow', jp: '流', max: 1, per: '+25% Reiatsu from strikes',
     desc: 'Your Reiatsu answers the blade more readily: every landed strike draws a quarter more.' },
+  shunpoEdge: { name: 'Shunpo Edge', jp: '瞬', max: 2, per: 'Shunpo recovers 15% faster and carries further',
+    desc: 'The flash step comes back sooner and covers more ground for every level.' },
+  maskHold:  { name: 'Mask Mastery', jp: '仮', max: 2, per: 'the Hollow Mask takes 15% longer to overwhelm you',
+    desc: 'You wear the mask with more control: the Hollow inside is slower to take over, for every level.' },
+  bankaiLast: { name: 'Bankai Span', jp: '卍', max: 2, per: 'Bankai lasts 20% longer',
+    desc: 'Tensa Zangetsu answers longer: Bankai lasts a fifth more for every level.' },
+  burstDrive: { name: 'Burst Drive', jp: '突', max: 2, per: 'Burst charges 15% faster and flies faster',
+    desc: 'Senkaimon Burst gathers sooner and rockets 12% quicker for every level.' },
 };
-const UPGRADE_ORDER = ['kidoPower', 'kidoReach', 'moonEdge', 'flow'];
+const UPGRADE_ORDER = ['kidoPower', 'kidoReach', 'moonEdge', 'flow', 'shunpoEdge', 'maskHold', 'bankaiLast', 'burstDrive'];
 
 // Bosses carry more health the sharper your Zanpakutō is, so the forge never makes a fight a formality:
 // each forge level adds this share of their base health (damage per slash rises by 40% of the first, per level).
@@ -167,6 +175,8 @@ const SEALS = {
   hierro:  { name: 'Hierro', cost: 2, desc: 'Skin of steel: blows no longer knock you back, and every fourth one is shrugged off.' },
   gentei:  { name: 'Gentei Kaijo', cost: 2, desc: 'Limit release: Bankai lasts half again as long.' },
   pride:   { name: 'Lion\'s Pride', cost: 1, desc: 'Kon\'s courage: with one mask left, your strikes hit 75% harder.' },
+  tesla:   { name: 'Tesla\'s Charm', cost: 1, desc: 'After a blow you stay untouchable 40% longer.' },
+  might:   { name: 'Llargo\'s Might', cost: 2, desc: 'Slash damage +20%.' },
   shiba:   { name: 'Shiba Crest', cost: 2, desc: 'The fireworks clan\'s mark: every Kidō costs a quarter less Reiatsu.' },
 };
 
@@ -217,6 +227,8 @@ const BOSSES = {
   espada:    { name: 'Aaroniero Arruruerie', title: 'Noveno Espada, Hidden Among the Menos', jp: 'アーロニーロ', notches: [0.5] },
   final:     { name: 'Hollow Ichigo', title: 'The White One Within', jp: '内なる虚', notches: [0.7, 0.45, 0.2] },
   urahara:   { name: 'Kisuke Urahara', title: 'Shopkeeper, Scientist, Captain Once', jp: '浦原喜助', notches: [0.5] },
+  nnoitra:   { name: 'Nnoitra Gilga', title: 'Quinta Espada', jp: 'ノイトラ', notches: [0.5] },
+  yammy:     { name: 'Yammy Llargo', title: 'Décima Espada', jp: 'ヤミー', notches: [0.5] },
 };
 
 const MEMORIES = {
@@ -243,9 +255,13 @@ const MEMORIES = {
   byakuya: ['"I made a promise to the law and a promise to my wife. I kept the wrong one."', '"Pride is a cold blade."'],
   grimmjow: ['"I am the King. I will crush anyone who stands above me."', '"Look at me. LOOK at me."'],
   ulquiorra: ['"The heart. Is that what is in this hand?"', '"I see now. That is what it was."'],
+  nnoitra: ['"Strong or weak, that is all there ever was. I picked strong."', '"Who is the one laughing now? Nobody. Nobody is."'],
+  yammy: ['"Ten. They gave me a ten and I wore it like a crown."', '"If I stop being angry, there is nothing left of me."'],
   urahara: ['"Everything I ever built, I built so that someone like you could stand here."', '"A shopkeeper is only a captain who learned to smile."'],
 };
 
+// Knowing a foe pays: sending on this many of a kind, and hearing its memory, each add 5% damage against it
+const STUDY_KILLS = 15;
 // The enemies the Journal keeps a page for, in the order you meet them: [kind, name, what it does]
 const BESTIARY = [
   ['hollow', 'Lesser Hollow', 'Winged Hollows that hunt in flocks. They follow the open air around walls to reach you.'],
@@ -270,9 +286,11 @@ const BESTIARY = [
   ['ulquiorra', 'Ulquiorra Cifer', 'Cero, Sonído and the Lanza del Relámpago. Released, he takes to the sky.'],
   ['espada', 'Aaroniero Arruruerie', 'Hidden in the dark with a stolen trident. Released, he spits up what he devoured.'],
   ['final', 'Hollow Ichigo', 'Everything you can do, turned against you, and a blade thrown on a chain.'],
+  ['nnoitra', 'Nnoitra Gilga', 'A scythe taller than he is. Sweeping cuts, crescent waves and Sonído; released, four arms and Santa Teresa.'],
+  ['yammy', 'Yammy Llargo', 'Slow, huge and impossible to stagger. Fists, quakes and a great Cero; in Ira, pillars of Reiatsu.'],
   ['urahara', 'Kisuke Urahara', 'The cane was a sword all along. Benihime changes whatever she touches.'],
 ];
-const BOSS_KINDS = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'vasto', 'ulquiorra', 'espada', 'final', 'urahara'];
+const BOSS_KINDS = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'vasto', 'ulquiorra', 'espada', 'final', 'urahara', 'nnoitra', 'yammy'];
 
 // The old man in Rukongai wants to hear what the dead remember
 const QUEST_NAMES = { npc: 'Old Man of Junrinan', need: ['thug', 'shini', 'hollow'], reishi: 200, seal: 'recall' };

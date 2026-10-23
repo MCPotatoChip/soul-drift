@@ -361,7 +361,7 @@ const PICKUP_COLORS = {
   dash: 0x9fb4ff, hado: 0xff6a4a, grip: 0x7fe8ff, bakudo: 0xffd75e, wings: 0xe8f4ff,
   konso: 0xbfe6ff, burst: 0xff8a3a, bankai: 0xe0303c, hollow: 0xf4f1ea, getsuga: 0x9ac8ff, raiko: 0xff4a30, compass: 0x7fe8ff,
   zangetsu: 0xe8e4d8, odachi: 0xbfe0ff, kodachi: 0xffd890, soten: 0xffb0d0, gikongan: 0x3ac86a, petal: 0xffd0e4,
-  kidoPower: 0xff7a4a, kidoReach: 0xffb06a, moonEdge: 0x9ac8ff, flow: 0xbfffd8,
+  kidoPower: 0xff7a4a, kidoReach: 0xffb06a, moonEdge: 0x9ac8ff, flow: 0xbfffd8, shunpoEdge: 0x9fb4ff, maskHold: 0xf4f1ea, bankaiLast: 0xe0303c, burstDrive: 0xff8a3a,
 };
 
 class Shard extends Phaser.Physics.Arcade.Image {

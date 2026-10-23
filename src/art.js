@@ -409,6 +409,32 @@ STYLES.aaroniero_r = variant(STYLES.aaroniero, {
   weapon: variant(STYLES.aaroniero.weapon, { shaft: '#2a1e38', head: '#b48aff', water: '#8a5ad8', smear: '#b48aff70' }),
 });
 
+// Nnoitra Gilga, Quinta Espada: long black hair, an eyepatch, a scythe held like a staff
+STYLES.nnoitra = Object.assign({
+  skin: '#ece0cc', skinShade: '#b8a88e', eye: '#d8b8ff', brow: '#16141c', eyepatch: '#0a0a10',
+  hair: '#16141c', hairHi: '#34304a', hairShade: '#08070c', hairStyle: 'longflow', jawMask: '#f6f4ee',
+  hole: true, legLen: 12, torsoLen: 12, carry: 'hand', anims: BOSS_ANIMS,
+  weapon: { type: 'trident', shaft: '#3a3a44', head: '#e8e8f0', hi: '#ffffff', water: '#b8a8ff', len: 28, smear: '#b8a8ff70' },
+}, ARRANCAR_WHITE, { inner: '#ece0cc' });
+// Santa Teresa: the arms double and the scythe darkens
+STYLES.nnoitra_r = variant(STYLES.nnoitra, {
+  robe: '#2a2236', robeHi: '#4a3e62', robeShade: '#120e1a', hakama: '#2a2236', hakamaShade: '#140e1c', hakamaHi: '#44325a', inner: '#8a6ad8', sash: '#8a6ad8',
+  claws: '#2a2236', jawMask: null, mask: { base: '#e8e4dc', shade: '#b8b4a8', stripe: '#8a6ad8', eye: '#d8b8ff' },
+  weapon: variant(STYLES.nnoitra.weapon, { shaft: '#1e1a28', head: '#c8b0ff', water: '#8a6ad8', smear: '#c8b0ff80' }),
+});
+// Yammy Llargo, Décima Espada: a big, loud man in white
+STYLES.yammy = Object.assign({
+  skin: '#dcb892', skinShade: '#a88a68', eye: '#e8a050', brow: '#16141c',
+  hair: '#1c1a24', hairHi: '#3a3648', hairShade: '#0c0b10', hairStyle: 'short', jawMask: '#f6f4ee',
+  hole: true, legLen: 10, torsoLen: 11, carry: 'none', anims: BOSS_ANIMS, weapon: { type: 'none' }, basePose: null,
+}, ARRANCAR_WHITE, { inner: '#dcb892' });
+// Ira: the anger takes the whole body
+STYLES.yammy_r = variant(STYLES.yammy, {
+  skin: '#8a4a3a', skinShade: '#5a2a22', eye: '#ffb040', hairStyle: 'horns', hair: '#16141c', hairHi: '#34304a', hairShade: '#08070c', jawMask: null, claws: '#16141c',
+  robe: '#4a2a2a', robeHi: '#7a4a42', robeShade: '#241212', hakama: '#3a1e1e', inner: '#ff8a40', sash: '#ff8a40',
+  mask: { base: '#e8e4dc', shade: '#b8b4a8', stripe: '#ff8a40', eye: '#ffb040' },
+});
+
 // Kisuke Urahara with the cane drawn: the sword Benihime, the hat still on. In Shikai the hat falls away
 // and the haori turns crimson.
 STYLES.urahara = variant(STYLES.npc_merchant, { anims: BOSS_ANIMS, basePose: null, legLen: 10, torsoLen: 10,

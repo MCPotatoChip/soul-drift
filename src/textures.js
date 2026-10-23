@@ -645,9 +645,9 @@ function makeBackgrounds(scene, region) {
 const ICON_GLYPH = {
   dash: '瞬', hado: '破', grip: '握', bakudo: '縛', wings: '翼', getsuga: '牙', konso: '葬', burst: '門', bankai: '解', hollow: '虚',
   edge: '刃', swift: '速', harvest: '魂', focus: '集', quick: '癒', magnet: '磁', long: '長', grace: '恩', moonfang: '月', phantom: '蝉', will: '志',
-  kaido: '回', bell: '鈴', shunko: '鬨', hierro: '鋼', gentei: '限',
+  kaido: '回', bell: '鈴', shunko: '鬨', hierro: '鋼', gentei: '限', tesla: '雷', might: '力',
   raiko: '雷', recall: '憶', compass: '針',
-  kidoPower: '威', kidoReach: '範', moonEdge: '弦', flow: '流',
+  kidoPower: '威', kidoReach: '範', moonEdge: '弦', flow: '流', shunpoEdge: '瞬', maskHold: '仮', bankaiLast: '卍', burstDrive: '突',
   pride: '獅', shiba: '花', zangetsu: '斬', odachi: '大', kodachi: '小', soten: '舜', gikongan: '丸', petal: '華',
   unknown: '?',
 };
