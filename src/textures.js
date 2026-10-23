@@ -377,7 +377,7 @@ function makeBackgrounds(scene, region) {
     });
     canvasTex(scene, k(1), W, H, c => {
       // the hill, and on it the Sokyoku: a halberd as tall as a tower, held in its frame
-      c.fillStyle = 'rgba(70,24,34,0.85)';
+      c.fillStyle = '#461822';
       c.beginPath(); c.moveTo(0, H); c.lineTo(0, 268); c.quadraticCurveTo(240, 128, 420, 156); c.quadraticCurveTo(560, 176, W, 252); c.lineTo(W, H); c.closePath(); c.fill();
       c.fillStyle = 'rgba(40,12,20,0.9)';
       c.fillRect(326, 22, 8, 136);
@@ -846,6 +846,7 @@ function makeAllTextures(scene) {
   });
 
   makeIcons(scene);
+  makeUiArt(scene);
 
   // A floor vent for the reishi geysers
   canvasTex(scene, 'vent', 18, 5, c => {
@@ -884,4 +885,50 @@ function makeAllTextures(scene) {
   });
 
   Object.keys(TILE_PAL).forEach(r => { makeTileset(scene, r); makeBackgrounds(scene, r); });
+}
+
+// ---------------------------------------------------------------------------
+// UI brushwork: strokes drawn in white so the HUD can tint them (ink, crimson, gold)
+function makeUiArt(scene) {
+  // a dry horizontal brush stroke: thick at the start, frayed at the end
+  canvasTex(scene, 'ui_stroke', 512, 64, c => {
+    const r = seeded(201);
+    for (let i = 0; i < 34; i++) {
+      const y = 12 + r() * 40, h = 3 + r() * 9, x0 = r() * 20, x1 = 420 + r() * 80;
+      c.fillStyle = `rgba(255,255,255,${(0.18 + r() * 0.5).toFixed(2)})`;
+      c.beginPath(); c.moveTo(x0, y); c.quadraticCurveTo(256, y - 5 + r() * 10, x1, y + r() * 6 - 3);
+      c.lineTo(x1 - 8, y + h); c.quadraticCurveTo(256, y + h + r() * 6, x0 + 12, y + h); c.closePath(); c.fill();
+    }
+    for (let i = 0; i < 60; i++) { c.fillStyle = `rgba(255,255,255,${(0.2 + r() * 0.5).toFixed(2)})`; c.fillRect(440 + r() * 70, 14 + r() * 36, 2 + r() * 5, 1 + r() * 2); }
+  });
+  // a soft ink pool for the HUD to sit on
+  canvasTex(scene, 'ui_ink', 460, 150, c => {
+    const g = c.createRadialGradient(120, 75, 10, 160, 75, 260);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.55, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.ellipse(170, 75, 240, 62, -0.04, 0, Math.PI * 2); c.fill();
+    const r = seeded(207);
+    for (let i = 0; i < 40; i++) { c.fillStyle = `rgba(255,255,255,${(r() * 0.25).toFixed(2)})`; c.beginPath(); c.arc(40 + r() * 380, 30 + r() * 90, 2 + r() * 10, 0, Math.PI * 2); c.fill(); }
+  });
+  // a brushed ring for the Reiatsu vessel
+  canvasTex(scene, 'ui_ring', 128, 128, c => {
+    const r = seeded(211);
+    c.translate(64, 64);
+    for (let i = 0; i < 26; i++) {
+      const a0 = r() * Math.PI * 2, len = 0.8 + r() * 2.2, rad = 52 + r() * 6, w = 1.5 + r() * 3.5;
+      c.strokeStyle = `rgba(255,255,255,${(0.35 + r() * 0.6).toFixed(2)})`; c.lineWidth = w; c.lineCap = 'round';
+      c.beginPath(); c.arc(0, 0, rad, a0, a0 + len); c.stroke();
+    }
+  });
+  // a small brushed frame corner for menus and the boss bar
+  canvasTex(scene, 'ui_cap', 32, 32, c => {
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.moveTo(16, 0); c.lineTo(32, 16); c.lineTo(16, 32); c.lineTo(0, 16); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.6)'; c.beginPath(); c.moveTo(16, 8); c.lineTo(24, 16); c.lineTo(16, 24); c.lineTo(8, 16); c.closePath(); c.fill();
+  });
+  canvasTex(scene, 'ui_ore', 14, 14, c => {
+    [[3, 13, 4, '#9a7aff'], [7, 13, 5, '#7fe8ff'], [11, 13, 3, '#c8a8ff']].forEach(([x, y, h, col]) => {
+      c.fillStyle = col; c.beginPath(); c.moveTo(x - 2, y); c.lineTo(x, y - h * 2.4); c.lineTo(x + 2, y); c.closePath(); c.fill();
+    });
+  });
 }
