@@ -130,6 +130,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.alive = false;
     this.body.enable = false;
     const s = this.scene;
+    GS.data.kills[this.kind] = (GS.data.kills[this.kind] || 0) + 1;
     s.spawnShards(this.x, this.y, this.drop);
     s.fx.kill(this, dirX || 0);
     Sfx.play('hit');
@@ -572,6 +573,264 @@ class Diver extends Enemy {
         b.velocity.y += (ry / rd * 85 - b.velocity.y) * k;
         break;
       }
+    }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Acidwire: a lizard-shaped Hollow of the Karakura riverbanks. It creeps along,
+// and when it sees you it rears back and lobs a burning glob that lands where you stand.
+class Crawler extends Enemy {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, 'crawler', { hp: 16, dmg: 1, drop: 4, bw: 18, bh: 11, kind: 'crawler', kb: 0.8, burst: 0x6a8a3a, frame: 'run0', frameFeet: 24 });
+    this.mode = 'patrol'; this.mt = 0.8;
+    this.facing = Math.random() < 0.5 ? -1 : 1;
+  }
+  afterTick() {
+    if (this.mode === 'aim') this.anim('windup');
+    else if (this.mode === 'spit') this.anim('spit');
+    else if (Math.abs(this.body.velocity.x) > 6) this.anim('run', 0.8);
+    else this.anim('idle');
+  }
+  think(dt) {
+    const b = this.body, s = this.scene, p = s.player;
+    const { dx, dy } = this.playerDelta();
+    this.mt -= dt;
+    if (this.mode === 'aim') {
+      b.setVelocityX(approach(b.velocity.x, 0, 600 * dt));
+      if (this.mt <= 0) {
+        this.untelegraph();
+        // a lob that comes down on the player's feet
+        const T = Phaser.Math.Clamp(Math.abs(dx) / 150, 0.45, 0.95), g = PHYS.gravity;
+        const tx = p.x - (this.x + this.facing * 16), ty = p.body.bottom - 6 - (this.y - 2);
+        new EnemyShot(s, this.x + this.facing * 16, this.y - 2, 'acid', tx / T, (ty - 0.5 * g * T * T) / T,
+          { gravity: true, dmg: 1, life: 2.2, size: 8, tint: 0x9aff6a, burst: 0x9aff6a, owner: this, splash: true });
+        Sfx.play('spit');
+        this.mode = 'spit'; this.mt = 0.35;
+      }
+      return;
+    }
+    if (this.mode === 'spit') { b.setVelocityX(0); if (this.mt <= 0) { this.mode = 'patrol'; this.mt = 1.6; } return; }
+    if (!b.blocked.down) return;
+    if (this.wallAhead(this.facing) || !this.groundAhead(this.facing)) this.facing *= -1;
+    if (this.mt <= 0 && Math.abs(dx) < 170 && Math.abs(dy) < 100 && this.sees()) {
+      this.faceTo(p.x);
+      this.mode = 'aim'; this.mt = 0.55;
+      this.telegraph(0xc8ff80); Sfx.play('telegraph');
+      return;
+    }
+    b.setVelocityX(approach(b.velocity.x, this.facing * 38, 300 * dt));
+  }
+}
+
+// Onmitsukido agent (the Stealth Force): throws a fan of kunai, vanishes,
+// and comes back out of the air behind you with a short blade.
+class Onmitsu extends Enemy {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, 'onmitsu', { hp: 22, dmg: 1, drop: 6, bw: 10, bh: 20, kind: 'onmitsu', kb: 0.7, burst: 0x34303e, frame: 'idle0', frameFeet: HF.FEET });
+    this.mode = 'watch'; this.mt = 0.8;
+    this.home = { x, feet };
+    this.anim('idle');
+  }
+  hittable() { return this.alive && !this.invulnerable && this.mode !== 'gone'; }
+  get contactDamage() { return this.mode === 'gone' ? 0 : super.contactDamage; }
+  afterTick() {
+    switch (this.mode) {
+      case 'throw': this.anim('cast'); break;
+      case 'windup': this.anim('windup'); break;
+      case 'strike': this.anim('strike'); break;
+      case 'gone': case 'appear': this.anim('dash'); break;
+      default: this.moveAnim(90);
+    }
+  }
+  think(dt) {
+    const b = this.body, s = this.scene, p = s.player;
+    const { dx, dy } = this.playerDelta();
+    this.mt -= dt;
+    switch (this.mode) {
+      case 'watch':
+        this.faceTo(p.x);
+        b.setVelocityX(approach(b.velocity.x, 0, 500 * dt));
+        if (this.mt <= 0 && Math.abs(dx) < 230 && Math.abs(dy) < 90 && this.sees()) {
+          this.mode = 'throw'; this.mt = 0.38; this.telegraph(0xd0d0e0); Sfx.play('telegraph');
+        }
+        break;
+      case 'throw':
+        if (this.mt <= 0) {
+          this.untelegraph();
+          const a = Math.atan2(p.body.center.y - (this.y - 3), p.x - this.x);
+          [-0.16, 0, 0.16].forEach(o => new EnemyShot(s, this.x + this.facing * 8, this.y - 3, 'kunai', Math.cos(a + o) * 290, Math.sin(a + o) * 290, { dmg: 1, life: 1.6, rotate: true, w: 8, h: 4, owner: this }));
+          Sfx.play('throw');
+          this.mode = 'vanish'; this.mt = 0.3;
+        }
+        break;
+      case 'vanish':
+        if (this.mt <= 0) {
+          s.fx.afterimage(this, 0x16141c, 0.7, 260);
+          s.fx.dust(this.x, b.bottom, 4);
+          this.setAlpha(0); this.mode = 'gone'; this.mt = 0.55;
+          Sfx.play('dash');
+        }
+        break;
+      case 'gone': {
+        b.setVelocity(0, 0);
+        if (this.mt > 0) break;
+        // reappear just behind the player, on solid ground, or fall back home
+        const feet = p.body.bottom, cands = [p.x - p.facing * 36, p.x + p.facing * 36];
+        const spot = cands.find(tx => s.isGroundAt(tx, feet + 4) && !s.isSolidAt(tx, feet - 8) && !s.isSolidAt(tx, feet - 20) && !s.nearHazard(tx, feet - 6) && tx > 16 && tx < s.pxW - 16);
+        if (spot !== undefined && p.state !== 'dead' && Math.abs(dy) < 120) b.reset(spot, feet - 10);
+        else b.reset(this.home.x, this.home.feet - 10);
+        this.faceTo(p.x);
+        s.tweens.add({ targets: this, alpha: 1, duration: 140 });
+        s.fx.afterimage(this, 0x6a6878, 0.5, 200);
+        this.mode = 'windup'; this.mt = 0.32; this.telegraph(0xff7070); Sfx.play('telegraph');
+        break;
+      }
+      case 'windup':
+        b.setVelocityX(0);
+        if (this.mt <= 0) {
+          this.untelegraph();
+          const f = this.facing;
+          b.setVelocityX(this.groundAhead(f) ? f * 150 : 0);
+          this.scene.addHurt(0, 0, 24, 18, 1, 0.14, (h) => { h.x = this.x + (f > 0 ? 2 : -26); h.y = this.y - 9; }, this);
+          s.fx.slashArc(this.x + f * 12, this.y, f, 0xe8ecf0, 0.8);
+          Sfx.play('slash');
+          this.mode = 'strike'; this.mt = 0.2;
+        }
+        break;
+      case 'strike':
+        if (!this.groundAhead(this.facing)) b.setVelocityX(0);
+        if (this.mt <= 0) { this.mode = 'recover'; this.mt = 0.6; b.setVelocityX(0); }
+        break;
+      case 'recover':
+        b.setVelocityX(approach(b.velocity.x, 0, 600 * dt));
+        if (this.mt <= 0) { this.mode = 'watch'; this.mt = 1.3; }
+        break;
+    }
+  }
+}
+
+// Exequias: the executioners of Las Noches. They square up, then cut straight
+// through you with Sonido and turn around on the far side. Usually in pairs.
+class Exequias extends Enemy {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, 'exequias', { hp: 40, dmg: 1, drop: 10, bw: 10, bh: 20, kind: 'exequias', kb: 0.5, burst: 0x1a1820, frame: 'idle0', frameFeet: HF.FEET });
+    this.mode = 'stalk'; this.mt = Math.random() * 0.8;
+    this.anim('idle');
+  }
+  afterTick() {
+    switch (this.mode) {
+      case 'windup': this.anim('windup'); break;
+      case 'dash': this.anim('dash'); break;
+      case 'recover': this.anim('recover'); break;
+      default: this.moveAnim(80);
+    }
+  }
+  think(dt) {
+    const b = this.body, s = this.scene, p = s.player;
+    const { dx, dy } = this.playerDelta();
+    this.mt -= dt;
+    switch (this.mode) {
+      case 'stalk': {
+        this.faceTo(p.x);
+        const want = Math.abs(dx) > 110 ? this.facing * 70 : Math.abs(dx) < 60 ? -this.facing * 40 : 0;
+        const ok = this.groundAhead(Math.sign(want) || this.facing) && !this.wallAhead(Math.sign(want) || this.facing);
+        b.setVelocityX(approach(b.velocity.x, ok && Math.abs(dy) < 80 ? want : 0, 500 * dt));
+        if (this.mt <= 0 && Math.abs(dx) < 150 && Math.abs(dy) < 40 && this.sees()) {
+          this.mode = 'windup'; this.mt = 0.45; b.setVelocityX(0); this.telegraph(0xff4050); Sfx.play('telegraph');
+        }
+        break;
+      }
+      case 'windup':
+        b.setVelocityX(0);
+        if (this.mt <= 0) {
+          this.untelegraph();
+          this.dashDir = this.facing; this.mode = 'dash'; this.mt = 0.24; this.cut = new Set();
+          Sfx.play('dash');
+        }
+        break;
+      case 'dash': {
+        const f = this.dashDir;
+        b.setVelocityX(this.groundAhead(f) && !this.wallAhead(f) ? f * 520 : 0);
+        if (Math.random() < 0.7) s.fx.afterimage(this, 0xff4050, 0.35, 180);
+        const r = new Phaser.Geom.Rectangle(this.x - 10, this.y - 10, 20, 20);
+        if (p.state !== 'dead' && Phaser.Geom.Intersects.RectangleToRectangle(r, bodyRect(p.body))) p.takeDamage(1, this.x - f * 10);
+        s.friendlyHit(r, this, FRIENDLY.charge, f, this.cut);
+        if (this.mt <= 0 || b.velocity.x === 0) {
+          b.setVelocityX(0);
+          s.fx.slashArc(this.x - f * 10, this.y, -f, 0xff8090, 1.1);
+          Sfx.play('slash');
+          this.mode = 'recover'; this.mt = 0.55;
+        }
+        break;
+      }
+      case 'recover':
+        b.setVelocityX(approach(b.velocity.x, 0, 900 * dt));
+        if (this.mt <= 0) { this.mode = 'stalk'; this.mt = 0.9; }
+        break;
+    }
+  }
+}
+
+// A brawler of the Eleventh Division: sees you, charges, and swings three times.
+// It never looks where it runs, so a ledge or a spike pit can end the charge for you.
+class Brawler extends Enemy {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, 'brawler', { hp: 34, dmg: 1, drop: 8, bw: 11, bh: 21, kind: 'brawler', kb: 0.6, burst: 0xd8a882, frame: 'idle0', frameFeet: HF.FEET });
+    this.mode = 'patrol'; this.mt = 0.5;
+    this.facing = Math.random() < 0.5 ? -1 : 1;
+    this.anim('idle');
+  }
+  afterTick() {
+    switch (this.mode) {
+      case 'charge': this.anim('run', 1.4); break;
+      case 'windup': this.anim('windup'); break;
+      case 'strike': this.anim('strike'); break;
+      case 'recover': this.anim('recover'); break;
+      default: this.moveAnim(110);
+    }
+  }
+  think(dt) {
+    const b = this.body, s = this.scene, p = s.player;
+    const { dx, dy } = this.playerDelta();
+    this.mt -= dt;
+    switch (this.mode) {
+      case 'patrol':
+        if (b.blocked.down && (this.wallAhead(this.facing) || !this.groundAhead(this.facing))) this.facing *= -1;
+        b.setVelocityX(approach(b.velocity.x, this.facing * 42, 400 * dt));
+        if (this.mt <= 0 && Math.abs(dx) < 190 && Math.abs(dy) < 50 && this.sees()) {
+          this.faceTo(p.x); this.mode = 'charge'; this.mt = 1.6; Sfx.play('roarSmall');
+        }
+        break;
+      case 'charge':
+        if (b.blocked.down) b.setVelocityX(approach(b.velocity.x, this.facing * 190, 900 * dt));
+        if (Math.random() < 0.3 && b.blocked.down) s.fx.dust(this.x - this.facing * 6, b.bottom, 1);
+        if (Math.abs(dx) < 30 && Math.abs(dy) < 30) { this.mode = 'windup'; this.mt = 0.2; this.hits = 3; this.telegraph(0xffb060); }
+        else if (this.mt <= 0 || this.wallAhead(this.facing) || Math.sign(dx) !== this.facing) { this.mode = 'recover'; this.mt = 0.5; }
+        break;
+      case 'windup':
+        b.setVelocityX(approach(b.velocity.x, 0, 1200 * dt));
+        if (this.mt <= 0) {
+          this.untelegraph();
+          const f = this.facing;
+          this.scene.addHurt(0, 0, 26, 20, 1, 0.12, (h) => { h.x = this.x + (f > 0 ? 2 : -28); h.y = this.y - 10; }, this);
+          s.fx.slashArc(this.x + f * 13, this.y, f, 0xffe0a0, 0.9);
+          Sfx.play('slash');
+          b.setVelocityX(f * 80);
+          this.mode = 'strike'; this.mt = 0.18;
+        }
+        break;
+      case 'strike':
+        if (this.mt <= 0) {
+          if (--this.hits > 0) { this.faceTo(p.x); this.mode = 'windup'; this.mt = 0.12; }
+          else { this.mode = 'recover'; this.mt = 0.85; b.setVelocityX(0); this.telegraph(0x8080a0); }
+        }
+        break;
+      case 'recover':
+        b.setVelocityX(approach(b.velocity.x, 0, 800 * dt));
+        if (this.mt <= 0) { this.untelegraph(); this.mode = 'patrol'; this.mt = 0.7; }
+        break;
     }
   }
 }
