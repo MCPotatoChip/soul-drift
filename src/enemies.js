@@ -377,7 +377,7 @@ class Arrancar extends Enemy {
     b.setVelocityX(0);
     this.faceTo(s.player.x);
     if (this.mode === 'idle') {
-      if (Math.hypot(dx, dy) < 240 && this.mt <= 0) { this.mode = 'aim'; this.mt = 0.6; this.telegraph(0x40e0ff); Sfx.play('telegraph'); }
+      if (Math.hypot(dx, dy) < 240 && this.mt <= 0 && this.sees()) { this.mode = 'aim'; this.mt = 0.6; this.telegraph(0x40e0ff); Sfx.play('telegraph'); }
     } else if (this.mode === 'aim') {
       if (this.mt <= 0) {
         this.untelegraph();
@@ -486,7 +486,7 @@ class KidoCaster extends Enemy {
         if (d < 90 && this.groundAhead(-this.facing) && !this.wallAhead(-this.facing)) vx = -this.facing * 70;       // too close: back away
         else if (d > 190 && d < 320 && this.groundAhead(this.facing) && !this.wallAhead(this.facing)) vx = this.facing * 35;   // too far: drift in
         b.setVelocityX(b.blocked.down ? vx : b.velocity.x);
-        if (this.mt <= 0 && d < 290 && Math.abs(dy) < 80) {
+        if (this.mt <= 0 && d < 290 && Math.abs(dy) < 80 && this.sees()) {
           this.mode = 'aim'; this.mt = 0.62; b.setVelocityX(0);
           this.telegraph(0x7fa8ff); Sfx.play('telegraph');
         }
@@ -535,7 +535,7 @@ class Diver extends Enemy {
       case 'hang':
         b.setVelocity(0, 0);
         this.facing = Math.sign(dx) || this.facing;
-        if (Math.abs(dx) < 34 && dy > 12 && dy < 200) { this.mode = 'shake'; this.mt = 0.42; this.telegraph(0xff6060); Sfx.play('telegraph'); }
+        if (Math.abs(dx) < 34 && dy > 12 && dy < 200 && this.sees(4)) { this.mode = 'shake'; this.mt = 0.42; this.telegraph(0xff6060); Sfx.play('telegraph'); }
         break;
       case 'shake':
         b.setVelocity(0, 0);
@@ -560,9 +560,16 @@ class Diver extends Enemy {
         if (this.mt <= 0) this.mode = 'return';
         break;
       case 'return': {
-        const rx = this.home.x - this.x, ry = this.home.y - this.y, dist = Math.hypot(rx, ry);
+        // crawl home along open air (a field built once toward its perch), not through the floor
+        if (!this.homeFlow) this.homeFlow = new FlowField(s, () => this.home, 0, 60);
+        this.homeFlow.update(dt);
+        const dist = Math.hypot(this.home.x - this.x, this.home.y - this.y);
         if (dist < 4) { b.reset(this.home.x, this.home.y); this.mode = 'hang'; break; }
-        b.setVelocity(rx / dist * 85, ry / dist * 85);
+        const tgt = this.homeFlow.steer(this.x, this.y, this.home.x, this.home.y, 5) || this.home;
+        const rx = tgt.x - this.x, ry = tgt.y - this.y, rd = Math.hypot(rx, ry) || 1;
+        const k = Math.min(1, dt * 6);
+        b.velocity.x += (rx / rd * 85 - b.velocity.x) * k;
+        b.velocity.y += (ry / rd * 85 - b.velocity.y) * k;
         break;
       }
     }
