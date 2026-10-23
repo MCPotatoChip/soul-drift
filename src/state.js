@@ -11,6 +11,9 @@ const SLOT_COUNT = 3;
 const SLOT_KEY = 'soul-drift-slot';
 const slotKey = (i) => i ? `${SAVE_KEY}-${i + 1}` : SAVE_KEY;
 
+// Where each room sat on the map before it was spread out (world version 3), so pins placed on the old map move with their rooms
+const LEGACY_POS = {"kar_hub":[18,10],"kar_alley":[14,10],"kar_roof":[20,7.7],"kar_river":[24,10],"kar_grave":[31,7.6],"ruk_1":[31,10],"ruk_2":[38,10],"ruk_3":[44,10],"ruk_boss":[50.4,10],"sei_gate":[44,7.2],"sei_ward":[49.2,7.4],"sei_1":[55.6,6.4],"sei_11":[50.8,4.8],"sei_2":[59.6,1.8],"sei_4":[64.4,2.1],"sei_renji":[70,2.1],"sok_1":[64.4,-2],"sok_boss":[69.2,-3.1],"hm_1":[73.2,-4.6],"hm_2":[79.6,-5.4],"hm_3":[85.2,-5.4],"hm_grimm":[91.2,-4.6],"hm_side":[79.6,-7.7],"hm_boss":[85.2,-2.4],"hm_dome":[85.6,-8.2],"forest_1":[76.7,-2.3],"forest_2":[81.1,0.1],"dangai_1":[-1.5,5.6],"dangai_2":[-5.5,5.6],"end_1":[12,12.4],"end_boss":[7.2,12.4],"sei_lantern":[64.4,4.7],"hm_sand":[73.4,-6.9],"sok_shrine":[59.4,-2],"kar_study":[18.2,12.6],"palace":[18,4.5]};
+
 const GS = {
   data: null,
   // Transient per-life state carried across rooms but never saved.
@@ -208,6 +211,23 @@ const GS = {
         delete d.bought.compass;
         d.reishi = (d.reishi || 0) + 180;
         d.notes.push('Urahara took the Pin Compass back and refunded 180 reishi. It goes on sale again once the Hollow within has fallen.');
+      }
+      // Map pins are saved as map coordinates, and every room has moved: carry each pin along with the room it sat on
+      if (Array.isArray(d.pins) && d.pins.length) {
+        d.pins = d.pins.map(pin => {
+          let best = null, bestD = Infinity;
+          Object.keys(LEGACY_POS).forEach(id => {
+            const r = ROOMS[id], o = LEGACY_POS[id];
+            if (!r) return;
+            const w = r.tiles[0].length / 10, h = r.tiles.length / 10;
+            const dx = Math.max(o[0] - pin.x, 0, pin.x - (o[0] + w)), dy = Math.max(o[1] - pin.y, 0, pin.y - (o[1] + h));
+            const dist = Math.hypot(dx, dy) + (dx === 0 && dy === 0 ? 0 : 1) + (w * h) / 1000;   // inside beats near, small rooms beat big ones
+            if (dist < bestD) { bestD = dist; best = id; }
+          });
+          if (!best) return pin;
+          const o = LEGACY_POS[best], n = ROOMS[best].pos;
+          return Object.assign({}, pin, { x: n[0] + (pin.x - o[0]), y: n[1] + (pin.y - o[1]) });
+        });
       }
       // A body of work from before the update that already finished Byakuya has Raikōhō: nothing to do.
       // One that is still short of him finds it in the Kidō Shrine of Junrinan instead.

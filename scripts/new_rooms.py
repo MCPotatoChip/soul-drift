@@ -94,8 +94,8 @@ def add_rooms(R, Grid):
     g = hall(64, 26, floor=22)
     door_l(g, '1', 21); door_r(g, '2', 21)
     drop(g, 12, 17, floor=22)
-    g.rect(30, 10, 32, 21, '#')                      # the pillar
-    g.put(31, 9, 'w')
+    g.rect(30, 8, 32, 17, '#')                       # a tower over an archway: walk under it, or climb it
+    g.put(31, 7, 'w')
     g.rect(44, 17, 48, 17, '=')
     g.put(22, 21, 'm').put(38, 21, 'm').put(54, 21, 'q').put(46, 16, 'q').put(26, 21, 'b')
     R['sei_canal'] = dict(name='White Canal', region='sei', pos=[0, 0], doors={}, upgrades=['kidoReach'], tiles=g.rows())
@@ -104,9 +104,9 @@ def add_rooms(R, Grid):
     # A barracks yard, where a black cat sits on a roof and has opinions about Byakuya
     g = hall(60)
     door_l(g, '1'); door_r(g, '2')
-    g.rect(10, 14, 16, 18, '#').rect(40, 15, 47, 18, '#')            # barracks
+    g.rect(10, 16, 16, 18, '#').rect(40, 16, 47, 18, '#')            # barracks
     g.rect(20, 14, 24, 14, '=').rect(28, 11, 32, 11, '=')
-    g.put(43, 14, 'N')
+    g.put(43, 15, 'N')
     g.put(24, 18, 'm').put(34, 18, 'b').put(52, 18, 'b').put(30, 10, 'q').put(7, 18, 'g')
     R['sei_barracks'] = dict(name='Barracks Yard', region='sei', pos=[0, 0], doors={},
         npcs=[{'name': 'Yoruichi', 'seal': 'shunko', 'lines': [

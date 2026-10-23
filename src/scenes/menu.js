@@ -167,7 +167,7 @@ class MenuScene extends Phaser.Scene {
           this.txt(868, 290, s.desc, 21, INK, { wrap: 340 });
         }
         if (this.msg) this.txt(GAME_W / 2, GAME_H - 80, this.msg, 18, CRIMSON, { origin: 0.5 });
-        this.footer(Controls.fmt('{left} {right} {up} {down} choose · {jump} equip or remove · {attack} back'));
+        this.footer(Controls.fmt('Arrows choose (left and right change column) · {jump} equip or remove · {attack} back'));
         break;
       }
       case 'forms': this.renderForms(); break;
@@ -610,6 +610,8 @@ class MenuScene extends Phaser.Scene {
   // the marks inside, and the name of whatever is under the cross is always written below the map.
   renderMap() {
     const d = GS.data;
+    if (this.mapPulse) this.tweens.killTweensOf(this.mapPulse);
+    this.mapPulse = null; this.mapDrag = null;
     this.title('Map', 'Rooms you have walked through');
     const ids = Object.keys(ROOMS);
     const box = (id) => { const r = ROOMS[id], H = r.tiles.length, W = r.tiles[0].length; return { x: r.pos[0], y: r.pos[1], w: W / 10, h: H / 10 }; };
@@ -653,7 +655,7 @@ class MenuScene extends Phaser.Scene {
     let lx = GAME_W / 2 - legend.reduce((a, [, l]) => a + 44 + l.length * 8.4, 0) / 2;
     legend.forEach(([k, label]) => { this.pin(lg, k, lx + 4, GAME_H - 72, 1.5); this.txt(lx + 20, GAME_H - 82, label, 16, '#c8c2d4'); lx += 44 + label.length * 8.4; });
     this.items = [];
-    this.footer(Controls.fmt('W A S D or {left} {right} {up} {down} move · + / − or wheel zoom · R centre on you · {jump} or click: pin (again to change, a fourth time to clear) · {map} or {attack} close'));
+    this.footer(Controls.fmt('W A S D or the arrows move · + / - or the wheel zoom · R centres on you · {jump} or a click pins (again to change, a fourth time to clear) · {map} or {attack} close'));
     this.drawMap();
   }
   // Every landmark in the rooms walked through: [room, kind, tile x, tile y]
@@ -756,6 +758,10 @@ class MenuScene extends Phaser.Scene {
       if (x1 < VX - 200 || x0 > VX + VW) return;
       const size = Phaser.Math.Clamp(Math.round(14 + z * 0.35), 18, 28);
       const t = this.mapText(REGIONS[reg].kanji + '  ' + REGIONS[reg].name, size, '#' + REGIONS[reg].color.toString(16).padStart(6, '0'), [0, 1], Math.max(x0, VX + 6), Math.max(y0 - (z > 12 ? 30 : 8), VY + size + 4));
+      // two regions close together stack their names instead of writing over each other
+      let ry = t.y;
+      for (let n = 0; n < 6 && placed.some(p => Phaser.Geom.Rectangle.Overlaps(p, new Phaser.Geom.Rectangle(t.x, ry - t.height, t.width, t.height))); n++) ry -= t.height + 2;
+      t.setY(Math.max(ry, VY + t.height + 2));
       placed.push(new Phaser.Geom.Rectangle(t.x, t.y - t.height, t.width, t.height));
     });
     if (z >= 11) {

@@ -46,6 +46,7 @@ class GameScene extends Phaser.Scene {
     this.promptTarget = null; this.respawning = false;
     this.lanterns = []; this.barriers = { gold: [], blue: [] }; this.litT = 0; this.litTick = 0;
     this.pressure = null; this.pressureT = 0; this.waves = null; this.duel = null; this.checkT = 1;
+    this.waveSpotCache = null; this.arenaFloor = null; this.uraharaNpc = null; this.sealHint = 0;
 
     this.enemyGroup = this.add.group();
     this.platformGroup = this.add.group();

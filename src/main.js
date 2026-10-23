@@ -82,6 +82,76 @@ function startGame() {
       this.step(120, 16.67, keep);
       return { room, id: boss.id, phases: phases.join(''), moves, closest: Math.round(closest), defeated: !!GS.data.bosses[boss.id], errors: this.errors.splice(0) };
     },
+    // Fight a boss with a scripted player who does nothing but walk up and swing (never dodges, never heals, never
+    // casts). Health is topped up after every blow, so what comes back is how fast the sword alone ends the fight
+    // (`ttk`, game seconds) and how often the boss lands a blow on someone who does not move out of the way.
+    // Used to compare bosses and to check that none of them can be spammed down.
+    // With bot: 'reactive' the scripted player also reacts the way a careful one would: it steps back when the boss winds up
+    // (after a reaction time), jumps shots and flashes away from blows, then comes back and swings again.
+    duelTest(room, { sword = 0, secs = 420, aimUp = true, form = 'zangetsu', bot = 'spam' } = {}) {
+      GS.data.swordLevel = sword; GS.data.form = form;
+      const bossId = room === 'kar_study' ? 'urahara' : ROOMS[room].boss;
+      GS.data.bosses[bossId] = false; GS.data.cleared = false;
+      Settings.set('damage', 1);
+      const s0 = this.scene; s0.transitioning = false;
+      s0.goTo(room, { spawn: 'rest' });
+      this.step(40);
+      const g = this.scene, p = g.player;
+      if (room === 'kar_study') { GS.data.quests.urahara = 2; g.startUraharaFight(g.interactables.find(it => it.info && it.info.name === 'Kisuke Urahara')); }
+      const boss = g.boss;
+      if (!boss) return { room, err: 'no boss' };
+      const cells = g.lockCells.concat(g.doors);
+      let spot = null, far = -1;
+      for (let x = g.arena.left + 20; x < g.arena.right - 20; x += 8) {
+        if (cells.some(c => Math.abs(x - (c.x * TILE + 8)) < 7.5 * TILE && Math.abs(g.arena.floor - 12 - (c.y * TILE + 8)) < 8 * TILE)) continue;
+        if (Math.abs(x - boss.x) > far) { far = Math.abs(x - boss.x); spot = x; }
+      }
+      p.body.reset(spot, g.arena.floor - 12);
+      if (boss.waitsForReveal) { this.step(10); boss.reveal(); }
+      GS.data.hp = GS.data.maxHp = 6; GS.data.reiatsu = 0;
+      const K = (c, on) => { if (on) { if (!Controls.held.has(c)) { Controls.held.add(c); Controls.pressed.add(c); } } else Controls.held.delete(c); };
+      let t = 0, hits = 0, hpPrev = GS.data.hp, swing = 0, lastPhase = 1, reactAt = null, retreat = 0, wasCue = false, away = 1;
+      const marks = [];
+      const dt = 1 / 60;
+      const rr = (o) => new Phaser.Geom.Rectangle(o.x, o.y, o.w, o.h);
+      while (boss.alive && t < secs) {
+        this.step(1, 16.667, () => {
+          const dx = boss.x - p.x, dy = boss.y - p.y;
+          if (bot === 'reactive') {
+            const cue = boss.poseT > 0.05 && !['idle', 'run', 'walk', 'jump', 'fall', 'hurt', 'guardIdle', 'land', 'fly', 'float'].includes(boss.poseName);
+            if (cue && !wasCue && Math.random() < 0.85) reactAt = t + 0.12;
+            wasCue = cue;
+            if (reactAt !== null && t >= reactAt) { reactAt = null; retreat = 0.9; away = dx > 0 ? -1 : 1; K('KeyC', false); K('KeyC', true); }
+            const pr = new Phaser.Geom.Rectangle(p.body.left - 26, p.body.top - 18, p.body.width + 52, p.body.height + 36);
+            const danger = g.hurtBoxes.some(h => h.t > 0 && Phaser.Geom.Intersects.RectangleToRectangle(pr, rr(h))) || g.eShots.some(e => e.active && Phaser.Geom.Intersects.RectangleToRectangle(pr, bodyRect(e.body)));
+            if (danger && p.grounded && Math.random() < 0.3) { retreat = Math.max(retreat, 0.35); K('Space', false); K('Space', true); }
+          }
+          if (retreat > 0) {
+            retreat -= dt;
+            K('ArrowRight', away > 0); K('ArrowLeft', away < 0); K('ArrowUp', false);
+            if (retreat <= 0) K('Space', false);
+            K('KeyX', false);
+          } else {
+            K('KeyC', false);
+            K('ArrowRight', dx > 26); K('ArrowLeft', dx < -26);
+            K('ArrowUp', aimUp && dy < -34 && Math.abs(dx) < 50);
+            K('Space', dy < -50 && p.grounded);
+            swing -= dt;
+            if (swing <= 0 && Math.abs(dx) < 52) { K('KeyX', false); K('KeyX', true); swing = 0.01 + (GS.form().cd * COMBAT.slashCooldown); }
+            else if (swing > 0) K('KeyX', false);
+          }
+          if (GS.data.hp < hpPrev) hits++;
+          GS.data.hp = GS.data.maxHp; hpPrev = GS.data.hp;
+          GS.data.reiatsu = 0;
+          if (boss.phase !== lastPhase) { lastPhase = boss.phase; marks.push(boss.phase + '@' + Math.round(t)); }
+          if (g.frozen) { g.freeze(false); }
+        });
+        t += dt;
+      }
+      Controls.releaseAll();
+      const out = { room, id: boss.id, sword, bot, maxHp: boss.maxHp, ttk: boss.alive ? null : Math.round(t), left: boss.alive ? Math.round(boss.hp / boss.maxHp * 100) + '%' : '0%', hits, perMin: Math.round(hits / Math.max(t, 1) * 60 * 10) / 10, phases: marks.join(' '), errors: this.errors.splice(0) };
+      return out;
+    },
   };
 }
 
