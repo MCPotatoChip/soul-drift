@@ -181,53 +181,112 @@ class MenuScene extends Phaser.Scene {
     this.render();
   }
 
-  // Two columns of actions; confirm rebinds the main key, Backspace removes an alternate key
+  // Two tables of actions, each with a key, an alternate key (or mouse button) and a pad button.
+  // Confirm on a cell listens for the new input; Backspace (or the pad's Y) clears an alternate or pad cell.
   renderControls() {
-    this.title('Controls', 'Pick an action and press its new key. Changes save right away.');
+    this.title('Controls', 'Keys, mouse buttons and gamepads all rebind here. Changes save right away.');
     const n = ACTIONS.length, half = Math.ceil(n / 2);
-    this.items = ACTIONS.map(([id, label]) => ({ id, label, act: () => this.listen(id) }));
-    this.items.push({ id: null, label: 'Reset to defaults', act: () => { Controls.reset(); this.msg = 'Controls reset to the defaults.'; Sfx.play('confirm'); this.render(); } });
-    this.items.push({ id: null, pos: { col: 1, row: half - 1 }, label: 'Touch controls: ' + (Touch.enabled ? 'on' : 'off'), act: () => { Touch.setEnabled(!Touch.enabled); Sfx.play('confirm'); this.render(); } });
-    this.items.push({ id: null, pos: { col: 1, row: half }, label: 'Edit touch layout…', act: () => Touch.openEditor() });
+    if (this.col === undefined) this.col = 0;
+    this.items = ACTIONS.map(([id, label]) => ({ id, label, act: () => this.listen(id, this.col) }));
+    this.items.push({ id: null, extra: 0, label: 'Reset to defaults', act: () => { Controls.reset(); this.msg = 'Controls reset to the defaults.'; Sfx.play('confirm'); this.render(); } });
+    this.items.push({ id: null, extra: 1, label: 'Touch controls: ' + (Touch.enabled ? 'on' : 'off'), act: () => { Touch.setEnabled(!Touch.enabled); Sfx.play('confirm'); this.render(); } });
+    this.items.push({ id: null, extra: 2, label: 'Edit touch layout…', act: () => Touch.openEditor() });
+    const COLS = [{ dx: 236, w: 110, head: 'KEY' }, { dx: 352, w: 120, head: 'ALT / MOUSE' }, { dx: 478, w: 84, head: 'PAD' }];
+    const tableX = [52, 662], rowH = 40, top = 196;
+    const g = this.add.graphics();
+    this.layer.add(g);
+    tableX.forEach(tx => {
+      COLS.forEach(c => this.txt(tx + c.dx + c.w / 2, top - 30, c.head, 12, MUTED, { bold: true, origin: 0.5, style: { letterSpacing: 2 } }));
+      g.lineStyle(1, 0xe9e4d8, 0.12).lineBetween(tx - 8, top - 16, tx + 570, top - 16);
+    });
+    const padOn = Controls.padConnected;
     this.items.forEach((it, i) => {
-      const col = it.pos ? it.pos.col : it.id ? (i < half ? 0 : 1) : 0;
-      const row = it.pos ? it.pos.row : it.id ? (i < half ? i : i - half) : half + 0.6;
-      const x = col ? 690 : 130, y = 176 + row * 46, w = 470, on = i === this.sel;
-      const g = this.add.graphics();
-      if (on) {
-        g.fillStyle(0xe9e4d8, 0.08).fillRect(x - 14, y - 7, w, 40);
-        g.fillStyle(0xd8343f, 1).fillRect(x - 14, y - 7, 3, 40);
-      }
-      this.layer.add(g);
-      this.hit(x - 14, y - 7, w, 40, () => this.tapItem(i));
-      this.txt(x, y, it.label, 21, on ? INK : '#b8b2c4', { bold: on });
+      const on = i === this.sel;
       if (it.id) {
-        const waiting = this.listening === it.id;
-        const keyText = waiting ? 'press a key…' : Controls.keys(it.id);
-        const t = this.txt(x + w - 30, y - 1, keyText, 19, waiting ? '#07070b' : GOLD, {
-          bold: true, origin: [1, 0], style: waiting ? { backgroundColor: GOLD, padding: { x: 8, y: 2 } } : {},
+        const t = i < half ? 0 : 1, row = i < half ? i : i - half, x = tableX[t], y = top + row * rowH;
+        if (on) { g.fillStyle(0xe9e4d8, 0.06).fillRect(x - 8, y - 6, 578, rowH - 4); g.fillStyle(0xd8343f, 1).fillRect(x - 8, y - 6, 3, rowH - 4); }
+        this.txt(x + 6, y + 1, it.label, 19, on ? INK : '#b8b2c4', { bold: on });
+        const cells = [Controls.keyName(Controls.bindings[it.id][0]), Controls.keyName(Controls.bindings[it.id][1]), Controls.padKey(it.id)];
+        COLS.forEach((c, ci) => {
+          const sel = on && this.col === ci, waiting = this.listening === it.id && this.listenCol === ci;
+          const cx = x + c.dx, label = waiting ? '…' : cells[ci];
+          if (sel || waiting) g.fillStyle(waiting ? 0xd9b35a : 0xd8343f, waiting ? 0.9 : 0.35).fillRoundedRect(cx, y - 3, c.w, rowH - 10, 6);
+          else g.lineStyle(1, 0xe9e4d8, 0.14).strokeRoundedRect(cx + 0.5, y - 2.5, c.w - 1, rowH - 11, 6);
+          const col = waiting ? '#07070b' : label === '—' ? '#4c4858' : ci === 2 && !padOn ? '#8a8497' : GOLD;
+          const t2 = this.txt(cx + c.w / 2, y + 12, label, 17, col, { bold: true, origin: 0.5 });
+          if (waiting) this.tweens.add({ targets: t2, alpha: 0.4, yoyo: true, repeat: -1, duration: 350 });
+          this.hit(cx, y - 4, c.w, rowH - 8, () => { this.sel = i; this.col = ci; this.listen(it.id, ci); });
         });
-        if (waiting) this.tweens.add({ targets: t, alpha: 0.5, yoyo: true, repeat: -1, duration: 400 });
+        this.hit(x - 8, y - 6, 230, rowH - 4, () => { this.sel = i; this.render(); });
+      } else {
+        const w = 330, x = GAME_W / 2 - 510 + it.extra * 350, y = top + half * rowH + 18;
+        if (on) g.fillStyle(0xd8343f, 0.35).fillRoundedRect(x, y - 6, w, 36, 8);
+        else g.lineStyle(1, 0xe9e4d8, 0.2).strokeRoundedRect(x + 0.5, y - 5.5, w - 1, 35, 8);
+        this.txt(x + w / 2, y + 12, it.label, 18, on ? INK : '#b8b2c4', { bold: on, origin: 0.5 });
+        this.hit(x, y - 6, w, 36, () => this.tapItem(i));
       }
     });
-    if (this.msg) this.txt(GAME_W / 2, GAME_H - 82, this.msg, 18, CRIMSON, { origin: 0.5 });
-    this.footer(this.listening ? 'Press the new key. Esc cancels.'
-      : `${Controls.key('up')} ${Controls.key('down')} ${Controls.key('left')} ${Controls.key('right')} choose · Enter change key · Backspace remove the alternate key · Esc back`);
+    if (this.msg) this.txt(GAME_W / 2, GAME_H - 84, this.msg, 18, CRIMSON, { origin: 0.5 });
+    const padNote = padOn ? `Gamepad connected (${{ ps: 'PlayStation', nintendo: 'Nintendo', xbox: 'Xbox-style' }[Controls.padStyle]} layout)` : 'No gamepad found: press any button on one to wake it';
+    this.txt(GAME_W / 2, GAME_H - 62, padNote, 15, padOn ? '#7fe8ff' : MUTED, { origin: 0.5 });
+    this.footer(this.listening ? 'Press a key, click a mouse button, or press a pad button. Esc cancels.'
+      : 'Arrows / d-pad choose a cell · Enter or A change it · Backspace or Y clear an alternate or pad input · Esc or B back');
   }
-  listen(id) {
+  listen(id, col = 0) {
     this.listening = id;
+    this.listenCol = col;
     this.msg = '';
     Sfx.play('select');
     this.render();
-    Controls.capture = (code) => {
+    if (this.listenTimer) this.listenTimer.remove();
+    // A pad-only player cannot press Esc: give up quietly after a while
+    this.listenTimer = this.time.delayedCall(7000, () => { if (this.listening) { Controls.capture = null; this.listening = null; this.render(); } });
+    Controls.listen((code) => {
       this.listening = null;
+      if (this.listenTimer) this.listenTimer.remove();
       if (code === 'Escape') { this.msg = ''; Sfx.play('select'); this.render(); return; }
-      const res = Controls.rebind(id, 0, code);
       const name = (a) => (ACTIONS.find(x => x[0] === a) || [a, a])[1];
+      const pad = code.startsWith('Pad');
+      if (!pad && col === 2) { this.msg = 'That column takes a gamepad button.'; Sfx.play('deny'); this.render(); return; }
+      const res = Controls.rebind(id, pad ? 0 : col, code);
       if (!res.ok) { this.msg = `${Controls.keyName(code)} is the only key for ${name(res.owner)}. Rebind that action first.`; Sfx.play('deny'); }
-      else { this.msg = res.owner ? `Swapped: ${name(res.owner)} now uses ${Controls.keys(res.owner)}.` : ''; Sfx.play('confirm'); }
+      else {
+        this.msg = res.owner ? `Swapped: ${name(res.owner)} now uses ${pad ? Controls.padKey(res.owner) : Controls.keys(res.owner)}.` : pad && col !== 2 ? 'Pad buttons go in the PAD column.' : '';
+        Sfx.play('confirm');
+      }
       this.render();
-    };
+    });
+  }
+  // Clear the selected alternate or pad cell (the main key always stays)
+  clearCell() {
+    const it = this.items[this.sel];
+    if (!it || !it.id) return;
+    if (this.col === 1 && Controls.bindings[it.id].length > 1) Controls.clearAlt(it.id);
+    else if (this.col === 2 && (Controls.pad[it.id] || []).length) Controls.clearPad(it.id);
+    else { Sfx.play('deny'); return; }
+    this.msg = ''; Sfx.play('select'); this.render();
+  }
+  // Arrow / d-pad movement around the two tables and the row of buttons under them
+  moveControls(dx, dy) {
+    const half = Math.ceil(ACTIONS.length / 2), nA = ACTIONS.length;
+    const it = this.items[this.sel];
+    if (it && it.id) {
+      const t = this.sel < half ? 0 : 1, row = t ? this.sel - half : this.sel;
+      if (dx) {
+        let c = this.col + dx, tt = t;
+        if (c > 2) { if (t === 0 && half + row < nA) { tt = 1; c = 0; } else c = 2; }
+        if (c < 0) { if (t === 1) { tt = 0; c = 2; } else c = 0; }
+        this.col = c; this.sel = tt ? half + row : row;
+      } else {
+        const rows = t ? nA - half : half, r = row + dy;
+        if (r >= rows) this.sel = nA + Math.min(2, t ? 2 : (this.col > 1 ? 1 : 0));
+        else if (r >= 0) this.sel = t ? half + r : r;
+      }
+    } else if (it) {
+      if (dx) this.sel = nA + Phaser.Math.Clamp(it.extra + dx, 0, 2);
+      else if (dy < 0) this.sel = it.extra === 2 ? nA - 1 : half - 1;
+    }
+    this.msg = ''; Sfx.play('select'); this.render();
   }
 
   renderForge() {
