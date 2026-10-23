@@ -68,6 +68,9 @@ const COMBAT = {
 };
 
 // Swordsmith upgrades: cost of each level of the Zanpakuto's edge
+// What enemies do to each other: melee swings, projectiles, charges and beams
+const FRIENDLY = { melee: 9, shot: 16, charge: 14, beam: 18 };
+
 const FORGE = [
   { reishi: 120, ore: 0 },
   { reishi: 250, ore: 1 },

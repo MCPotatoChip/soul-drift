@@ -361,8 +361,13 @@ class MovingPlatform extends Phaser.Physics.Arcade.Image {
       return;
     }
     this.clock += dt;
-    const target = this.baseY + (1 - Math.cos(this.clock / this.period * Math.PI * 2)) / 2 * this.range;
-    this.body.setVelocityY((target - this.y) / Math.max(dt, 1 / 240));
+    // Velocity comes straight from the motion curve (its derivative), so it does not depend on the
+    // frame time. A small, clamped pull toward where the platform should be absorbs any drift. The old
+    // "(target - y) / dt" fed position error back at full gain, which blew up whenever frames ran slow.
+    const w = Math.PI * 2 / this.period;
+    const target = this.baseY + (1 - Math.cos(this.clock * w)) / 2 * this.range;
+    const v = (this.range / 2) * w * Math.sin(this.clock * w);
+    this.body.setVelocityY(v + Phaser.Math.Clamp((target - this.y) * 5, -120, 120));
     this.glow.setPosition(this.x, this.y + 6);
   }
   bind(t) {
@@ -440,6 +445,7 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
     this.body.setSize(o.w || size, o.h || size);
     this.dmg = o.dmg || 1; this.life = o.life || 3; this.passWalls = !!o.passWalls; this.pierce = !!o.pierce;
     this.burstColor = o.burst ?? 0xff8aa0; this.debris = !!o.debris;
+    this.owner = o.owner || null;   // set for shots fired by ordinary enemies: they hurt other enemies too
     if (o.rotate) this.setRotation(Math.atan2(vy, vx));
     if (o.flipX) this.setFlipX(true);
     if (o.scale) this.setScale(o.scale);
@@ -454,6 +460,11 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
       s.fx.burst(this.x, this.y, this.burstColor, 6);
       if (this.debris) { s.fx.debris(this.x, this.y, this.burstColor, 8); s.fx.dust(this.x, this.y, 6); s.fx.shake(90, 0.004); Sfx.play('break'); }
       return this.destroy();
+    }
+    // The first enemy it meets takes the blast and the shot is spent, so a line of enemies is not wiped out
+    if (this.owner) {
+      const victim = s.friendlyHit(bodyRect(this.body), this.owner, FRIENDLY.shot, Math.sign(this.body.velocity.x), new Set());
+      if (victim) { s.fx.burst(this.x, this.y, this.burstColor, 8); return this.destroy(); }
     }
     const p = s.player;
     if (p.state !== 'dead' && Phaser.Geom.Intersects.RectangleToRectangle(bodyRect(this.body), bodyRect(p.body))) {
