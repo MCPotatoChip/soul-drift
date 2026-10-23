@@ -65,6 +65,10 @@ const COMBAT = {
   raikoRadius: 58,
   getsugaDamage: 18,
   swordBonus: 2,          // extra slash damage per forge level
+  kaidoDiscount: 11,      // Kaidō seal: Reiatsu saved per heal
+  bellStep: 0.15,         // Bell of the Eleventh: damage added per quick follow-up strike
+  bellMax: 0.6,
+  genteiMul: 1.5,         // Gentei Kaijo seal: Bankai lasts this much longer
 };
 
 // Swordsmith upgrades: cost of each level of the Zanpakuto's edge
@@ -78,33 +82,38 @@ const FORGE = [
 ];
 
 const ABILITIES = {
-  dash:   { name: 'Black Step', key: '{dash}', desc: 'A burst of flash-step speed. Usable once in midair, refreshed when you land or grip a wall.' },
-  hado:   { name: 'Kido: Hado', key: '{kido}', desc: 'Spend 33 Reiatsu to hurl a crimson blast that pierces enemies and shatters violet Kido seals.' },
-  raiko:  { name: 'Hado #63: Raikōhō', key: '{down} + {kido}', desc: 'Spend 66 Reiatsu to loose a great bolt that bursts on impact, hurting everything around it. Learned by facing the Rogue Captain.' },
+  dash:   { name: 'Shunpo', key: '{dash}', desc: 'Flash Step: a burst of speed too quick for the eye. Usable once in midair, refreshed when you land or grip a wall.' },
+  hado:   { name: 'Hadō #31: Shakkahō', key: '{kido}', desc: 'Red Fire Cannon. Spend 33 Reiatsu to hurl a crimson blast that pierces enemies and shatters violet Kidō seals.' },
+  raiko:  { name: 'Hadō #63: Raikōhō', key: '{down} + {kido}', desc: 'Thunder Roar Cannon. Spend 66 Reiatsu to loose a great bolt that bursts on impact, hurting everything around it.' },
   grip:   { name: 'Reiatsu Grip', key: 'Hold {left} or {right} against a wall', desc: 'Cling to walls with spiritual pressure. Hold {up} to climb, press {jump} to leap away.' },
-  bakudo: { name: 'Kido: Bakudo', key: '{up} + {kido}', desc: 'Spend 33 Reiatsu to bind the nearest enemy or moving platform in golden chains.' },
-  wings:  { name: 'Hirenkyaku Wings', key: '{jump} in midair', desc: 'Step on condensed reishi for a second jump.' },
-  getsuga: { name: 'Getsuga Tenshō', key: 'Hold {attack}, then release', desc: 'Pour Reiatsu into the blade and loose it as a crescent that cuts through everything in a line. Costs 22 Reiatsu.' },
-  konso:  { name: 'Konso Blade', key: 'Hold {konso}', desc: 'Strike with the hilt to read memories and draw out Reiatsu. Grants true sight: hidden platforms appear.' },
-  burst:  { name: 'Senkaimon Burst', key: 'Hold {burst} on ground or wall, then release', desc: 'Tear a gate open and rocket forward. Smashes Senkaimon barriers. Press {jump} to stop early.' },
-  bankai: { name: 'Bankai', key: '{bankai} with a full Reiatsu vessel', desc: 'Release your final form: faster, longer strikes that throw crescent waves, and Reiatsu that refills on its own.' },
-  hollow: { name: 'Hollow Mask', key: '{mask}', desc: 'Don the mask for raw power and speed. Something inside you is keeping count.' },
+  bakudo: { name: 'Bakudō #61: Rikujōkōrō', key: '{up} + {kido}', desc: 'Six Rods Prison of Light. Spend 33 Reiatsu to pin the nearest enemy or moving platform in bars of golden light.' },
+  wings:  { name: 'Hirenkyaku', key: '{jump} in midair', desc: 'Gather reishi under your feet and step off the air itself for a second jump.' },
+  getsuga: { name: 'Getsuga Tenshō', key: 'Hold {attack}, then release', desc: 'Moon Fang Heaven-Piercer. Pour Reiatsu into the blade and loose it as a crescent that cuts through everything in a line. Costs 22 Reiatsu.' },
+  konso:  { name: 'Konsō', key: 'Hold {konso}', desc: 'Soul Burial. Strike with the hilt to read the memories of the dead, send lost souls on, and draw out Reiatsu. Unseen things show themselves.' },
+  burst:  { name: 'Senkaimon Burst', key: 'Hold {burst} on ground or wall, then release', desc: 'Tear the air open like a Garganta and rocket forward. Smashes sealed Senkaimon. Press {jump} to stop early.' },
+  bankai: { name: 'Bankai: Tensa Zangetsu', key: '{bankai} with a full Reiatsu vessel', desc: 'The final release. A black blade, faster and longer strikes that throw crescent waves, and Reiatsu that refills on its own.' },
+  hollow: { name: 'Hollow Mask', key: '{mask}', desc: 'Hollowfication. Don the mask for raw power and speed. Something inside you is keeping count.' },
 };
-const ABILITY_ORDER = ['dash', 'hado', 'raiko', 'grip', 'bakudo', 'wings', 'getsuga', 'konso', 'burst', 'bankai', 'hollow'];
+const ABILITY_ORDER = ['konso', 'dash', 'hado', 'grip', 'bakudo', 'wings', 'raiko', 'burst', 'bankai', 'getsuga', 'hollow'];
 
 const SEALS = {
   edge:    { name: 'Whetted Edge', cost: 2, desc: 'Slash damage +40%.' },
-  swift:   { name: 'Swift Step', cost: 1, desc: 'Black Step recovers twice as fast.' },
+  swift:   { name: 'Shunpo Mastery', cost: 1, desc: 'Shunpo recovers twice as fast.' },
   harvest: { name: 'Spirit Harvest', cost: 1, desc: 'Gain 50% more Reiatsu from strikes.' },
-  focus:   { name: 'Kido Focus', cost: 2, desc: 'Kido damage +50%. Bakudo binds for longer.' },
+  focus:   { name: 'Kidō Focus', cost: 2, desc: 'Kidō damage +50%. Bakudō binds for longer.' },
   quick:   { name: 'Quick Suppression', cost: 2, desc: 'Heal almost twice as fast.' },
   magnet:  { name: 'Reishi Magnet', cost: 1, desc: 'Reishi shards drift toward you.' },
   long:    { name: 'Long Reach', cost: 2, desc: 'Slash range +35%.' },
   grace:   { name: 'Grace of the Departed', cost: 2, desc: 'Standing still slowly restores health.' },
   moonfang: { name: 'Moon Fang', cost: 1, desc: 'Getsuga Tenshō charges faster and costs less Reiatsu.' },
-  phantom: { name: 'Phantom Step', cost: 2, desc: 'Nothing can touch you during a Black Step.' },
+  phantom: { name: 'Utsusemi', cost: 2, desc: 'Leave only an afterimage behind: nothing can touch you during Shunpo.' },
   will:    { name: 'Unbreakable Will', cost: 3, desc: 'One extra mask of health while equipped.' },
-  recall:  { name: 'Soul Recall', cost: 1, desc: 'The Konso Blade works faster and draws out more Reiatsu.' },
+  recall:  { name: 'Soul Recall', cost: 1, desc: 'Konsō works faster and draws out more Reiatsu.' },
+  kaido:   { name: 'Kaidō', cost: 1, desc: 'The Fourth Division\'s healing arts: each mask you heal costs 11 less Reiatsu.' },
+  bell:    { name: 'Bell of the Eleventh', cost: 2, desc: 'Strikes landed in quick succession hit harder, up to +60%.' },
+  shunko:  { name: 'Shunkō', cost: 2, desc: 'Flash War Cry: Shunpo cuts through every enemy in its path.' },
+  hierro:  { name: 'Hierro', cost: 2, desc: 'Skin of steel: blows no longer knock you back, and every fourth one is shrugged off.' },
+  gentei:  { name: 'Gentei Kaijo', cost: 2, desc: 'Limit release: Bankai lasts half again as long.' },
 };
 
 // Things the shop sells that are neither seals nor fragments
@@ -115,33 +124,41 @@ const TOOLS = {
 const SHOP_STOCK = [
   { type: 'seal', id: 'magnet', price: 80 },
   { type: 'seal', id: 'swift', price: 150 },
-  { type: 'seal', id: 'quick', price: 220 },
   { type: 'tool', id: 'compass', price: 180 },
+  { type: 'seal', id: 'quick', price: 220 },
   { type: 'fragment', id: 'shop', price: 300 },
+  { type: 'seal', id: 'gentei', price: 650 },
 ];
 
+// kanji: the region's name in Japanese, shown on its title card and on the map
 const REGIONS = {
-  kar: { name: 'Karakura Town', sub: 'Where the living walk unaware', color: 0x8d7bd6, dark: 0 },
-  ruk: { name: 'Rukongai', sub: 'The forgotten districts of the dead', color: 0xd8a35a, dark: 0 },
-  sei: { name: 'Seireitei Depths', sub: 'Barracks of the Court Guard', color: 0xe8e2d0, dark: 0 },
-  sok: { name: 'Sokyoku Hill', sub: 'The execution grounds', color: 0xd0504a, dark: 0 },
-  hm:  { name: 'Hueco Mundo', sub: 'Endless night, white sand', color: 0xb8c4dc, dark: 0.85 },
-  end: { name: 'Silbern Endpoint', sub: 'Where the drift ends', color: 0x7fd4ff, dark: 0.35 },
-  dan: { name: 'The Dangai', sub: 'The Precipice World between worlds', color: 0x9a7ad8, dark: 0.3 },
-  for: { name: 'Forest of Menos', sub: 'Beneath the white sand', color: 0x6a8a7a, dark: 0.72 },
+  kar: { name: 'Karakura Town', sub: 'Where the living walk unaware', kanji: '空座町', color: 0x8d7bd6, dark: 0 },
+  ruk: { name: 'Rukongai', sub: 'The wandering souls\' districts', kanji: '流魂街', color: 0xd8a35a, dark: 0 },
+  sei: { name: 'Seireitei', sub: 'Court of Pure Souls, home of the Gotei 13', kanji: '瀞霊廷', color: 0xe8e2d0, dark: 0 },
+  sok: { name: 'Sōkyoku Hill', sub: 'The execution grounds', kanji: '双殛の丘', color: 0xd0504a, dark: 0 },
+  hm:  { name: 'Hueco Mundo', sub: 'Endless night, white sand', kanji: '虚圏', color: 0xb8c4dc, dark: 0.85 },
+  end: { name: 'The Inner World', sub: 'Sideways towers under an endless sky', kanji: '精神世界', color: 0x7fb4e8, dark: 0 },
+  dan: { name: 'The Dangai', sub: 'The Precipice World between worlds', kanji: '断界', color: 0x9a7ad8, dark: 0.3 },
+  for: { name: 'Forest of Menos', sub: 'Beneath the white sand', kanji: '大虚の森', color: 0x6a8a7a, dark: 0.72 },
 };
 
 // What the ground sounds like underfoot in each region
 const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand' };
 
 
-// notches: health fractions where the fight changes phase (drawn on the boss bar)
+// notches: health fractions where the fight changes phase (drawn on the boss bar). jp: the name in Japanese.
+// `espada` is Aaroniero and `final` the Hollow within: those ids are kept so old saves still know them.
 const BOSSES = {
-  menos:   { name: 'Menos Grande', title: 'Hollow of a Thousand Faces', notches: [0.5] },
-  captain: { name: 'Rogue Captain Kurogane', title: 'Deserter of the Ninth Division', notches: [0.5] },
-  vasto:   { name: 'Vasto Lorde', title: 'Sovereign of the Sand', notches: [0.6, 0.25] },
-  final:   { name: 'The Fallen Vizard', title: 'What You Could Become', notches: [0.66, 0.33] },
-  espada:  { name: 'Espada of the Unseen', title: 'Hidden Among the Menos', notches: [0.5] },
+  fisher:    { name: 'Grand Fisher', title: 'The Hollow Who Hunts With a Lure', jp: 'グランドフィッシャー', notches: [0.5] },
+  menos:     { name: 'Menos Grande', title: 'Hollow of a Thousand Faces', jp: '大虚', notches: [0.5] },
+  renji:     { name: 'Renji Abarai', title: 'Lieutenant of the Sixth Division', jp: '阿散井恋次', notches: [0.5] },
+  kenpachi:  { name: 'Kenpachi Zaraki', title: 'Captain of the Eleventh Division', jp: '更木剣八', notches: [0.5] },
+  byakuya:   { name: 'Byakuya Kuchiki', title: 'Captain of the Sixth Division', jp: '朽木白哉', notches: [0.55, 0.22] },
+  grimmjow:  { name: 'Grimmjow Jaegerjaquez', title: 'Sexta Espada', jp: 'グリムジョー', notches: [0.5] },
+  vasto:     { name: 'Vasto Lorde', title: 'Sovereign of the Sand', jp: '最上級大虚', notches: [0.6, 0.25] },
+  ulquiorra: { name: 'Ulquiorra Cifer', title: 'Cuarta Espada', jp: 'ウルキオラ', notches: [0.6, 0.3] },
+  espada:    { name: 'Aaroniero Arruruerie', title: 'Noveno Espada, Hidden Among the Menos', jp: 'アーロニーロ', notches: [0.5] },
+  final:     { name: 'Hollow Ichigo', title: 'The White One Within', jp: '内なる虚', notches: [0.66, 0.33] },
 };
 
 const MEMORIES = {
@@ -151,14 +168,50 @@ const MEMORIES = {
   adjuchas: ['"I ate the others so they could not eat me. Now I cannot stop."'],
   arrancar: ['"I tore off my mask to become more. I am still nothing."', '"Do you see me? Most never do."'],
   menos: ['"We are many. We remember being many people."'],
-  captain: ['"I left the Gotei to find something worth protecting. I found only you."'],
   vasto: ['"I devoured my way to the top. The top is silent."'],
-  final: ['"I am the one who never took the mask off."'],
+  final: ['"I am the one who never took the mask off."', '"King and horse. Which one are you?"'],
   gillian: ['"We were hundreds once. Now we are one, and still hungry."', '"Do not look up. The light hurts."'],
-  espada: ['"I hid here so long I forgot what I was hiding from."'],
+  espada: ['"I wear a dead man\'s face because I forgot my own."', '"The light never reaches my palace. I made sure of it."'],
   caster: ['"I wrote the incantations. Now they write me."', '"Every word I spoke, I meant. That was the mistake."'],
   diver: ['"I only ever wanted to hang quietly, and be forgotten."'],
+  crawler: ['"The river kept my body. I kept the cold."', '"I spit because I can no longer speak."'],
+  onmitsu: ['"No name, no face, no grave. That was the contract."', '"I was ordered to watch you. I never stopped."'],
+  exequias: ['"We clean up after the Espada. Someone has to."', '"Behind the skull, I am still afraid."'],
+  brawler: ['"The captain said a real fight is the only prayer that counts."', '"I lost the fight. I would lose it again, gladly."'],
+  fisher: ['"I wore her face to lure them in. I never knew her name."', '"Fifty-four years of hunting. I only ever wanted to be full."'],
+  renji: ['"I chased one back for half my life. I will not stop now."', '"Rukia. I am sorry I was too slow."'],
+  kenpachi: ['"A fight that ends too soon is the worst kind of loss."'],
+  byakuya: ['"I made a promise to the law and a promise to my wife. I kept the wrong one."', '"Pride is a cold blade."'],
+  grimmjow: ['"I am the King. I will crush anyone who stands above me."', '"Look at me. LOOK at me."'],
+  ulquiorra: ['"The heart. Is that what is in this hand?"', '"I see now. That is what it was."'],
 };
 
+// The enemies the Journal keeps a page for, in the order you meet them: [kind, name, what it does]
+const BESTIARY = [
+  ['hollow', 'Lesser Hollow', 'Winged Hollows that hunt in flocks. They follow the open air around walls to reach you.'],
+  ['crawler', 'Acidwire', 'A lizard-shaped Hollow of the riverbanks. It spits a burning arc of acid where you stand.'],
+  ['thug', 'Rukongai Ruffian', 'A soul turned hard by hunger. It swings its club once you are close.'],
+  ['shini', 'Corrupted Shinigami', 'It guards from the front and is only open after its lunge.'],
+  ['caster', 'Kidō Renegade', 'A deserter of the Kidō Corps. It keeps its distance and fires aimed bala.'],
+  ['onmitsu', 'Onmitsukidō Agent', 'The Stealth Force. It throws kunai, vanishes, and strikes from behind.'],
+  ['brawler', 'Eleventh Division Brawler', 'It only knows forward. Its rush can carry it straight off a ledge.'],
+  ['diver', 'Pale Hollow', 'It hangs from ceilings and drops on anything that passes beneath.'],
+  ['adjuchas', 'Adjuchas', 'A beast that lowers its head, then charges along the ground.'],
+  ['arrancar', 'Numeros Arrancar', 'An Arrancar that fires bala, then steps away with Sonído.'],
+  ['exequias', 'Exequias', 'The executioners of Las Noches. They cut through you with Sonído.'],
+  ['gillian', 'Gillian', 'A lesser Menos. Slow, sturdy, and its Cero cuts a straight line.'],
+  ['fisher', 'Grand Fisher', 'Burrows beneath you, and hunts with the lure on its brow.'],
+  ['menos', 'Menos Grande', 'A Gillian of a thousand faces. Stomps, Cero, and a swarm of lesser Hollows.'],
+  ['renji', 'Renji Abarai', 'Zabimaru stretches the whole arena. In Bankai, a great bone serpent.'],
+  ['kenpachi', 'Kenpachi Zaraki', 'He never stops walking toward you. With the eyepatch off, nothing holds him.'],
+  ['byakuya', 'Byakuya Kuchiki', 'Senbonzakura: a storm of blade petals. In Bankai, a thousand blades rise.'],
+  ['grimmjow', 'Grimmjow Jaegerjaquez', 'Pounces, claws and Cero. Released, Pantera\'s Desgarrón tears the air.'],
+  ['vasto', 'Vasto Lorde', 'Sonído dives, claw rushes and a sweeping Cero over a crumbling throne.'],
+  ['ulquiorra', 'Ulquiorra Cifer', 'Cero, Sonído and the Lanza del Relámpago. Released, he takes to the sky.'],
+  ['espada', 'Aaroniero Arruruerie', 'Hidden in the dark with a stolen trident. Released, he spits up what he devoured.'],
+  ['final', 'Hollow Ichigo', 'Everything you can do, turned against you, and a blade thrown on a chain.'],
+];
+const BOSS_KINDS = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'vasto', 'ulquiorra', 'espada', 'final'];
+
 // The old man in Rukongai wants to hear what the dead remember
-const QUEST_NAMES = { npc: 'Old Rukongai Resident', need: ['thug', 'shini', 'hollow'], reishi: 200, seal: 'recall' };
+const QUEST_NAMES = { npc: 'Old Man of Junrinan', need: ['thug', 'shini', 'hollow'], reishi: 200, seal: 'recall' };
