@@ -64,6 +64,7 @@ With the timer on, a clock sits under the location in the top right, and each bo
 Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, the Sōkyoku, Hueco Mundo and Las Noches, and at the end the world inside your own soul.
 
 - **Wide doorways**: every room with a doorway on its edge has a 9-tile run-up beside it, and the builder moves any foe that stood within 22 tiles of a doorway toward the middle of the room (`widen` and `steer_foes` in `scripts/build_rooms.py`). Boss arenas keep their size. Saves from before this (world 3) have their map pins carried along.
+- **Wall grip** holds only while you press toward the wall; let go and you drop. The map marks every exit into a room you have never entered with a gold `?`, and the compass also lists what is left in rooms you know a way into. Travel lists its gates in two columns.
 - **Touch controls**: buttons for powers you do not own yet stay hidden, and hints in dialogue and prompts name the on-screen button (USE, KONSŌ) instead of a keyboard key.
 - **49 rooms in 10 regions**: Karakura Town (空座町), Rukongai (流魂街), the Seireitei (瀞霊廷), Sōkyoku Hill (双殛の丘), Hueco Mundo (虚圏), the Inner World (精神世界), the optional Dangai (断界) and Forest of Menos (大虚の森), Urahara's Study Room (勉強部屋) under the shop, and the Soul King Palace (霊王宮), which opens at 100%.
 - **The powers, in the order you earn them** (each one a few rooms and usually a boss after the last):

@@ -165,7 +165,7 @@ const SEALS = {
 
 // Things the shop sells that are neither seals nor fragments
 const TOOLS = {
-  compass: { name: 'Pin Compass', desc: 'Marks every power, seal, fragment, ore, upgrade and Lost Plus you have not found yet on the map, in every room you have visited.',
+  compass: { name: 'Pin Compass', desc: 'Marks every power, seal, fragment, ore, upgrade and Lost Plus you have not found yet on the map, in every room you have visited or know a way into.',
     needsClear: true },
 };
 

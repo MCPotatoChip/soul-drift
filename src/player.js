@@ -313,9 +313,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.squash(0.9, 1.12, 130);
       return;
     }
-    if (dir === -this.wallDir) {
+    // The grip holds only while you press toward the wall: let go of the direction and you drop off it
+    if (dir !== this.wallDir) {
       this.awayT += dt;
-      if (this.awayT > 0.12) { this.exitCling(); body.velocity.x = -this.wallDir * 110; return; }
+      if (this.awayT > 0.08) { this.exitCling(); body.velocity.x = dir === 0 ? 0 : -this.wallDir * 110; return; }
     } else this.awayT = 0;
     if (inp.dashP && GS.has('dash') && this.t.dashCD <= 0) { this.exitCling(); this.startDash(-this.wallDir); return; }
     if (inp.burstP && GS.has('burst')) { this.startCharge(this.wallDir); return; }

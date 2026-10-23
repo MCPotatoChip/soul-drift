@@ -933,8 +933,9 @@ function runFrames(n, o = {}) {
     const f = i / n * Math.PI * 2, c = Math.cos(f), s = Math.sin(f);
     out.push(Object.assign({
       lean: 2, bob: Math.max(0, Math.cos(2 * f)) * 1.2, sway: -1 - Math.abs(s) * 0.8, coatSway: -2 + s,
-      ff: [4.5 * c, Math.max(0, s) * 3.5],
-      bf: [-4.5 * c, Math.max(0, -s) * 3.5],
+      // the foot that is lifted swings forward; the planted one is dragged back under the body
+      ff: [4.5 * c, Math.max(0, -s) * 3.5],
+      bf: [-4.5 * c, Math.max(0, s) * 3.5],
       fh: [-3.5 * c + 2, 7 - Math.abs(c)], bh: [3.5 * c - 2, 7],
     }, o));
   }
