@@ -240,7 +240,7 @@ class Boss extends Enemy {
   aimAt(ox, oy) { const p = this.player; return Math.atan2(p.body.center.y - oy, p.x - ox); }
   // A ground shockwave rolling away along the floor
   shock(x, dir, tint, speed = 250, scale = 1) {
-    const sh = new EnemyShot(this.scene, x, this.arena.floor - 10 * scale, 'shock', dir * speed, 0, { dmg: 1, life: 1.8, w: 12 * scale, h: 18 * scale, flipX: dir < 0, pierce: true, scale, tint });
+    const sh = new EnemyShot(this.scene, x, this.arena.floor - 10 * scale, 'shock', dir * speed, 0, { dmg: 1, life: 1.8, w: 12, h: 18, flipX: dir < 0, pierce: true, scale, tint });
     return sh;
   }
   // A flagged spot on the floor, then a damaging column there
@@ -420,7 +420,7 @@ class BoneSnake {
     this.path = null; this.out = false;
   }
   // Follow points in order at `speed`, then curl back to Renji
-  run(points, speed, onDone) { this.path = points.slice(); this.speed = speed; this.onDone = onDone; this.out = true; }
+  run(points, speed, onDone, hold = false) { this.path = points.slice(); this.speed = speed; this.onDone = onDone; this.out = true; this.hold = hold; }
   tick(dt) {
     if (this.dead) return;
     const b = this.b;
@@ -429,7 +429,7 @@ class BoneSnake {
       const step = this.speed * dt;
       if (d <= step) { this.head.x = t.x; this.head.y = t.y; this.path.shift(); if (!this.path.length && this.onDone) { const f = this.onDone; this.onDone = null; f(); } }
       else { this.head.x += dx / d * step; this.head.y += dy / d * step; }
-    } else {
+    } else if (!this.hold) {
       // rest coiled over Renji's shoulder
       const hx = b.x - b.facing * 14, hy = b.y - 30;
       this.head.x += (hx - this.head.x) * Math.min(1, dt * 6); this.head.y += (hy - this.head.y) * Math.min(1, dt * 6);
@@ -992,9 +992,8 @@ class Renji extends Duelist {
     const s = this.snake;
     this.face();
     let done = false;
-    s.run([{ x: this.x - this.facing * 10, y: this.arena.top + 30 }], 380, () => { done = true; });
+    s.run([{ x: this.x - this.facing * 10, y: this.arena.top + 30 }], 380, () => { done = true; }, true);
     yield () => done;
-    s.out = true;
     const g = this.gfx;
     Sfx.play('charge');
     let e = 0;
@@ -1010,6 +1009,7 @@ class Renji extends Duelist {
     done = false;
     s.run([{ x: this.x, y: this.y - 30 }], 380, () => { done = true; });
     yield () => done;
+    s.hold = false;
     yield 0.3;
   }
   checkPhase() {
@@ -1298,7 +1298,7 @@ class Kenpachi extends Duelist {
     if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.unleash()); }
   }
   *unleash() {
-    yield* this.transform('kenpachi_r', '"Ha! You are fun. Then I will take this off."', { text: '眼帯', color: '#f2d040', small: 'the eyepatch comes off' }, 0xf2d040, '#ffe080');
+    yield* this.transform('kenpachi_r', '"Ha! You are fun. Then I will take this off."', { text: 'UNLEASHED', color: '#f2d040', small: 'the eyepatch comes off' }, 0xf2d040, '#ffe080');
     this.aura.setParticleTint(0xf2d040);
     this.aura.emitting = true;
     this.armor = 0.85; this.spd = 1.25; this.walkSpeed = 85;
@@ -1770,7 +1770,7 @@ class HollowIchigo extends Duelist {
     const n = this.phase >= 3 ? 2 : 1;
     for (let i = 0; i < n; i++) {
       this.setPose('strike', 0.25);
-      new EnemyShot(s, this.x + f * 16, this.arena.floor - 22 - (i ? 44 : 0), key, f * 330, 0, { dmg: 1, life: 2.4, w: 16, h: 40, pierce: true, flipX: f < 0 });
+      new EnemyShot(s, this.x + f * 16, this.arena.floor - 22, key, f * 330, 0, { dmg: 1, life: 2.4, w: 16, h: 40, pierce: true, flipX: f < 0 });
       Sfx.play('wave');
       s.fx.ring(this.x + f * 14, this.y, 0xffffff, 26, 260, 2);
       yield 0.32 / this.spd;

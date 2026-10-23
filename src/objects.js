@@ -453,7 +453,7 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
     const size = o.size || 8;
     this.body.setSize(o.w || size, o.h || size);
     this.dmg = o.dmg || 1; this.life = o.life || 3; this.passWalls = !!o.passWalls; this.pierce = !!o.pierce;
-    this.burstColor = o.burst ?? 0xff8aa0; this.debris = !!o.debris;
+    this.burstColor = o.burst ?? 0xff8aa0; this.debris = !!o.debris; this.splash = !!o.splash;
     this.owner = o.owner || null;   // set for shots fired by ordinary enemies: they hurt other enemies too
     if (o.rotate) this.setRotation(Math.atan2(vy, vx));
     if (o.flipX) this.setFlipX(true);
@@ -468,6 +468,14 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
     if (!this.passWalls && s.isSolidAt(this.x, this.y)) {
       s.fx.burst(this.x, this.y, this.burstColor, 6);
       if (this.debris) { s.fx.debris(this.x, this.y, this.burstColor, 8); s.fx.dust(this.x, this.y, 6); s.fx.shake(90, 0.004); Sfx.play('break'); }
+      // acid lands in a puddle that burns for a moment
+      if (this.splash && this.body.velocity.y > 0) {
+        const top = Math.floor(this.y / TILE) * TILE;
+        s.addHurt(this.x - 10, top - 8, 20, 8, 1, 0.5);
+        const pool = s.add.image(this.x, top, 'glow').setTint(this.burstColor).setBlendMode('ADD').setDepth(17).setScale(1, 0.25).setAlpha(0.7);
+        s.tweens.add({ targets: pool, alpha: 0, scaleX: 1.4, duration: 600, onComplete: () => pool.destroy() });
+        s.fx.motes(this.x, top - 3, this.burstColor, 5);
+      }
       return this.destroy();
     }
     // The first enemy it meets takes the blast and the shot is spent, so a line of enemies is not wiped out
