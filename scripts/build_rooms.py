@@ -190,7 +190,7 @@ g.put(0, 7, '1').put(51, 23, '2')
 g.put(17, 23, 'R').put(21, 23, 'N').put(26, 23, 'N')
 g.put(39, 23, 'g').put(45, 17, 'm').put(48, 23, 'm')
 R['sei_gate'] = dict(name='Hakutomon, the West Gate', region='sei', pos=[44, 7.2],
-    doors={'1': ['ruk_2', '3'], '2': ['sei_1', '1']},
+    doors={'1': ['ruk_2', '3'], '2': ['sei_ward', '1']},
     npcs=[
         {'name': 'Uryū Ishida', 'lines': [
             'Kurosaki. I came to rescue Kuchiki-san, not to help you. Remember that.',
@@ -203,19 +203,33 @@ R['sei_gate'] = dict(name='Hakutomon, the West Gate', region='sei', pos=[44, 7.2
     ],
     tiles=g.rows())
 
+# The outer ward: over the white walls, across the moat, through a Kido-sealed gate
+g = Grid(64, 26)
+g.rect(0, 22, 63, 25, '#')
+g.rect(9, 18, 12, 18, '=')                      # crates up onto the first wall
+g.rect(14, 16, 17, 21, '#')                     # the first white wall
+g.rect(18, 21, 25, 21, '^')                     # a moat of spikes: a Shunpo leap across
+g.rect(26, 16, 30, 21, '#')                     # the second wall
+g.rect(40, 0, 40, 9, '#').rect(40, 10, 40, 21, 'X')   # a sealed gate in the ward wall
+g.rect(33, 17, 37, 17, '=').rect(47, 17, 52, 17, '=')
+g.put(0, 21, '1').put(63, 21, '2')
+g.put(35, 21, 'm').put(32, 21, 'b').put(50, 16, 'q').put(45, 21, 'g').put(56, 21, 'm')
+R['sei_ward'] = dict(name='Outer Ward Rooftops', region='sei', pos=[49.2, 7.4],
+    doors={'1': ['sei_gate', '2'], '2': ['sei_1', '1']}, tiles=g.rows())
+
 g = old('sei_1')
 for y in range(0, 23):
     g.put(1, y, '#')
 g.put(0, 8, '3').put(0, 7, '.').put(1, 7, 'G').put(1, 8, 'G')   # a sealed Senkaimon in the west wall
 g.rect(2, 9, 8, 9, '#')                         # the ledge in front of it
 g.rect(13, 14, 17, 14, '=')
-R['sei_1'] = dict(name='Seireitei Courtyard', region='sei', pos=[49.2, 6.4],
-    doors={'1': ['sei_gate', '2'], '2': ['sei_2', '1'], '3': ['sei_11', '1']}, abilities=['grip'], tiles=g.rows())
+R['sei_1'] = dict(name='Seireitei Courtyard', region='sei', pos=[55.6, 6.4],
+    doors={'1': ['sei_ward', '2'], '2': ['sei_2', '1'], '3': ['sei_11', '1']}, abilities=['grip'], tiles=g.rows())
 
 # Eleventh Division training grounds: Kenpachi waits for someone worth the trouble
 g = arena(48, door='right', planks=[(6, 10, 14), (37, 41, 14)])
 g.put(14, 18, 'B')
-R['sei_11'] = dict(name='Eleventh Division Grounds', region='sei', pos=[44.4, 4.8],
+R['sei_11'] = dict(name='Eleventh Division Grounds', region='sei', pos=[50.8, 4.8],
     doors={'1': ['sei_1', '3']}, boss='kenpachi', rewardItems=['seal:bell', 'fragment'], tiles=g.rows())
 
 g = old('sei_2')
@@ -223,7 +237,7 @@ g.put(14, 12, '.')            # Bakudo now comes from Renji
 g.put(19, 12, 'm')            # the Stealth Force instead of a Rukongai thug
 g.put(25, 18, '.').put(25, 22, 'b')
 g.put(47, 22, '4').put(47, 21, '.')
-R['sei_2'] = dict(name='Seireitei Towers', region='sei', pos=[53.2, 1.8],
+R['sei_2'] = dict(name='Seireitei Towers', region='sei', pos=[59.6, 1.8],
     doors={'1': ['sei_1', '2'], '2': ['kar_roof', '2'], '3': ['sok_1', '1'], '4': ['sei_4', '1']},
     seals=['focus'], platforms=[{'w': 3, 'dy': 6, 'period': 1.25}], tiles=g.rows())
 
@@ -237,7 +251,7 @@ g.rect(8, 15, 13, 15, '=').rect(36, 15, 41, 15, '=')
 g.rect(48, 8, 53, 8, '#').put(50, 7, 'f')        # climb the east wall for this one
 g.put(4, 19, 'R').put(8, 19, 'N')
 g.put(16, 19, 'm').put(31, 14, '.').put(38, 14, 'q').put(44, 19, 'b').put(30, 4, 'v')
-R['sei_4'] = dict(name='Fourth Division Sewers', region='sei', pos=[58, 2.1],
+R['sei_4'] = dict(name='Fourth Division Sewers', region='sei', pos=[64.4, 2.1],
     doors={'1': ['sei_2', '4'], '2': ['sei_renji', '1']},
     npcs=[{'name': 'Hanatarō Yamada', 'seal': 'kaido', 'lines': [
         'Ah! Please do not hurt me! I am only Hanataro Yamada, Seventh Seat of the Fourth Division. We clean the sewers.',
@@ -249,13 +263,13 @@ R['sei_4'] = dict(name='Fourth Division Sewers', region='sei', pos=[58, 2.1],
 # Senzaikyu Bridge: the long white span to the Tower of Penitence
 g = arena(52, planks=[(8, 12, 14), (39, 43, 14)])
 g.put(34, 18, 'B')
-R['sei_renji'] = dict(name='Senzaikyu Bridge', region='sei', pos=[63.6, 2.1],
+R['sei_renji'] = dict(name='Senzaikyu Bridge', region='sei', pos=[70, 2.1],
     doors={'1': ['sei_4', '2']}, boss='renji', reward='bakudo', tiles=g.rows())
 
 # =========================================================================== Sokyoku Hill
 g = old('sok_1')
 g.put(8, 36, 'N')
-R['sok_1'] = dict(name='Sokyoku Ascent', region='sok', pos=[58, -2.0],
+R['sok_1'] = dict(name='Sokyoku Ascent', region='sok', pos=[64.4, -2.0],
     doors={'1': ['sei_2', '3'], '2': ['sok_boss', '1']},
     npcs=[{'name': 'Yoruichi', 'seal': 'shunko', 'lines': [
         'Do not look so surprised. A cat can talk. It is the Shinigami who listen that are rare.',
@@ -265,7 +279,7 @@ R['sok_1'] = dict(name='Sokyoku Ascent', region='sok', pos=[58, -2.0],
     tiles=g.rows())
 
 g = old('sok_boss')
-R['sok_boss'] = dict(name='Sokyoku Hill', region='sok', pos=[62.8, -3.1],
+R['sok_boss'] = dict(name='Sokyoku Hill', region='sok', pos=[69.2, -3.1],
     doors={'1': ['sok_1', '2'], '2': ['hm_1', '1']}, boss='byakuya', reward='wings', tiles=g.rows())
 
 # =========================================================================== Hueco Mundo
@@ -274,7 +288,7 @@ g.put(11, 18, '.').put(15, 18, 'N')
 for (x, y) in [(31, 14), (32, 14), (33, 14), (24, 16), (25, 16), (26, 16), (38, 16), (39, 16), (40, 16)]:
     g.put(x, y, '.')
 g.rect(26, 12, 29, 12, '=').rect(36, 12, 39, 12, '=')   # sand ledges only Hirenkyaku reaches
-R['hm_1'] = dict(name='Hueco Mundo', region='hm', pos=[66.8, -4.6],
+R['hm_1'] = dict(name='Hueco Mundo', region='hm', pos=[73.2, -4.6],
     doors={'1': ['sok_boss', '2'], '2': ['hm_2', '1'], '3': ['forest_1', '1']},
     npcs=[{'name': 'Nel Tu', 'lines': [
         'Itsygo! Nel knew it was you! Nel smelled your Reiatsu from all the way over the dunes!',
@@ -286,7 +300,7 @@ g = old('hm_2')
 g.put(36, 26, '.')            # Senkaimon Burst now comes from Grimmjow
 g.rect(44, 8, 55, 10, '.').put(55, 10, '4')
 g.rect(36, 22, 40, 22, '=').rect(39, 18, 43, 18, '=').rect(38, 14, 42, 14, '=')
-R['hm_2'] = dict(name='Las Noches Corridor', region='hm', pos=[73.2, -5.4],
+R['hm_2'] = dict(name='Las Noches Corridor', region='hm', pos=[79.6, -5.4],
     doors={'1': ['hm_1', '2'], '2': ['hm_boss', '1'], '3': ['hm_side', '1'], '4': ['hm_3', '1']}, tiles=g.rows())
 
 # The halls inside Las Noches: Exequias on patrol, and Orihime held in a white room
@@ -302,7 +316,7 @@ g.rect(48, 21, 53, 21, '=')
 g.put(59, 25, '.').put(59, 26, '2')
 g.put(8, 10, 'l').put(36, 26, 'N')
 g.put(22, 26, 'x').put(41, 26, 'x').put(50, 20, 'a').put(54, 26, 'j')
-R['hm_3'] = dict(name='Las Noches Halls', region='hm', pos=[78.8, -5.4],
+R['hm_3'] = dict(name='Las Noches Halls', region='hm', pos=[85.2, -5.4],
     doors={'1': ['hm_2', '4'], '2': ['hm_grimm', '1'], '3': ['hm_dome', '1']},
     npcs=[{'name': 'Orihime Inoue', 'heals': True, 'lines': [
         'Kurosaki-kun! You came all this way... Hold still. Soten Kisshun: I reject.',
@@ -313,11 +327,11 @@ R['hm_3'] = dict(name='Las Noches Halls', region='hm', pos=[78.8, -5.4],
 # The Sixth Palace: Grimmjow's hall
 g = arena(52, planks=[(8, 12, 13), (39, 43, 13)])
 g.put(34, 18, 'B')
-R['hm_grimm'] = dict(name='Sixth Palace', region='hm', pos=[84.8, -4.6],
+R['hm_grimm'] = dict(name='Sixth Palace', region='hm', pos=[91.2, -4.6],
     doors={'1': ['hm_3', '2']}, boss='grimmjow', reward='burst', tiles=g.rows())
 
 g = old('hm_side')
-R['hm_side'] = dict(name='Mask Shrine', region='hm', pos=[73.2, -7.7],
+R['hm_side'] = dict(name='Mask Shrine', region='hm', pos=[79.6, -7.7],
     doors={'1': ['hm_2', '3']}, abilities=['hollow'], seals=['long'],
     npcs=[{'name': 'Shinji Hirako', 'lines': [
         'Yo. Shinji Hirako, Vizard. You smell like a Shinigami who looked into the dark and liked it.',
@@ -327,7 +341,7 @@ R['hm_side'] = dict(name='Mask Shrine', region='hm', pos=[73.2, -7.7],
 
 g = old('hm_boss')
 g.put(3, 18, '.')             # no rest gate inside the arena
-R['hm_boss'] = dict(name='Throne of Sand', region='hm', pos=[78.8, -2.4],
+R['hm_boss'] = dict(name='Throne of Sand', region='hm', pos=[85.2, -2.4],
     doors={'1': ['hm_2', '2']}, boss='vasto', reward='bankai', tiles=g.rows())
 
 # The top of the dome of Las Noches, under the false sky: Ulquiorra
@@ -338,12 +352,12 @@ g.rect(25, 22, 27, 26, '.').put(26, 27, '1')
 g.rect(25, 22, 27, 22, 'L')
 g.rect(6, 16, 10, 16, '=').rect(41, 16, 45, 16, '=').rect(22, 11, 30, 11, '=')
 g.put(40, 21, 'B')
-R['hm_dome'] = dict(name='Dome of Las Noches', region='hm', pos=[79.2, -8.2],
+R['hm_dome'] = dict(name='Dome of Las Noches', region='hm', pos=[85.6, -8.2],
     doors={'1': ['hm_3', '3']}, boss='ulquiorra', rewardItems=['seal:hierro', 'ore'], tiles=g.rows())
 
 # =========================================================================== the Forest of Menos
 g = old('forest_1')
-R['forest_1'] = dict(name='Forest of Menos', region='for', pos=[70.3, -2.3],
+R['forest_1'] = dict(name='Forest of Menos', region='for', pos=[76.7, -2.3],
     doors={'1': ['hm_1', '3'], '2': ['forest_2', '1']}, seals=['phantom'],
     npcs=[{'name': 'Ashido Kanō', 'lines': [
         'A Shinigami? Here? I am Ashido Kano. I have lived in this forest longer than I can count, wearing what I have killed.',
@@ -353,7 +367,7 @@ R['forest_1'] = dict(name='Forest of Menos', region='for', pos=[70.3, -2.3],
 
 g = old('forest_2')
 g.put(3, 18, '.')             # no rest gate inside the arena
-R['forest_2'] = dict(name='Hollow Clearing', region='for', pos=[74.7, 0.1],
+R['forest_2'] = dict(name='Hollow Clearing', region='for', pos=[81.1, 0.1],
     doors={'1': ['forest_1', '2']}, boss='espada', rewardItems=['ore', 'fragment'], tiles=g.rows())
 
 # =========================================================================== the Dangai
@@ -383,7 +397,7 @@ R['end_boss'] = dict(name='Heart of the Inner World', region='end', pos=[7.2, 12
 # --------------------------------------------------------------------------- write
 ORDER = ['kar_hub', 'kar_alley', 'kar_roof', 'kar_river', 'kar_grave',
          'ruk_1', 'ruk_2', 'ruk_3', 'ruk_boss',
-         'sei_gate', 'sei_1', 'sei_11', 'sei_2', 'sei_4', 'sei_renji',
+         'sei_gate', 'sei_ward', 'sei_1', 'sei_11', 'sei_2', 'sei_4', 'sei_renji',
          'sok_1', 'sok_boss',
          'hm_1', 'hm_2', 'hm_3', 'hm_grimm', 'hm_side', 'hm_boss', 'hm_dome',
          'forest_1', 'forest_2', 'dangai_1', 'dangai_2', 'end_1', 'end_boss']
