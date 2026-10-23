@@ -364,6 +364,9 @@ class GameScene extends Phaser.Scene {
     const k = Math.min(1, dt * 3);
     off.x += (tx - off.x) * k;
     off.y += (ty - off.y) * k;
+    // the follow lerp is per frame: scale it by the frame time so 60, 120 and 144 Hz all glide the same
+    const l = 1 - Math.pow(1 - 0.14, Math.max(0.25, dt * 60));
+    cam.setLerp(l, l);
   }
 
   // Slow the whole simulation (bodies, tweens, timers, animations) for `ms` of real time
@@ -729,13 +732,13 @@ class GameScene extends Phaser.Scene {
       if (!d.seals.includes(QUEST_NAMES.seal)) d.seals.push(QUEST_NAMES.seal);
       GS.save();
       this.time.delayedCall(1600, () => { if (this.sys.isActive()) this.showPopup({ kind: 'seal', id: QUEST_NAMES.seal }); });
-      return ['A thug who wanted one more day. A Shinigami who stayed after the orders stopped. A Hollow who remembers bread.', 'They were people. I knew it. I just needed someone else to know it too.', `Take this. ${QUEST_NAMES.reishi} reishi, and a seal I carried out of the old district. It listens the way you do.`];
+      return ['A ruffian who wanted one more day. A Shinigami who stayed after the orders stopped. A Hollow who remembers bread.', 'They were people. I knew it. I just needed someone else to know it too.', `Take this. ${QUEST_NAMES.reishi} reishi, and a seal I carried out of the old district. It listens the way you do.`];
     }
-    if (st === 1) return [`You have heard ${have} of the ${need.length} I asked for: a thug, a corrupted Shinigami, and a Hollow.`, 'Strike each with the hilt and listen. Then come tell me what they said.'];
+    if (st === 1) return [`You have heard ${have} of the ${need.length} I asked for: a ruffian, a corrupted Shinigami, and a Hollow.`, 'Strike each with the hilt and listen. Then come tell me what they said.'];
     if (!GS.has('konso')) return info.lines.concat(['...They say there is a blade that lets you hear the dead. If you ever find it, come back. I have a favour to ask.']);
     d.quests.names = 1;
     GS.save();
-    return info.lines.concat(['Wait. That blade at your side, the one that hums. Is it a soul-burier?', 'Then listen for me. Read the memories of a thug, a corrupted Shinigami and a Hollow with your Konso Blade, and tell me what they said. I would like to know they were somebody.']);
+    return info.lines.concat(['Wait. That blade at your side, the one that hums. Is it a soul-burier?', 'Then listen for me. Read the memories of a ruffian, a corrupted Shinigami and a Hollow with the Konso hilt, and tell me what they said. I would like to know they were somebody.']);
   }
 
   spawnShards(x, y, n) {
@@ -987,7 +990,7 @@ class GameScene extends Phaser.Scene {
     if (this.boss.waitsForReveal) {
       if (!this.revealHint && Math.abs(p.x - this.boss.x) < 110) {
         this.revealHint = true;
-        this.toast(Controls.fmt('The air here shimmers. Something unseen is watching. Strike it with the Konso Blade ({konso}).'));
+        this.toast(Controls.fmt('The air here shimmers. Something hides in the dark, watching. Strike it with the Konso hilt ({konso}).'));
       }
       return;
     }

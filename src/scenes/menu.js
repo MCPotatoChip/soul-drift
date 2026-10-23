@@ -15,7 +15,7 @@ class MenuScene extends Phaser.Scene {
   create() {
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x07070b, 0.94).setOrigin(0);
     // a faint kanji for the screen, large in the corner, and ink pooling at the edges
-    this.add.image(0, GAME_H, 'ui_ink').setOrigin(0, 1).setTint(0x1a1424).setAlpha(0.8).setScale(2.2, 2);
+    this.add.image(-60, GAME_H + 40, 'ui_ink').setOrigin(0, 1).setTint(0x1a1424).setAlpha(0.45).setScale(2.4, 1.6);
     this.watermark = this.add.text(GAME_W - 40, GAME_H - 30, '', { fontFamily: FONT_DISPLAY, fontSize: '150px', fontStyle: '800', color: CRIMSON }).setOrigin(1, 1).setAlpha(0.07);
     this.layer = this.add.container(0, 0);
     this.sel = 0; this.col = 0;
@@ -373,7 +373,8 @@ class MenuScene extends Phaser.Scene {
       Object.entries(r.doors).forEach(([dd, [to, td]]) => {
         if (!d.visited[to] || id > to) return;
         const a2 = this.doorPoint(id, dd, box, P), b2 = this.doorPoint(to, td, box, P);
-        if (a2 && b2) g.lineBetween(a2.x, a2.y, b2.x, b2.y);
+        // neighbours only: the long ways (Senkaimon shortcuts across the world) are not drawn as roads
+        if (a2 && b2 && Phaser.Math.Distance.Between(a2.x, a2.y, b2.x, b2.y) < sc * 4) g.lineBetween(a2.x, a2.y, b2.x, b2.y);
       });
     });
     // a region's name in kanji above the rooms of it you have seen

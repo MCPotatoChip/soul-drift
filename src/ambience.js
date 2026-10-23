@@ -43,10 +43,10 @@ const AMBIENCE = {
     ],
     lightning: 0xffa0b8,
   },
-  end: {   // the Endpoint: crystal motes rising, twinkling
+  end: {   // the Inner World: a steady wind across the fallen towers, motes of light riding it
     emitters: [
-      { tex: 'spark', freq: 210, life: 6500, add: true, cfg: { speedY: { min: -18, max: -6 }, speedX: { min: -6, max: 6 }, scale: { start: 0.5, end: 0.1 }, alpha: { start: 0.9, end: 0 }, tint: [0x7fd4ff, 0xc8f0ff, 0xffffff] } },
-      { tex: 'glow', freq: 1500, life: 9000, add: true, cfg: { speedX: { min: 4, max: 10 }, scale: { start: 1.6, end: 2.4 }, alpha: { start: 0.06, end: 0 }, tint: 0x7fd4ff } },
+      { tex: 'px', freq: 120, life: 2400, x: { min: VX0 - 14, max: VX0 }, cfg: { speedX: { min: 220, max: 360 }, speedY: { min: -6, max: 6 }, scaleX: { start: 10, end: 4 }, scaleY: 0.5, alpha: { start: 0.3, end: 0 }, tint: 0xffffff } },
+      { tex: 'dot', freq: 260, life: 6000, add: true, cfg: { speedX: { min: 30, max: 70 }, speedY: { min: -10, max: 4 }, scale: { start: 0.6, end: 0.1 }, alpha: { start: 0.7, end: 0 }, tint: [0xffffff, 0xd8ecff] } },
     ],
   },
   dan: {   // the Dangai: reishi streaming through the precipice world
@@ -143,6 +143,16 @@ class Ambience {
   clearCell(x, y) {
     const g = this.glows[x + ',' + y];
     if (g) { this.s.tweens.killTweensOf(g); g.destroy(); delete this.glows[x + ',' + y]; }
+  }
+
+  // Byakuya's Bankai: blade petals drift across the whole arena for the rest of the fight
+  petalStorm() {
+    const s = this.s, dens = Math.max(0.3, Settings.get('particles'));
+    const em = s.add.particles(0, 0, 'petal', {
+      x: { min: VX0, max: VX1 }, y: { min: VY0 - 10, max: VY0 }, speedX: { min: -50, max: 20 }, speedY: { min: 20, max: 60 }, lifespan: 7000,
+      rotate: { start: 0, end: 360 }, scale: { start: 1.2, end: 0.6 }, alpha: { start: 0.8, end: 0 }, frequency: Math.round(70 / dens), tint: [0xffc0d8, 0xff90b8, 0xffe0ea], blendMode: 'ADD',
+    }).setScrollFactor(0).setDepth(25);
+    if (em.fastForward) em.fastForward(3000);
   }
 
   // A glint runs along the spikes now and then
