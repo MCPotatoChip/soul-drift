@@ -118,7 +118,7 @@ g.rect(26, 11, 27, 15, '#').rect(44, 11, 45, 15, '#') # bridge piers
 g.rect(0, 0, 0, 16, '#')                        # the wall of the last house
 g.rect(7, 15, 11, 15, '=').rect(9, 12, 12, 12, '=')   # stairs up to the bridge
 g.rect(3, 4, 7, 4, '#').put(5, 3, 'f')          # a fragment on a ledge only grip or wings reach
-g.rect(69, 0, 69, 6, '#').rect(69, 11, 69, 17, '#')
+g.rect(69, 0, 69, 6, '#').rect(69, 11, 69, 16, '#')
 g.put(0, 18, '1').put(69, 18, '2').put(69, 8, '3')
 g.put(5, 18, 'N').put(30, 22, 'l')
 g.put(25, 22, 'i').put(45, 22, 'i').put(60, 18, 'i').put(40, 5, 'h')
@@ -158,7 +158,7 @@ g.rect(26, 15, 37, 18, '#')                     # the plateau
 g.rect(23, 17, 25, 18, '#').rect(38, 17, 40, 18, '#')
 g.rect(4, 14, 9, 14, '=').rect(40, 13, 44, 13, '=').rect(46, 10, 49, 10, '=')
 g.rect(58, 6, 63, 6, '#').put(61, 5, 'f')       # a fragment one Shunpo-leap past the roofs
-g.rect(63, 0, 63, 5, '#').rect(63, 7, 63, 17, '#')
+g.rect(63, 0, 63, 4, '#').rect(63, 7, 63, 16, '#')
 g.rect(18, 19, 19, 19, 'O').rect(16, 20, 21, 21, '.').put(17, 21, 'o')   # cracked floor over a hollow with ore
 g.put(0, 18, '1').put(63, 18, '2')
 g.put(8, 18, 'l').put(33, 14, 'N')
@@ -181,11 +181,11 @@ R['ruk_boss'] = dict(name='Hollow Ravine', region='ruk', pos=[50.4, 10],
 g = Grid(52, 28)
 g.rect(0, 24, 51, 27, '#')
 g.rect(0, 8, 9, 9, '#')                         # the wall-walk you arrive on
-g.rect(0, 0, 0, 6, '#').rect(0, 10, 0, 23, '#')
+g.rect(0, 0, 0, 5, '#').rect(0, 10, 0, 23, '#')
 g.rect(11, 20, 14, 20, '=').rect(6, 16, 9, 16, '=').rect(11, 12, 14, 12, '=')   # the way back up
 g.rect(28, 2, 37, 3, '#').rect(30, 4, 35, 19, '#')   # the gate, lifted
 g.rect(42, 18, 47, 18, '=')
-g.rect(51, 0, 51, 22, '#')
+g.rect(51, 0, 51, 21, '#')
 g.put(0, 7, '1').put(51, 23, '2')
 g.put(17, 23, 'R').put(21, 23, 'N').put(26, 23, 'N')
 g.put(39, 23, 'g').put(45, 17, 'm').put(48, 23, 'm')

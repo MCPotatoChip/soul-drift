@@ -141,6 +141,7 @@ function run(g, A, start, ctl, maxT = 2.6) {
     } else if (s.mode === 'climb') {
       s.vx = s.wallDir * 30; s.vy = -PHYS.wallClimb;
       if (!touchingWall(g, s, s.wallDir, true)) { s.mode = 'normal'; s.vy = -250; s.vx = s.wallDir * 90; }
+      else if (solidAt(g, s.x, s.y - BH - 2)) { out.rests.push({ cling: s.wallDir, x: s.x, y: s.y }); break; }
     } else {
       const accel = s.grounded ? (dir ? PHYS.accelGround : PHYS.decelGround) : PHYS.accelAir;
       const k = s.lock > 0 ? 0.2 : 1, target = dir * PHYS.runSpeed;
@@ -215,13 +216,29 @@ function clingScripts(A, w) {
 
 // ------------------------------------------------------------------ search one room
 const roomCache = new Map();
-function explore(rid, A, entry) {
-  const key = rid + '|' + Object.keys(A).filter(k => A[k]).sort().join(',') + '|' + entry;
+// Only the powers that can change anything in a room take part in its cache key
+function relevant(rid, A) {
+  const t = ROOMS[rid].tiles.join('');
+  const R = { konso: A.konso && t.includes('H'), dash: A.dash, grip: A.grip, wings: A.wings, hado: A.hado && t.includes('X'),
+    burst: A.burst, bankai: A.bankai && t.includes('D'), bakudo: A.bakudo && t.includes('M') };
+  return Object.fromEntries(Object.entries(R).filter(([, v]) => v));
+}
+function explore(rid, Afull, entry) {
+  const A = relevant(rid, Afull);
+  const names = Object.keys(A).sort();
+  const key = rid + '|' + names.join(',') + '|' + entry;
   if (roomCache.has(key)) return roomCache.get(key);
+  // A result that already reached everything with fewer powers cannot improve
+  for (const [k, v] of roomCache) {
+    const [r, set, e] = k.split('|');
+    if (r === rid && e === entry && v && v.complete && set.split(',').filter(Boolean).every(n => A[n])) { roomCache.set(key, v); return v; }
+  }
   const room = ROOMS[rid], g = makeGrid(room, A);
   const seen = new Set(), queue = [], doors = new Set(), hits = new Set();
+  const allDoors = g.doors.length, allTargets = g.targets.filter(t => t.kind !== 'start').length;
+  const done = () => doors.size >= allDoors && [...hits].filter(t => t.kind !== 'start').length >= allTargets;
   const push = (st) => {
-    const k = st.cling ? `c${st.cling}:${Math.round(st.x)}:${Math.round(st.y / 6)}` : `g${Math.round(st.x / 8)}:${Math.round(st.y)}`;
+    const k = st.cling ? `c${st.cling}:${Math.round(st.x)}:${Math.round(st.y / 6)}` : `g${Math.round(st.x / 12)}:${Math.round(st.y)}`;
     if (seen.has(k)) return;
     seen.add(k); queue.push(st);
   };
@@ -229,19 +246,19 @@ function explore(rid, A, entry) {
   // where the player appears
   if (entry === 'start' || entry === 'rest') {
     const tg = g.targets.find(t => t.kind === (entry === 'start' ? 'start' : 'rest'));
-    if (!tg) return null;
+    if (!tg) { roomCache.set(key, null); return null; }
     take(run(g, A, { x: tg.x, y: tg.feet, grounded: true }, () => ({}), 0.1));
     push({ x: tg.x, y: tg.feet });
   } else {
     const d = g.doors.find(dd => dd.id === entry);
-    if (!d) return null;
+    if (!d) { roomCache.set(key, null); return null; }
     if (d.edge === 'left') take(run(g, A, { x: (d.x + 2) * TILE, y: (d.y + 1) * TILE }, () => ({}), 0.6));
     else if (d.edge === 'right') take(run(g, A, { x: (d.x - 1) * TILE, y: (d.y + 1) * TILE }, () => ({}), 0.6));
     else if (d.edge === 'top') take(run(g, A, { x: d.x * TILE + 8, y: (d.y + 2) * TILE + 4 }, () => ({}), 2));
     else for (const dir of [-1, 0, 1]) take(run(g, A, { x: d.x * TILE + 8, y: (d.y + 1) * TILE - 2, vy: -PHYS.popUp }, () => ({ dir }), 2));
   }
   let steps = 0;
-  while (queue.length && steps < 60000) {
+  while (queue.length && steps < 60000 && !done()) {
     const st = queue.shift(); steps++;
     if (st.cling) {
       for (const sc of clingScripts(A, st.cling)) {
@@ -256,7 +273,7 @@ function explore(rid, A, entry) {
     const onOneWay = !at(g, g.solid, tx, ty) && at(g, g.oneway, tx, ty);
     for (const sc of groundScripts(A, onOneWay)) take(run(g, A, { x: st.x, y: st.y, grounded: true }, sc.ctl, sc.maxT));
   }
-  const res = { doors, hits, states: seen.size, g };
+  const res = { doors, hits, states: seen.size, g, complete: done() };
   roomCache.set(key, res);
   return res;
 }
