@@ -232,21 +232,30 @@ class Portal extends Phaser.GameObjects.Image {
 
 class Npc extends Phaser.GameObjects.Sprite {
   constructor(scene, x, feet, info) {
-    const style = NPC_STYLES[(info || {}).name] || 'npc_plus';
+    info = info || { name: 'Spirit', lines: ['...'] };
+    const style = NPC_STYLES[info.name] || 'npc_plus';
     super(scene, x, feet, style, 'idle0');
     scene.add.existing(this);
-    npcSprite(this, style);
-    this.setDepth(7);
-    this.info = info || { name: 'Spirit', lines: ['...'] };
-    this.prompt = 'Listen';
+    const creature = NPC_CREATURE[style];
+    if (creature) { this.setOrigin(0.5, creature[1] / creature[0]); this.play(style + ':idle'); this.anims.setProgress(Math.random()); }
+    else npcSprite(this, style);
+    const sc = NPC_SCALE[style] || 1;
+    this.setScale(sc).setDepth(sc > 1 ? 4 : 7);
+    this.info = info;
+    this.prompt = info.heals ? 'Be healed' : 'Listen';
     this.faces = true;
-    if (STYLES[style].alpha) {   // souls hover a little
+    if (STYLES[style] && STYLES[style].alpha) {   // souls hover a little
       scene.tweens.add({ targets: this, y: feet - 2, yoyo: true, repeat: -1, duration: 1400, ease: 'Sine.inOut' });
+    }
+    // someone with something to give glows faintly until they have given it
+    if ((info.gives || info.seal) && !GS.data.gifts[info.name]) {
+      this.glow = scene.add.image(x, feet - 14, 'glow').setTint(info.gives ? 0xbfe6ff : 0xffd75e).setBlendMode('ADD').setDepth(6).setAlpha(0.25).setScale(1.2);
+      scene.tweens.add({ targets: this.glow, alpha: 0.5, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.inOut' });
     }
   }
   interact() {
     this.setFlipX(this.scene.player.x < this.x);
-    this.scene.startDialog(this.info.name, this.scene.npcLines(this.info));
+    this.scene.talkTo(this);
   }
 }
 

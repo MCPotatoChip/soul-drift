@@ -42,6 +42,9 @@ const GS = {
       memories: {},          // kinds of enemy whose memories Konso has read
       quests: {},            // quest id -> 0 not started, 1 accepted, 2 done
       plus: 0,               // New Game+ cycles completed
+      kills: {},             // enemy kind -> how many fell (the Journal)
+      gifts: {},             // NPC name -> true once they have handed over their gift
+      world: 2,              // layout version of the save (2: the expanded world)
     };
   },
 
@@ -88,7 +91,7 @@ const GS = {
   },
   // The saved game without making it the current one (for the title screen)
   peek() {
-    try { const raw = localStorage.getItem(SAVE_KEY); return raw ? Object.assign(this.fresh(), JSON.parse(raw)) : null; } catch (e) { return null; }
+    try { const raw = localStorage.getItem(SAVE_KEY); return raw ? this.migrate(Object.assign(this.fresh(), JSON.parse(raw))) : null; } catch (e) { return null; }
   },
 
   slashDamage() { return COMBAT.slashDamage + (this.data.swordLevel || 0) * COMBAT.swordBonus; },
@@ -116,16 +119,36 @@ const GS = {
   },
 
   save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.data)); return true; } catch (e) { return false; }
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(this.data));
+      if (typeof window !== 'undefined' && window.SD && SD.game) SD.game.events.emit('saved');
+      return true;
+    } catch (e) { return false; }
   },
   load() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
-      this.data = Object.assign(this.fresh(), JSON.parse(raw));
+      this.data = this.migrate(Object.assign(this.fresh(), JSON.parse(raw)));
       this.run = this.freshRun();
       return true;
     } catch (e) { return false; }
+  },
+  // Saves from before the world grew: the Rogue Captain became Byakuya, Konso is learned from Rukia
+  // at the start, and two arenas lost the rest gates that sat inside them.
+  migrate(d) {
+    if (d.bosses.captain) { d.bosses.byakuya = true; delete d.bosses.captain; }
+    if ((d.world || 1) < 2) {
+      d.abilities.konso = true;
+      d.gifts['Rukia Kuchiki'] = true;
+      d.world = 2;
+    }
+    const restOK = (id) => id && ROOMS[id] && ROOMS[id].tiles.some(r => r.includes('R'));
+    const moved = { hm_boss: 'hm_2', forest_2: 'forest_1' };
+    if (d.restRoom && !restOK(d.restRoom)) d.restRoom = moved[d.restRoom] || null;
+    Object.keys(d.gates).forEach(id => { if (!restOK(id)) delete d.gates[id]; });
+    if (!ROOMS[d.room]) d.room = d.restRoom || 'kar_hub';
+    return d;
   },
   hasSave() {
     try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
@@ -134,14 +157,30 @@ const GS = {
     try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* storage unavailable */ }
   },
 
+  // How many of each collectible the world holds, counted from the rooms themselves
+  totals() {
+    if (this._totals) return this._totals;
+    const t = { fragments: 0, pluses: 0, ore: 0 };
+    Object.values(ROOMS).forEach(r => {
+      const all = r.tiles.join('');
+      t.fragments += (all.match(/f/g) || []).length;
+      t.pluses += (all.match(/l/g) || []).length;
+      t.ore += (all.match(/o/g) || []).length;
+      (r.rewardItems || []).forEach(it => { if (it === 'fragment') t.fragments++; if (it === 'ore') t.ore++; });
+    });
+    t.fragments += SHOP_STOCK.filter(s => s.type === 'fragment').length;
+    t.bosses = Object.keys(BOSSES).length;
+    return (this._totals = t);
+  },
+
   completion() {
-    const d = this.data;
+    const d = this.data, T = this.totals();
     let have = 0, total = 0;
     ABILITY_ORDER.forEach(a => { total++; if (d.abilities[a]) have++; });
-    total += Object.keys(SEALS).length; have += d.seals.length;
-    total += 8; have += Math.min(8, d.fragmentsTotal);
-    total += 6; have += d.pluses;
-    total += 5; have += Object.keys(d.bosses).length;
+    total += Object.keys(SEALS).length; have += d.seals.filter(id => SEALS[id]).length;
+    total += T.fragments; have += Math.min(T.fragments, d.fragmentsTotal);
+    total += T.pluses; have += Math.min(T.pluses, d.pluses);
+    total += T.bosses; have += Object.keys(d.bosses).filter(b => BOSSES[b]).length;
     total += FORGE.length; have += d.swordLevel || 0;
     return Math.round(have / total * 100);
   },
