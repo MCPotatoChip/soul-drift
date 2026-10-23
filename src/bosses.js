@@ -246,6 +246,30 @@ class Boss extends Enemy {
     }
     g.clear();
   }
+  // An aim line that follows the player, then freezes for the last `lock` seconds (the line turns solid and bright)
+  // so the shot goes where the line was last seen. The band drawn is as wide as the beam that follows it.
+  // Returns the locked angle: `const a = yield* this.lockOn(...)`.
+  *lockOn(origin, t, color = 0xff3050, { lock = 0.22, turn = 6, width = 10, len = 720 } = {}) {
+    const g = this.gfx, at = () => (typeof origin === 'function' ? origin() : origin);
+    let o = at(), a = this.aimAt(o.x, o.y), e = 0;
+    const total = Math.max(t, lock + 0.05);
+    while (e < total) {
+      e += this.dt;
+      o = at();
+      const locked = e >= total - lock;
+      if (!locked) {
+        const want = this.aimAt(o.x, o.y), diff = Phaser.Math.Angle.Wrap(want - a), step = turn * this.dt;
+        a += Phaser.Math.Clamp(diff, -step, step);
+      }
+      const x2 = o.x + Math.cos(a) * len, y2 = o.y + Math.sin(a) * len;
+      g.clear();
+      g.lineStyle(width, color, locked ? 0.3 : 0.12); g.lineBetween(o.x, o.y, x2, y2);
+      g.lineStyle(locked ? 2 : 1, color, locked ? 1 : 0.4 + 0.4 * Math.abs(Math.sin(e * 30))); g.lineBetween(o.x, o.y, x2, y2);
+      yield 0;
+    }
+    g.clear();
+    return a;
+  }
   aimAt(ox, oy) { const p = this.player; return Math.atan2(p.body.center.y - oy, p.x - ox); }
   // A ground shockwave rolling away along the floor
   shock(x, dir, tint, speed = 250, scale = 1) {
@@ -712,12 +736,11 @@ class Menos extends Boss {
   *cero() {
     this.face();
     const m = this.mouth();
-    let ang = this.aimAt(m.x, m.y);
-    if (Math.cos(ang) * this.facing < 0.25) ang = this.facing > 0 ? 0.3 : Math.PI - 0.3;
     this.orb.setPosition(m.x, m.y).setVisible(true).setScale(0.2);
     this.scene.tweens.add({ targets: this.orb, scale: 1.2, duration: 800 });
     this.setPose('cero', 1.5);
-    yield* this.aimLine(m.x, m.y, ang, 0.85);
+    let ang = yield* this.lockOn(m, 0.85, 0xff3050, { width: 12 });
+    if (Math.cos(ang) * this.facing < 0.25) ang = this.facing > 0 ? 0.3 : Math.PI - 0.3;   // the mouth cannot point backward
     yield* this.beam(m.x, m.y, ang, 0.55, 0, 12);
     this.orb.setVisible(false);
     yield 0.3;
@@ -841,9 +864,8 @@ class Duelist extends Boss {
     this.face();
     const ox = () => ({ x: this.x + this.facing * 10, y: this.y - 6 });
     const o = ox();
-    const a = this.aimAt(o.x, o.y);
     this.setPose('cast', aim / this.spd + dur + 0.2);
-    yield* this.aimLine(o.x, o.y, a, aim / this.spd, col[1]);
+    const a = yield* this.lockOn(ox, aim / this.spd, col[1], { width });
     yield* this.beam(o.x, o.y, a, dur, sweep, width, 720, col);
     yield 0.3;
   }
@@ -1104,9 +1126,8 @@ class Byakuya extends Duelist {
   *byakurai() {
     this.face();
     const o = { x: this.x + this.facing * 10, y: this.y - 6 };
-    const a = this.aimAt(o.x, o.y);
     this.setPose('cast', 0.9);
-    yield* this.aimLine(o.x, o.y, a, 0.5 / this.spd, 0xbfe6ff);
+    const a = yield* this.lockOn(o, 0.5 / this.spd, 0xbfe6ff, { width: 5, lock: 0.16 });
     Sfx.play('zap');
     yield* this.beam(o.x, o.y, a, 0.14, 0, 5, 720, [0x7fb4ff, 0xd8ecff, 0xffffff]);
     yield 0.35;
@@ -1362,8 +1383,7 @@ class Grimmjow extends Duelist {
     this.body.setAllowGravity(false); this.body.setVelocity(0, 0);
     this.facing = left ? 1 : -1;
     this.setPose('charge', 0.4);
-    const p = this.player, a = Math.atan2(p.body.center.y - this.y, p.x - this.x);
-    yield* this.aimLine(this.x, this.y, a, 0.35 / this.spd, 0x58b8e8);
+    const a = yield* this.lockOn(() => ({ x: this.x, y: this.y }), 0.4 / this.spd, 0x58b8e8, { width: 24, lock: 0.18, len: 420 });
     const hb = this.scene.addHurt(0, 0, 24, 26, 1, 1.2, (h) => { h.x = this.x - 12; h.y = this.y - 13; });
     this.setPose('dash', 1);
     Sfx.play('dash');
@@ -1532,13 +1552,16 @@ class Ulquiorra extends Duelist {
   // a straight dive at the player, wings folded
   *swoop() {
     if (!this.flying) yield* this.flyTo(this.x, this.arena.floor - 120, 0.6);
-    const p = this.player, a = Math.atan2(p.body.center.y - this.y, p.x - this.x);
+    const p = this.player;
     this.setPose('charge', 0.5);
-    yield* this.aimLine(this.x, this.y, a, 0.4 / this.spd, 0x3ae88a);
+    this.body.setVelocity(0, 0);
+    // the line follows you, then locks: the dive goes exactly where it last pointed, and as far as you stood
+    const a = yield* this.lockOn(() => ({ x: this.x, y: this.y }), 0.5 / this.spd, 0x3ae88a, { width: 24, lock: 0.2, len: 330 });
+    const reach = Math.hypot(p.body.center.x - this.x, p.body.center.y - this.y);
     const hb = this.scene.addHurt(0, 0, 24, 26, 1, 1, (h) => { h.x = this.x - 12; h.y = this.y - 13; });
     this.setPose('dash', 0.8);
     Sfx.play('dash');
-    let t = 0.55;
+    let t = Phaser.Math.Clamp((reach + 40) / (470 * this.spd), 0.3, 0.75);
     while (t > 0) {
       t -= this.dt;
       this.body.setVelocity(Math.cos(a) * 470 * this.spd, Math.sin(a) * 470 * this.spd);
@@ -1573,9 +1596,8 @@ class Ulquiorra extends Duelist {
     this.scene.fx.floatText(this.x, this.y - 30, '"Cero Oscuras."', '#b8f8d0');
     this.body.setVelocity(0, 0);
     const o = { x: this.x + this.facing * 10, y: this.y - 4 };
-    const a = this.aimAt(o.x, o.y);
     this.setPose('cast', 2);
-    yield* this.aimLine(o.x, o.y, a, 0.95 / this.spd, 0x3ae88a);
+    const a = yield* this.lockOn(o, 0.95 / this.spd, 0x3ae88a, { width: 18, lock: 0.3 });
     yield* this.beam(o.x, o.y, a, 0.8, this.facing * 0.25, 18, 720, [0x0a0a10, 0x1a6a3a, 0x3ae88a]);
     yield 0.4;
   }

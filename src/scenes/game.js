@@ -892,7 +892,7 @@ class GameScene extends Phaser.Scene {
     const p = this.player, px = p.body.center.x, py = p.body.center.y;
     const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1;
     const t = Phaser.Math.Clamp(((px - x1) * dx + (py - y1) * dy) / L2, 0, 1);
-    if (Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t)) < halfW + 7) p.takeDamage(dmg, x1);
+    if (Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t)) < halfW + 5) p.takeDamage(dmg, x1);   // the drawn beam plus a little of the body
   }
 
   // ------------------------------------------------------------------ checks
