@@ -158,6 +158,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (!this.alive || this.invulnerable) return 'none';
     if (this.blocks && this.blocks(dirX, o)) return 'block';
     if (this.elite === 'armored') dmg *= 0.67;
+    if (!this.isBoss) dmg *= GS.studyMul(this.kind);
     this.calmT = 0;
     this.hp -= dmg;
     this.flashT = 0.08;

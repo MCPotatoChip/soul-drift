@@ -67,10 +67,12 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
 - **Wall grip** holds only while you press toward the wall; let go and you drop. The map marks every exit into a room you have never entered with a gold `?`, and the compass also lists what is left in rooms you know a way into. Travel lists its gates in two columns.
 - **Tempers**: once the edge is fully sharpened, the swordsmith spends spare reishi ore on Keen (+8% slash damage, ×3), Quick (6% less time between slashes, ×2) and Long (+8% slash reach, ×2). The world holds 7 ore: 3 go to the edge and 1 to the Ōdachi, so the rest is a choice.
 - **Beams and dives track you, then lock**: the aim line of every Cero, Byakurai, Cero Oscuras and the diving dashes (Ulquiorra's swoop, Grimmjow's wall kick) follows the player and freezes for the last 0.16 to 0.3 seconds, turning solid. The shot goes exactly where the frozen line pointed, the band drawn is as wide as the beam, and dives travel as far as you stood. Beams hurt only inside their drawn width plus a little of the body.
+- **Hard bosses** (Settings, Assist): +35% boss health and 12% faster. **Study**: sending on 15 of a kind and hearing its memory each add 5% damage against it (Journal). **The map marks the next step of every favour** with a gold `!`, whether or not you own the compass.
+- **Touch**: layout presets (default, left-handed, compact, big) and a "tap to toggle" option for Heal, Konsō and Burst, in the layout editor.
 - **Travel** lists gates in journey order: region by region, west to east.
 - **Records** spells out every favour: what is done, what is left and the room each step is in.
 - **Touch controls**: buttons for powers you do not own yet stay hidden, and hints in dialogue and prompts name the on-screen button (USE, KONSŌ) instead of a keyboard key.
-- **49 rooms in 10 regions**: Karakura Town (空座町), Rukongai (流魂街), the Seireitei (瀞霊廷), Sōkyoku Hill (双殛の丘), Hueco Mundo (虚圏), the Inner World (精神世界), the optional Dangai (断界) and Forest of Menos (大虚の森), Urahara's Study Room (勉強部屋) under the shop, and the Soul King Palace (霊王宮), which opens at 100%.
+- **51 rooms in 10 regions**: Karakura Town (空座町), Rukongai (流魂街), the Seireitei (瀞霊廷), Sōkyoku Hill (双殛の丘), Hueco Mundo (虚圏), the Inner World (精神世界), the optional Dangai (断界) and Forest of Menos (大虚の森), Urahara's Study Room (勉強部屋) under the shop, and the Soul King Palace (霊王宮), which opens at 100%.
 - **The powers, in the order you earn them** (each one a few rooms and usually a boss after the last):
 
   | Power | Where | Opens |
@@ -112,6 +114,8 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
   - Ulquiorra Cifer (optional): Cero, Sonído, then Murciélago in the air: the Lanza del Relámpago and Cero Oscuras
   - Aaroniero Arruruerie (optional): unseen until struck with the Konsō hilt, Nejibana's water, then Glotonería
   - Kisuke Urahara (optional, Study Room): see above
+  - Nnoitra Gilga (optional, past the east wall of the Mask Shrine): a scythe taller than he is: sweeps, two crescent waves, a vault over you, then Santa Teresa and four arms. Reward: Tesla's Charm (a hit leaves you untouchable 40% longer) and ore
+  - Yammy Llargo (optional, past the east wall of the Bone Vault): huge, never staggered: fists, quakes, a slow wide Cero, then Ira, with columns of Reiatsu where you stood. Reward: Llargo's Might (+20% slash damage) and a soul fragment
   - Hollow Ichigo (final): four phases. Getsuga, a blade thrown on its cloth (twice, later), Getsuga rain from the roof, a sweeping Cero, a flurry of Tensa dashes, black spires across the whole floor and, with a fifth of his strength left, nothing held back at all. He punishes a heal in front of him. Over three times the health of the old fight, and faster in every phase
   - Every boss weighs its attacks by distance rather than choosing by it, rarely repeats itself, picks the attacks that reach you if you stand still, and comes to you when you keep away
   - The music climbs with each phase: a faster pulse, then a bass line, then a trembling high string
@@ -123,16 +127,18 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
   5. Kenpachi (640, takes a quarter less from every blow): 166
   6. Byakuya (560): 169. The petals are what hurt
   7. Kisuke Urahara (640, optional): about 170. Fewer blows in melee, many more at range
-  8. Aaroniero (600, optional): 245
-  9. Ulquiorra (680, optional): about 260, and hard to reach once he takes flight
-  10. Vasto Lorde (600): about 335, also airborne
-  11. Hollow Ichigo (1700): about 380, over three times the health he used to have and four phases
+  8. Yammy Llargo (860, optional): 241. Never staggered, slow and heavy
+  9. Aaroniero (600, optional): 245
+  10. Ulquiorra (680, optional): about 260, and hard to reach once he takes flight
+  11. Nnoitra Gilga (720, optional): 297. The longest reach in the game, then four arms
+  12. Vasto Lorde (600): about 335, also airborne
+  13. Hollow Ichigo (1700): about 380, over three times the health he used to have and four phases
   Held-slash spam alone, with no dodging at all, takes 70 to 90 seconds on the easiest of them while eating a blow every 1.5 seconds, and about five minutes on the last.
 - **Elite enemies**: some foes carry a trait, marked by a kanji over the head: Armoured (鋼, takes a third less damage), Hasty (速, winds up and recovers faster), Volatile (爆, bursts when it falls) and Undying (再, mends when left alone). They have more health and drop twice the reishi. A first journey meets them only in Hueco Mundo and the Forest of Menos; New Game+ meets them everywhere, more each cycle. The same placement is always the same elite.
 - **Progression and economy**:
   - 19 Zanpakutō seals (all fit on one screen, in two columns) with slot costs, equipped at rest gates (Lion's Pride and the Shiba Crest come from favours)
   - 19 soul fragments (every four add one mask of health), 9 Lost Pluses (they reward seal slots, two seals and reishi)
-  - **9 power upgrades** (one pickup each, spread across the regions, some behind seals or walls only a power can climb): **Kidō Mastery** ×3 (+20% damage on every Kidō per level), **Kidō Reach** ×3 (bigger bolts, wider Raikōhō blasts and a longer Bakudō per level), **Moon Fang Edge** ×2 (Getsuga cuts 25% deeper and grows wider) and **Reiatsu Flow** ×1 (+25% Reiatsu from strikes). They show in the Inventory
+  - **17 power upgrades** (the four newest tracks are **Shunpo Edge** ×2: Shunpo recovers 15% faster and carries further; **Mask Mastery** ×2: the mask takes 15% longer to overwhelm you; **Bankai Span** ×2: Bankai lasts 20% longer; **Burst Drive** ×2: Burst charges 15% faster and flies 12% quicker. Each pickup sits on a plank in one room: Shunpo in West District 2 and the Courtyard, Burst in the Atrium and West Hueco Mundo 3, the Mask in the Forest depths and Sideways City, Bankai in the Dune Sea and Hueco Mundo 2). The first nine (one pickup each, spread across the regions, some behind seals or walls only a power can climb): **Kidō Mastery** ×3 (+20% damage on every Kidō per level), **Kidō Reach** ×3 (bigger bolts, wider Raikōhō blasts and a longer Bakudō per level), **Moon Fang Edge** ×2 (Getsuga cuts 25% deeper and grows wider) and **Reiatsu Flow** ×1 (+25% Reiatsu from strikes). They show in the Inventory
   - The swordsmith in Rukongai sharpens your Zanpakutō through three levels with reishi and reishi ore
   - **Zanpakutō forms**, switched at rest gates: Zangetsu (balanced), Ōdachi (slow, long, heavy; the swordsmith forges it after the first sharpening for 400 reishi and an ore) and Kodachi (quick, short, lighter; Urahara's reward)
   - Urahara's shop, the Pin Compass (**on the shelf only once the story has ended**: it marks every power, seal, upgrade, fragment, ore and Lost Plus you have not found yet), Lingering Reiatsu where you die, the old man's quest for memories

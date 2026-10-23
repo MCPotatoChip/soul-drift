@@ -571,6 +571,42 @@ def steer_foes(R):
 PADS = widen(R)
 print('foes steered', steer_foes(R))
 
+
+# World 4 power upgrades for Shunpo, the Hollow Mask, Bankai and Burst: one pickup on a plank in each of these rooms.
+# (room, x, y, upgrade) in the finished, widened grids. Pickups are read in scan order, so the room's list is rebuilt.
+NEW_UPGRADES = [
+    ('ruk_2', 51, 10, 'shunpoEdge'), ('sei_ward', 44, 16, 'shunpoEdge'),
+    ('hm_3', 39, 11, 'burstDrive'), ('hm_hall2', 47, 13, 'burstDrive'),
+    ('forest_depths', 29, 13, 'maskHold'), ('end_1', 41, 12, 'maskHold'),
+    ('hm_dunes', 23, 20, 'bankaiLast'), ('hm_2', 49, 13, 'bankaiLast'),
+]
+
+
+def place_upgrades(R):
+    for rid, x, y, up in NEW_UPGRADES:
+        r = R[rid]
+        rows = [list(t) for t in r['tiles']]
+        known = {}
+        olds = list(r.get('upgrades') or [])
+        n = 0
+        for yy, row in enumerate(rows):
+            for xx, ch in enumerate(row):
+                if ch == 'w':
+                    known[(xx, yy)] = olds[n]
+                    n += 1
+        assert rows[y][x] == '.', (rid, x, y, rows[y][x])
+        rows[y][x] = 'w'
+        before = sorted(known, key=lambda k: (k[1], k[0]))
+        known[(x, y)] = up
+        r['tiles'] = [''.join(t) for t in rows]
+        after = sorted(known, key=lambda k: (k[1], k[0]))
+        r['upgrades'] = [known[k] for k in after]
+        if before:   # an older pickup may now come later in the scan: its saved "taken" key has to follow it
+            print('UPGRADE SHIFT', rid, [after.index(k) for k in before])
+
+
+place_upgrades(R)
+
 # Where each room sits on the map (top-left corner, in map units: a room's box is its size in tiles divided by ten).
 # Rooms stand beside the door that leads to them, with a gap between neighbours so names and marks never crowd.
 LAYOUT = {
@@ -592,6 +628,7 @@ LAYOUT = {
     'hm_2': (115.3, -17.2), 'hm_side': (116.4, -20.4), 'hm_3': (121.8, -17.2), 'hm_dome': (122.2, -20.9), 'hm_boss': (121.8, -12.5),
     'hm_hall2': (128.7, -16.4), 'hm_grimm': (136.0, -16.4),
     'forest_1': (102.3, -13.2), 'forest_depths': (107.6, -11.1), 'forest_2': (115.7, -10.8),
+    'hm_nnoitra': (116.4, -24.4), 'hm_yammy': (110.8, -24.4),
     'palace': (6.0, -14.0),
 }
 

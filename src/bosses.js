@@ -17,7 +17,7 @@ class Boss extends Enemy {
     this.isBoss = true;
     this.id = cfg.id;
     // A sharper Zanpakutō (forge levels) means a tougher boss, so the upgrades do not turn fights into a formality
-    this.hp = this.maxHp = Math.round(this.maxHp * GS.bossHpMul());
+    this.hp = this.maxHp = Math.round(this.maxHp * GS.bossHpMul() * (Settings.get('bossHard') ? 1.35 : 1));
     this.fighting = false;
     this.invulnerable = true;
     this.kbRes = 0;
@@ -82,7 +82,7 @@ class Boss extends Enemy {
     for (const h of this.hazards) h.tick(dt);
     this.hazards = this.hazards.filter(h => !h.dead);
     if (!this.fighting) { this.body.setVelocityX(0); return; }
-    if (this.ai) this.ai.tick(dt);
+    if (this.ai) this.ai.tick(Settings.get('bossHard') ? dt * 1.12 : dt);
     this.checkPhase && this.checkPhase();
   }
   // The player has barely moved for a while (hiding on a ledge, waiting by a wall)
@@ -360,8 +360,8 @@ class Boss extends Enemy {
         fx.ring(x, y, 0xf2d040, 120, 900, 4);
         wisps(6, 0xffe080);
         break;
-      case 'grimmjow': case 'ulquiorra': case 'espada': {   // the Hollow turns to ash, and the ash drifts up
-        const c = { grimmjow: 0x58b8e8, ulquiorra: 0x3ae88a, espada: 0x8a5ad8 }[this.id];
+      case 'grimmjow': case 'ulquiorra': case 'espada': case 'nnoitra': case 'yammy': {   // the Hollow turns to ash, and the ash drifts up
+        const c = { grimmjow: 0x58b8e8, ulquiorra: 0x3ae88a, espada: 0x8a5ad8, nnoitra: 0x8a7cff, yammy: 0xff8a40 }[this.id];
         fx.shatter(x, y, [0xece8f1, 0x9a96a8, c], 40, 100, -40, 1700);
         for (let i = 0; i < 3; i++) s.time.delayedCall(i * 180, () => fx.ring(x, y, c, 40 + i * 30, 500, 2));
         wisps(10, c);
@@ -2313,7 +2313,187 @@ class Vasto extends Boss {
   onDie() { this.orb.destroy(); this.scene.restoreFloor(); }
 }
 
+// ---------------------------------------------------------------------------
+// Nnoitra Gilga, Quinta Espada (optional): a scythe taller than a doorway. He sweeps, sends
+// crescent waves along the floor and vaults over you; released, Santa Teresa gives him four arms.
+class Nnoitra extends Duelist {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, { id: 'nnoitra', key: 'nnoitra', hp: 720, drop: 40, kind: 'nnoitra', bh: 28, scale: 1.12, auraTint: 0x8a7cff });
+    this.walkSpeed = 58; this.prefer = 100; this.patience = 2.4; this.pause = 0.4; this.nearDist = 120;
+    this.introLine = '"Ya want to see how a real Espada fights?"';
+    this.lineColor = '#e0d8ff';
+  }
+  moveList() {
+    return [
+      { name: 'scytheSweep', w: 3, range: [0, 130] },
+      { name: 'crescentWave', w: 2.5, range: [80, 520] },
+      { name: 'vaultCut', w: 2, range: [60, 400], punish: true },
+      { name: 'ceroSnap', w: 1.5, range: [140, 700], maxPhase: 1 },
+      { name: 'fourArms', w: 3, phase: 2, range: [0, 200] },
+      { name: 'sonidoPair', w: 2, phase: 2, punish: true, cd: 5 },
+      { name: 'wideCero', w: 2, phase: 2, range: [120, 700], cd: 4 },
+    ];
+  }
+  // one long sweep of the blade, a wave rolling off it
+  *scytheSweep() {
+    yield* this.walkToward(78, 1);
+    this.face();
+    yield* this.tele(0.5, 0xc8b8ff, 'windup');
+    const f = this.facing;
+    this.slashBox(104, 46, 0.18, 0xc8b8ff, 2.4);
+    this.shock(this.x + f * 50, f, 0xc8b8ff, 240, 1.1);
+    this.scene.fx.shake(180, 0.01);
+    yield 0.55;
+  }
+  // two waves a beat apart: the first to jump, the second to jump again
+  *crescentWave() {
+    this.face();
+    yield* this.tele(0.45, 0xc8b8ff, 'windup');
+    for (let i = 0; i < 2; i++) {
+      const f = this.facing;
+      this.slashBox(60, 40, 0.1, 0xc8b8ff, 1.8);
+      this.shock(this.x + f * 36, f, 0xc8b8ff, 300 + i * 40, 1.5);
+      Sfx.play('wave');
+      yield 0.42 / this.spd;
+      this.face();
+    }
+    yield 0.25;
+  }
+  // over your head and down on the far side
+  *vaultCut() {
+    this.face();
+    yield* this.tele(0.3, 0xc8b8ff, 'charge');
+    this.setPose('jump', 0.6);
+    yield* this.leapAt(this.player.x + this.player.facing * 40, -560);
+    this.face();
+    this.setPose('strike', 0.25);
+    this.slashBox(90, 44, 0.14, 0xc8b8ff, 2.2);
+    this.scene.fx.shake(250, 0.012);
+    Sfx.play('break');
+    this.shock(this.x - 20, -1, 0xc8b8ff, 260);
+    this.shock(this.x + 20, 1, 0xc8b8ff, 260);
+    yield 0.45;
+  }
+  *ceroSnap() { yield* this.cero([0x6a4ad8, 0xb8a8ff, 0xffffff], 0.6, 0.4, 10); }
+  checkPhase() {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.release()); }
+  }
+  *release() {
+    yield* this.changeForm('nnoitra_r', '"Praise... Santa Teresa."', { text: 'RESURRECCIÓN', color: '#c8b8ff', small: 'Santa Teresa' }, 0x8a6ad8, '#e0d8ff');
+    this.aura.emitting = true;
+    this.spd = 1.2; this.walkSpeed = 74; this.armor = 0.9;
+    yield* this.brain();
+  }
+  // four arms, four cuts, stepping in
+  *fourArms() {
+    yield* this.walkToward(70, 0.7, this.walkSpeed * 1.6);
+    for (let i = 0; i < 4; i++) {
+      this.face();
+      yield* this.tele(0.2, 0xff80d0);
+      this.body.setVelocityX(this.facing * 120);
+      this.slashBox(i % 2 ? 90 : 110, 40, 0.1, 0xc8b8ff, 2);
+      yield 0.14;
+      this.body.setVelocityX(0);
+      yield 0.06 / this.spd;
+    }
+    yield 0.35;
+  }
+  *sonidoPair() {
+    yield* this.flashStep(0xc8b8ff, 0.3);
+    yield* this.flashStep(0xc8b8ff, 0.22);
+  }
+  *wideCero() { yield* this.cero([0x6a4ad8, 0xb8a8ff, 0xffffff], 0.8, 0.5, 16, this.facing * 0.2); }
+}
+
+// ---------------------------------------------------------------------------
+// Yammy Llargo, Décima Espada (optional): slow, huge and never staggered. Fists, quakes and a
+// great Cero; in Ira, columns of Reiatsu rise one after another where you stand.
+class Yammy extends Duelist {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, { id: 'yammy', key: 'yammy', hp: 860, drop: 45, kind: 'yammy', bh: 28, scale: 1.45, armor: 0.8, auraTint: 0xff8a40 });
+    this.noFlinch = true;
+    this.walkSpeed = 46; this.prefer = 70; this.patience = 2.6; this.pause = 0.55; this.nearDist = 110;
+    this.introLine = '"Hah! Another bug to squash!"';
+    this.lineColor = '#ffc890';
+  }
+  moveList() {
+    return [
+      { name: 'hammerFist', w: 3, range: [0, 100] },
+      { name: 'quake', w: 2.5, range: [0, 400] },
+      { name: 'bofetada', w: 2, range: [140, 700], punish: true },
+      { name: 'bodyRush', w: 1.5, range: [100, 400], punish: true },
+      { name: 'columns', w: 3, phase: 2, range: [0, 600], cd: 5 },
+      { name: 'tantrum', w: 2, phase: 2, range: [0, 200], cd: 7 },
+    ];
+  }
+  *hammerFist() {
+    yield* this.walkToward(60, 1);
+    this.face();
+    yield* this.tele(0.6, 0xffa060, 'windup');
+    const f = this.facing;
+    this.slashBox(86, 64, 0.2, 0xffa060, 2.6);
+    this.shock(this.x + f * 50, f, 0xffa060, 230, 1.5);
+    this.scene.fx.shake(220, 0.014);
+    yield 0.6;
+  }
+  // the floor bucks both ways
+  *quake() {
+    this.face();
+    yield* this.tele(0.55, 0xffa060, 'charge');
+    this.setPose('strike', 0.4);
+    this.scene.addHurt(this.x - 60, this.y - 10, 120, 40, 1, 0.16);
+    this.scene.fx.shake(380, 0.02);
+    Controls.rumble(300, 0.9, 0.6);
+    Sfx.play('break');
+    this.shock(this.x - 30, -1, 0xffa060, 260, 1.7);
+    this.shock(this.x + 30, 1, 0xffa060, 260, 1.7);
+    yield 0.6;
+  }
+  // Cero Bofetada: a huge, slow beam
+  *bofetada() { yield* this.cero([0xc85a20, 0xff9a50, 0xfff0d8], 1, 0.7, 26); }
+  *bodyRush() {
+    this.face();
+    yield* this.tele(0.5, 0xffa060, 'charge');
+    yield* this.dashSlash(300, 0.5, 0xffa060);
+  }
+  checkPhase() {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.ira()); }
+  }
+  *ira() {
+    yield* this.changeForm('yammy_r', '"Rage... Ira!"', { text: 'IRA', color: '#ff8a40', small: 'Rage' }, 0xff8a40, '#ffc890');
+    this.aura.emitting = true;
+    this.spd = 1.2; this.walkSpeed = 60; this.armor = 0.85;
+    yield* this.brain();
+  }
+  // columns of Reiatsu where you stood a moment ago, three in a row
+  *columns() {
+    this.setPose('charge', 1.4);
+    Sfx.play('charge');
+    for (let i = 0; i < 3; i++) {
+      const x = this.player.x + (i === 0 ? 0 : (i % 2 ? 1 : -1) * 60 * i);
+      yield* this.pillar(Phaser.Math.Clamp(x, this.arena.left + 30, this.arena.right - 30), 52, 150, 0.55 / this.spd, 0xff8a40, 0.28);
+      this.scene.fx.shake(200, 0.012);
+      Sfx.play('break');
+    }
+    yield 0.4;
+  }
+  // three fists in a row, each with a wave
+  *tantrum() {
+    yield* this.walkToward(60, 0.6, this.walkSpeed * 1.8);
+    for (let i = 0; i < 3; i++) {
+      this.face();
+      yield* this.tele(0.3, 0xff6030, 'windup');
+      const f = this.facing;
+      this.slashBox(90, 66, 0.14, 0xffa060, 2.6);
+      this.shock(this.x + f * 50, f, 0xffa060, 260, 1.4);
+      this.scene.fx.shake(180, 0.012);
+      yield 0.22 / this.spd;
+    }
+    yield 0.4;
+  }
+}
+
 const BOSS_CLASSES = {
   fisher: GrandFisher, menos: Menos, renji: Renji, kenpachi: Kenpachi, byakuya: Byakuya,
-  grimmjow: Grimmjow, vasto: Vasto, ulquiorra: Ulquiorra, espada: Aaroniero, final: HollowIchigo, urahara: Urahara,
+  grimmjow: Grimmjow, vasto: Vasto, ulquiorra: Ulquiorra, espada: Aaroniero, final: HollowIchigo, urahara: Urahara, nnoitra: Nnoitra, yammy: Yammy,
 };

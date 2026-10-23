@@ -28,13 +28,14 @@ const Settings = {
     ['reiatsuGain', 'Reiatsu from strikes', 'steps', [[1, 'normal'], [1.5, '1.5×'], [2, '2×']]],
     ['speed', 'Game speed', 'steps', [[1, '100%'], [0.9, '90%'], [0.8, '80%'], [0.7, '70%']]],
     ['warnings', 'Attack warnings', 'steps', [[false, 'normal'], [true, 'bold']]],
+    ['bossHard', 'Boss difficulty', 'steps', [[false, 'normal'], [true, 'hard']]],
   ],
 
   defaults() {
     const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
     return {
       sfx: 0.8, music: 0.55, shake: 1, flash: 1, particles: coarse ? 0.4 : 1, damageNumbers: false, rumble: true, timer: false,
-      damage: 1, invuln: 1, reiatsuGain: 1, speed: 1, warnings: false,
+      damage: 1, invuln: 1, reiatsuGain: 1, speed: 1, warnings: false, bossHard: false,
     };
   },
 

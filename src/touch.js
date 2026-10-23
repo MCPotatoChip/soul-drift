@@ -19,11 +19,13 @@ const TOUCH_ACTIONS = [
 const TOUCH_NEEDS = {
   dash: ['dash'], kido: ['hado', 'bakudo', 'raiko'], konso: ['konso'], burst: ['burst'], bankai: ['bankai'], mask: ['hollow'],
 };
+// Hold buttons that can instead be tapped once to start and tapped again to stop (an option in the layout editor)
+const TOUCH_LATCH = ['heal', 'konso', 'burst'];
 const TOUCH_LABEL = Object.fromEntries(TOUCH_ACTIONS.map(a => [a[0], a[1]]));
 
 // Positions are percentages of the screen; sizes are percentages of its short side
 const TOUCH_DEFAULT = {
-  v: 1, enabled: null, scale: 1, opacity: 0.6,
+  v: 1, enabled: null, scale: 1, opacity: 0.6, latch: false,
   stick: { x: 15, y: 68, s: 34 },
   buttons: [
     { id: 'b1', action: 'jump', x: 91, y: 60, s: 17 },
@@ -49,6 +51,7 @@ const Touch = {
   mode: 'hidden',
   root: null,
   els: {},            // id -> element
+  latched: new Map(),  // button id -> key code held by a tap (latch option)
   pointers: new Map(), // pointerId -> { kind, id, code } for buttons, { kind: 'stick' } for the stick
   stick: { dirs: { left: false, right: false, up: false, down: false } },
   editing: false,
@@ -90,6 +93,7 @@ const Touch = {
       d.enabled = saved.enabled === undefined ? null : saved.enabled;
       d.scale = clampNum(saved.scale, 0.5, 1.8, 1);
       d.opacity = clampNum(saved.opacity, 0.15, 1, 0.6);
+      d.latch = !!saved.latch;
       if (saved.stick) d.stick = { x: clampNum(saved.stick.x, 0, 100, 15), y: clampNum(saved.stick.y, 0, 100, 68), s: clampNum(saved.stick.s, 18, 50, 34) };
       d.buttons = saved.buttons.filter(b => b && TOUCH_LABEL[b.action]).slice(0, 24)
         .map((b, i) => ({ id: String(b.id || 'b' + (100 + i)), action: b.action, x: clampNum(b.x, 0, 100, 50), y: clampNum(b.y, 0, 100, 50), s: clampNum(b.s, 5, 28, 12) }));
@@ -167,6 +171,13 @@ const Touch = {
       e.preventDefault(); e.stopPropagation();
       if (this.editing) return this.editDown(e, id);
       const code = getCode();
+      const btn = id && this.layout.buttons.find(x => x.id === id);
+      if (btn && this.layout.latch && TOUCH_LATCH.includes(btn.action)) {
+        // tap to start, tap again to stop
+        if (this.latched.has(id)) { const c = this.latched.get(id); this.latched.delete(id); el.classList.remove('down'); if (c) Controls.release(c); }
+        else { this.latched.set(id, code); el.classList.add('down'); if (code) Controls.press(code); }
+        return;
+      }
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
       el.classList.add('down');
       this.pointers.set(e.pointerId, { kind: 'key', el, code });
@@ -232,6 +243,8 @@ const Touch = {
     this.setDirs({ left: false, right: false, up: false, down: false });
     for (const [, p] of this.pointers) { if (p.kind === 'key') { p.el.classList.remove('down'); if (p.code) Controls.release(p.code); } }
     this.pointers.clear();
+    for (const [id, c] of this.latched) { const el = this.els[id]; if (el) el.classList.remove('down'); if (c) Controls.release(c); }
+    this.latched.clear();
     const knob = this.stickEl && this.stickEl.querySelector('.tknob');
     if (knob) knob.style.transform = '';
   },
@@ -354,6 +367,8 @@ const Touch = {
         <label>Opacity <input class="tp-op" type="range" min="15" max="100" step="5"></label></div>
       <div class="tp-row">
         <button type="button" class="tp-add">+ Add button</button>
+        <label>Preset <select class="tp-preset"><option value="">choose…</option><option value="default">Default</option><option value="lefty">Left-handed</option><option value="compact">Compact</option><option value="big">Big thumbs</option></select></label>
+        <label class="tp-check"><input type="checkbox" class="tp-latch"> Tap to toggle Heal, Konsō and Burst</label>
         <button type="button" class="tp-mirror">Mirror left / right</button>
         <button type="button" class="tp-reset">Reset layout</button>
         <button type="button" class="tp-off">Turn touch controls off</button>
@@ -370,6 +385,9 @@ const Touch = {
     q('.tp-op').addEventListener('input', (e) => { this.layout.opacity = +e.target.value / 100; this.layoutAll(); });
     q('.tp-add').addEventListener('click', () => this.addButton());
     q('.tp-mirror').addEventListener('click', () => this.mirror());
+    q('.tp-preset').addEventListener('change', (e) => { if (e.target.value) { this.applyPreset(e.target.value); e.target.value = ''; } });
+    q('.tp-latch').checked = !!this.layout.latch;
+    q('.tp-latch').addEventListener('change', (e) => { this.releaseAll(); this.layout.latch = e.target.checked; this.save(); });
     q('.tp-reset').addEventListener('click', () => this.resetLayout());
     q('.tp-off').addEventListener('click', () => { this.closeEditor(); this.setEnabled(false); });
     q('.tp-done').addEventListener('click', () => this.closeEditor());
@@ -434,12 +452,26 @@ const Touch = {
     this.layout.buttons.forEach(b => { b.x = 100 - b.x; });
     this.layoutAll(); this.save();
   },
+  // Ready-made arrangements: the default, mirrored for the left hand, smaller, or larger
+  applyPreset(name) {
+    this.resetLayout();
+    if (name === 'lefty') this.mirror();
+    if (name === 'compact') { this.layout.scale = 0.8; this.layout.opacity = 0.5; }
+    if (name === 'big') { this.layout.scale = 1.3; this.layout.opacity = 0.7; }
+    this.layoutAll();
+    if (this.panel) {
+      this.panel.querySelector('.tp-scale').value = Math.round(this.layout.scale * 100);
+      this.panel.querySelector('.tp-op').value = Math.round(this.layout.opacity * 100);
+    }
+    this.save();
+  },
   resetLayout() {
-    const keepEnabled = this.layout.enabled;
+    const keepEnabled = this.layout.enabled, keepLatch = this.layout.latch;
+    this.releaseAll();
     Object.values(this.els).forEach(el => el.remove());
     this.els = {};
     this.layout = JSON.parse(JSON.stringify(TOUCH_DEFAULT));
-    this.layout.enabled = keepEnabled;
+    this.layout.enabled = keepEnabled; this.layout.latch = keepLatch;
     this.layout.buttons.forEach(b => this.makeButton(b));
     this.selected = null;
     this.applyMode('edit', true);

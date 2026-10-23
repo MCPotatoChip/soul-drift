@@ -207,7 +207,7 @@ class UIScene extends Phaser.Scene {
     this.bankaiBar.clear();
     this.bankaiLabel.setVisible(bank);
     if (bank) {
-      const full = COMBAT.bankaiDuration * (GS.sealOn('gentei') ? COMBAT.genteiMul : 1);
+      const full = COMBAT.bankaiDuration * (GS.sealOn('gentei') ? COMBAT.genteiMul : 1) * (1 + 0.2 * GS.upgrade('bankaiLast'));
       const w = 200 * Math.min(1, GS.run.bankaiT / full);
       this.bankaiBar.fillStyle(0x07070b, 0.6).fillRect(262, 124, 204, 10);
       this.bankaiBar.fillStyle(0xd8343f, 1).fillRect(264, 126, w, 6);
