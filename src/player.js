@@ -32,6 +32,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.swingAlt = false;
     this.healBase = 0; this.healProg = 0;
     this.charge = 0;
+    this.env = { sand: false, pressure: false };   // quicksand under the feet, spirit pressure around the body
     this.aura = scene.add.particles(0, 0, 'dot', {
       speed: { min: 10, max: 40 }, angle: { min: 250, max: 290 }, lifespan: 500,
       scale: { start: 0.7, end: 0 }, alpha: { start: 0.7, end: 0 }, frequency: 40, emitting: false, tint: 0xc8202c,
@@ -45,7 +46,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const g = this.ring;
     g.clear();
     let p = 0, col = 0xffffff;
-    if (this.state === 'heal') { p = this.healProg / (GS.sealOn('quick') ? COMBAT.quickHealTime : COMBAT.healTime); col = 0xe8f4ff; }
+    if (this.state === 'heal') { p = this.healProg / this.healTime(); col = 0xe8f4ff; }
     else if (this.state === 'konso') { p = this.charge / 0.45; col = 0xbfe6ff; }
     else if (this.state === 'charge') { p = this.charge / PHYS.burstCharge; col = 0xff8a3a; }
     else if (this.gHold > 0.15 && GS.has('getsuga')) { p = this.gHold / (COMBAT.getsugaCharge * (GS.sealOn('moonfang') ? 0.6 : 1)); col = this.bankai ? 0xc8202c : 0x9ac8ff; }
@@ -78,7 +79,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   get bankai() { return GS.run.bankaiT > 0; }
 
   speedMul() { return (this.bankai ? 1.15 : 1) * (GS.run.maskOn ? 1.1 : 1); }
-  dmgMul() { return (GS.sealOn('edge') ? 1.4 : 1) * (GS.run.maskOn ? 1.5 : 1) * (this.bankai ? 1.8 : 1) * this.bellMul(); }
+  dmgMul() { return (GS.sealOn('edge') ? 1.4 : 1) * (GS.run.maskOn ? 1.5 : 1) * (this.bankai ? 1.8 : 1) * this.bellMul() * (GS.sealOn('pride') && GS.data.hp === 1 ? 1.75 : 1); }
   // Bell of the Eleventh: each strike that follows quickly on the last hits a little harder
   bellMul() { return GS.sealOn('bell') && this.bellT > 0 ? 1 + Math.min(COMBAT.bellMax, this.bellN * COMBAT.bellStep) : 1; }
   landedHit() {
@@ -87,6 +88,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.bellT = 0.9;
     if (this.bellN > 0) { Sfx.play('bell'); this.scene.fx.ring(this.x, this.body.center.y, 0xf2d040, 14 + this.bellN * 4, 220, 1); }
   }
+  formReiatsu() { return GS.form().rei; }
+  kidoCost(base) { return Math.round(base * (GS.sealOn('shiba') ? 0.75 : 1)); }
+  // Orihime's gift (Sōten Kisshun) takes a quarter off every heal
+  healTime() { return (GS.sealOn('quick') ? COMBAT.quickHealTime : COMBAT.healTime) * (GS.data.quests.orihime === 2 ? 0.75 : 1); }
   healCost() { return COMBAT.spellCost - (GS.sealOn('kaido') ? COMBAT.kaidoDiscount : 0); }
   // Caught by a binding Kido: held in place for a moment
   bindStun(t) {
@@ -125,7 +130,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.airT = grounded ? 0 : (this.airT || 0) + dt;
     this.wasGrounded = grounded;
-    if (grounded) {
+    // Quicksand is not ground, but you can still kick off it (feebly)
+    if (grounded || this.env.sand) {
       this.t.coyote = PHYS.coyote;
       this.airJumps = GS.has('wings') ? 1 : 0;
       this.canDash = true;
@@ -149,6 +155,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       case 'cling': this.updateCling(dt, inp); break;
       default: this.updateNormal(dt, inp, grounded);
     }
+    // Spirit pressure: the air itself pushes down
+    if (this.env.pressure && body.allowGravity && this.state !== 'dash') body.velocity.y += PHYS.gravity * 0.6 * dt;
     if (body.velocity.y > PHYS.maxFall) body.velocity.y = PHYS.maxFall;
     this.updateGetsuga(dt, inp);
     this.updateVisual(dt);
@@ -162,7 +170,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (dir !== 0 && this.t.recoil <= 0) this.facing = dir;
 
     if (this.t.recoil <= 0) {
-      const max = PHYS.runSpeed * this.speedMul();
+      const max = PHYS.runSpeed * this.speedMul() * (this.env.sand ? 0.45 : this.env.pressure ? 0.78 : 1);
       const accel = grounded ? (dir !== 0 ? PHYS.accelGround : PHYS.decelGround) : PHYS.accelAir;
       const control = this.t.wallLock > 0 ? 0.2 : 1;
       body.velocity.x = approach(body.velocity.x, dir * max, accel * control * dt);
@@ -195,7 +203,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   sheetKey() { return (this.bankai ? 'ichigo_b' : 'ichigo') + (GS.run.maskOn ? (this.bankai ? 'm' : '_m') : ''); }
   doJump(v, air) {
     const body = this.body;
-    body.velocity.y = -v;
+    body.velocity.y = -v * (this.env.sand ? 0.62 : this.env.pressure ? 0.82 : 1);
     this.landT = 0;
     if (this.atkAnimT <= 0) this.play(this.sheetKey() + ':jump');
     this.jumping = true;
@@ -280,6 +288,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.t.slide = (this.t.slide || 0) - dt;
       if (this.t.slide <= 0) { this.t.slide = 0.07; this.scene.fx.dust(this.x + this.wallDir * 5, body.center.y + 4, 2); }
     } else body.velocity.y = 0;
+    if (this.env.pressure) body.velocity.y = Math.max(body.velocity.y, PHYS.wallSlide * 0.7);   // no holding on under spirit pressure
 
     if (!this.touchingWall(this.wallDir, true)) {
       // Climbed past the top edge: pop onto the ledge
@@ -314,7 +323,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   // ---------------- Zanpakuto ----------------
   attack(inp, grounded) {
-    this.t.atkCD = this.bankai ? COMBAT.bankaiSlashCooldown : COMBAT.slashCooldown;
+    this.t.atkCD = (this.bankai ? COMBAT.bankaiSlashCooldown : COMBAT.slashCooldown) * GS.form().cd;
     let kind = 'side';
     if (inp.up) kind = 'up';
     else if (inp.down && (!grounded || this.scene.crackBelow(this))) kind = 'down';   // strike down into cracked ground
@@ -365,19 +374,20 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.t.kido > 0) return;
     const s = this.scene;
     if (inp.up && GS.has('bakudo')) {
-      if (GS.data.reiatsu < COMBAT.spellCost) { s.denied('Not enough Reiatsu'); return; }
-      if (s.castBakudo(this)) { GS.addReiatsu(-COMBAT.spellCost); this.t.kido = 0.35; this.castT = 0.3; }
+      if (GS.data.reiatsu < this.kidoCost(COMBAT.spellCost)) { s.denied('Not enough Reiatsu'); return; }
+      if (s.castBakudo(this)) { GS.addReiatsu(-this.kidoCost(COMBAT.spellCost)); this.t.kido = 0.35; this.castT = 0.3; }
     } else if (inp.down && GS.has('raiko') && this.state !== 'cling') {
-      if (GS.data.reiatsu < COMBAT.raikoCost) { s.denied(`Raikōhō needs ${COMBAT.raikoCost} Reiatsu`); return; }
-      GS.addReiatsu(-COMBAT.raikoCost);
+      const cost = this.kidoCost(COMBAT.raikoCost);
+      if (GS.data.reiatsu < cost) { s.denied(`Raikōhō needs ${cost} Reiatsu`); return; }
+      GS.addReiatsu(-cost);
       s.castRaiko(this);
       this.castT = 0.4;
       this.t.kido = 0.7;
       this.body.velocity.x = -this.facing * 150;
       this.t.recoil = 0.12;
     } else if (GS.has('hado')) {
-      if (GS.data.reiatsu < COMBAT.spellCost) { s.denied('Not enough Reiatsu'); return; }
-      GS.addReiatsu(-COMBAT.spellCost);
+      if (GS.data.reiatsu < this.kidoCost(COMBAT.spellCost)) { s.denied('Not enough Reiatsu'); return; }
+      GS.addReiatsu(-this.kidoCost(COMBAT.spellCost));
       s.castHado(this);
       this.castT = 0.3;
       this.t.kido = 0.35;
@@ -400,8 +410,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     body.velocity.x = 0;
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
     if (!inp.healH || dir !== 0 || !this.grounded) { this.state = 'normal'; return; }
-    const time = GS.sealOn('quick') ? COMBAT.quickHealTime : COMBAT.healTime;
-    if (this.bankai) this.healBase = Math.min(COMBAT.maxReiatsu, this.healBase + COMBAT.bankaiRegen * dt);
+    const time = this.healTime();
+    if (this.bankai) this.healBase = Math.min(GS.reiCap(), this.healBase + COMBAT.bankaiRegen * dt);
     this.healProg += dt;
     GS.data.reiatsu = Math.max(0, this.healBase - this.healCost() * Math.min(1, this.healProg / time));
     if (Math.random() < 0.5) this.scene.fx.motes(this.x + Phaser.Math.Between(-8, 8), this.y + 8, 0xe8f4ff, 1);
@@ -548,6 +558,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   tryBankai() {
     const s = this.scene;
     if (!GS.has('bankai') || this.bankai) return;
+    if (GS.rush && GS.rush.bind.reiatsu) { s.denied('The binding on your Reiatsu holds Bankai back'); return; }
     if (GS.data.reiatsu < COMBAT.maxReiatsu - 0.5) { s.denied('Bankai needs a full Reiatsu vessel'); return; }
     GS.data.reiatsu = 0;
     GS.run.bankaiT = COMBAT.bankaiDuration * (GS.sealOn('gentei') ? COMBAT.genteiMul : 1);
@@ -595,8 +606,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
     Controls.rumble(200, 0.8, 0.5);
     if (['cling', 'dash', 'charge', 'burst'].includes(this.state)) body.setAllowGravity(true);
-    GS.data.hp -= amount;
-    this.t.invuln = 1.1;
+    GS.data.hp -= o.force ? amount : GS.lose(amount);
+    this.t.invuln = 1.1 * (o.force ? 1 : Settings.get('invuln'));
     Sfx.play('hurt');
     s.hitStop(0.1);
     s.fx.shake(180, 0.012);

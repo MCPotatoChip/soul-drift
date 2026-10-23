@@ -33,8 +33,8 @@ class GameScene extends Phaser.Scene {
     this.hinted = {};
     this.inputLock = 0;
     this.carryP = null; this.lastP = new Set();
-    this.slow = null; this.tscale = 1; this.lookT = 0;
-    this.anims.globalTimeScale = 1;
+    this.slow = null; this.lookT = 0;
+    this.applyTimeScale(1);
     this.swing = null;
     this.crackHits = {};
     this.trueSight = GS.has('konso');
@@ -44,6 +44,8 @@ class GameScene extends Phaser.Scene {
     this.chase = null; this.chaseImg = null; this.chaseFx = null;
     this.lockedCells = []; this.bankaiOpened = false; this.revealHint = false;
     this.promptTarget = null; this.respawning = false;
+    this.lanterns = []; this.barriers = { gold: [], blue: [] }; this.litT = 0; this.litTick = 0;
+    this.pressure = null; this.pressureT = 0; this.waves = null; this.duel = null; this.checkT = 1;
 
     this.enemyGroup = this.add.group();
     this.platformGroup = this.add.group();
@@ -73,7 +75,10 @@ class GameScene extends Phaser.Scene {
       if (this.bossStarted) { this.game.events.emit('boss-end', { silent: true }); Music.setBoss(false); }
     });
 
-    if (GS.run.region !== this.region) {
+    if (GS.rush) {
+      // a trial: no area titles, and the fight begins as soon as you arrive (a hidden boss waits to be found)
+      if (this.boss && !this.boss.waitsForReveal) this.time.delayedCall(800, () => { if (!this.bossStarted && this.boss.alive) this.startBoss(); });
+    } else if (GS.run.region !== this.region) {
       GS.run.region = this.region;
       this.game.events.emit('area', { name: REGIONS[this.region].name, sub: REGIONS[this.region].sub, kanji: REGIONS[this.region].kanji });
     } else if (firstVisit) {
@@ -90,6 +95,7 @@ class GameScene extends Phaser.Scene {
 
   onResume() {
     Controls.clearPresses();
+    if (!this.slow) this.applyTimeScale(1);   // the game speed may have changed in the menu
     if (this.player && this.player.state === 'locked') { this.player.state = 'normal'; this.player.poseT = Math.min(this.player.poseT, 0.2); }
   }
 
@@ -113,10 +119,12 @@ class GameScene extends Phaser.Scene {
     this.solid = map.createBlankLayer('solid', ts).setDepth(5);
     this.oneway = map.createBlankLayer('oneway', ts).setDepth(5);
     this.hidden = map.createBlankLayer('hidden', ts).setDepth(5);
+    // quicksand is drawn in front of the player, so whatever sinks into it disappears
+    this.sandLayer = map.createBlankLayer('sand', ts).setDepth(22);
 
     const get = (x, y) => (y >= 0 && y < H && x >= 0 && x < W) ? (rows[y][x] || '.') : '.';
     const solidAbove = (x, y) => '#XGOD~'.includes(get(x, y - 1)) && !GS.isBroken(room, x, y - 1);
-    const cnt = { k: 0, c: 0, N: 0, M: 0, f: 0, l: 0, o: 0 };
+    const cnt = { k: 0, c: 0, N: 0, M: 0, f: 0, l: 0, o: 0, r: 0 };
     let bossPos = null;
 
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -168,6 +176,23 @@ class GameScene extends Phaser.Scene {
           break;
         }
         case 'W': this.interactables.push(new Smith(this, cx, feet)); break;
+        case 'Q': this.solid.putTileAt(T.BARRIER, x, y); this.barriers.gold.push({ x, y }); break;
+        case 'K': this.barriers.blue.push({ x, y }); break;
+        case 't': this.lanterns.push(new Lantern(this, cx, feet)); break;
+        case 's': this.sandLayer.putTileAt(T.SAND, x, y); break;
+        case 'p': (this.pressure || (this.pressure = new Uint8Array(W * H)))[y * W + x] = 1; break;
+        case 'U': this.interactables.push(new Ladder(this, cx, feet)); break;
+        case 'A': this.interactables.push(new TrialAltar(this, cx, feet)); break;
+        case 'r': {
+          const key = `${room}:r${cnt.r++}`;
+          if (!GS.isTaken(key)) this.pickups.push(new Pickup(this, cx, feet - 10, 'petal', null, key));
+          break;
+        }
+        case 'C': {
+          const key = `${room}:C`;
+          if (!GS.isTaken(key) && d.quests.kon !== 2) this.pickups.push(new Pickup(this, cx, feet - 10, 'item', 'gikongan', key));
+          break;
+        }
         case 'Z': new Portal(this, cx, y * TILE + 8); break;
         case 'n': this.uid(x, y); new Gillian(this, cx, feet); break;
         case 'o': {
@@ -197,6 +222,7 @@ class GameScene extends Phaser.Scene {
     }
 
     this.solid.setCollision(SOLID_INDEXES);
+    if (this.pressure) this.buildPressure();
     this.oneway.forEachTile(t => { if (t.index >= 0) t.setCollision(false, false, true, false); });
     this.hidden.forEachTile(t => { if (t.index >= 0) t.setCollision(false, false, true, false); });
     this.hidden.setVisible(this.trueSight);
@@ -206,7 +232,7 @@ class GameScene extends Phaser.Scene {
       let fy = Math.floor(bossPos.y / TILE);
       while (fy < H && !'#~'.includes(get(Math.floor(bossPos.x / TILE), fy))) fy++;
       this.arena = { left: TILE + 8, right: this.pxW - TILE - 8, top: 2 * TILE + 8, floor: fy * TILE };
-      if (!d.bosses[def.boss]) {
+      if (!d.bosses[def.boss] || GS.rush) {
         this.boss = new BOSS_CLASSES[def.boss](this, bossPos.x, def.boss === 'vasto' ? bossPos.y : this.arena.floor);
         this.boss.facing = -1;
       } else {
@@ -215,8 +241,8 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // Lingering reiatsu from the last death
-    if (d.shade && d.shade.room === room) this.shade = new Shade(this, d.shade.x, d.shade.y, d.shade.amount);
+    // Lingering reiatsu from the last death (never inside a trial)
+    if (d.shade && d.shade.room === room && !GS.rush) this.shade = new Shade(this, d.shade.x, d.shade.y, d.shade.amount);
   }
 
   // Stable id for the next enemy built, so per-placement facts (Konso Reiatsu) survive room reloads
@@ -235,6 +261,12 @@ class GameScene extends Phaser.Scene {
       }
     } else if (e.spawn === 'rest' && this.restGate) {
       x = this.restGate.x; feet = this.restGate.feet;
+    } else if (e.spawn === 'shop' && this.interactables.some(it => it instanceof ShopKeeper)) {
+      const shop = this.interactables.find(it => it instanceof ShopKeeper);
+      x = shop.x - 26; feet = shop.y; facing = 1;
+    } else if (e.spawn === 'rush' && this.boss && this.arena) {
+      const right = this.boss.x < (this.arena.left + this.arena.right) / 2;
+      x = right ? this.arena.right - 48 : this.arena.left + 48; feet = this.arena.floor; facing = right ? -1 : 1;
     } else if (this.startPos) {
       x = this.startPos.x; feet = this.startPos.y;
     } else if (this.restGate) {
@@ -314,13 +346,22 @@ class GameScene extends Phaser.Scene {
       this.physics.world.resume();
     }
     GS.data.time += dt;
+    if (GS.rush && !this.transitioning && this.bossStarted && this.boss && this.boss.alive) GS.rush.t += dt;
     const p = this.player;
+    this.senseEnv();
     p.update(dt);
+    this.updateEnv(dt);
+    this.updateLanterns(dt);
+    if (this.waves) this.updateWaves(dt);
     this.updateSwing(dt);
     this.flow.update(dt);
     for (const e of this.enemies.slice()) if (e.active) e.tick(dt);
     this.enemies = this.enemies.filter(e => e.active);
-    for (const s of this.pShots.slice()) if (s.active) s.tick(dt);
+    for (const s of this.pShots.slice()) {
+      if (!s.active) continue;
+      s.tick(dt);
+      if (s.active && !s.litLantern) for (const ln of this.lanterns) if (ln.rect.contains(s.x, s.y)) { s.litLantern = true; this.lightLanterns(ln); }
+    }
     this.pShots = this.pShots.filter(s => s.active);
     for (const s of this.eShots.slice()) if (s.active) s.tick(dt);
     this.eShots = this.eShots.filter(s => s.active);
@@ -344,6 +385,7 @@ class GameScene extends Phaser.Scene {
       this.checkBoss();
       this.checkExits();
       this.handleMenus();
+      this.checkPalace(dt);
     }
     this.updateCamera(dt);
     this.updateNpcs();
@@ -374,7 +416,9 @@ class GameScene extends Phaser.Scene {
     this.slow = { t: ms / 1000 };
     this.applyTimeScale(scale);
   }
+  // k is on top of the game speed chosen in the assist settings
   applyTimeScale(k) {
+    k *= Settings.get('speed');
     this.tscale = k;
     this.physics.world.timeScale = 1 / k;
     this.tweens.timeScale = k;
@@ -448,10 +492,12 @@ class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------------ combat
   startSwing(p, kind) {
     const bank = p.bankai;
-    const scale = (bank ? 1.25 : 1) * (GS.sealOn('long') ? 1.35 : 1);
+    const form = GS.form();
+    const scale = (bank ? 1.25 : 1) * (GS.sealOn('long') ? 1.35 : 1) * form.reach;
     p.swingAlt = !p.swingAlt;
     const img = this.add.image(p.x, p.y, bank ? 'slash_b' : 'slash').setDepth(21).setScale(scale * 0.8).setFlipY(p.swingAlt);
     if (GS.run.maskOn && !bank) img.setTint(0xffd0d0);
+    else if (!bank && form.tint !== 0xffffff) img.setTint(form.tint);
     this.tweens.add({ targets: img, alpha: 0, duration: 150, onComplete: () => img.destroy() });
     this.swing = { kind, t: kind === 'down' ? 0.14 : 0.1, hit: new Set(), scale, img, pogoed: false, crack: new Set() };
     Sfx.play('slash');
@@ -494,7 +540,7 @@ class GameScene extends Phaser.Scene {
       const res = e.hit(GS.slashDamage() * p.dmgMul(), dirX, { kind: sw.kind, slash: true });
       if (res === 'hit') {
         p.landedHit();
-        GS.addReiatsu(COMBAT.reiatsuPerHit * (GS.sealOn('harvest') ? 1.5 : 1));
+        GS.addReiatsu(COMBAT.reiatsuPerHit * (GS.sealOn('harvest') ? 1.5 : 1) * p.formReiatsu(), true);
         if (GS.run.maskOn) GS.run.hollow += COMBAT.hollowPerHit;
         this.hitStop(0.045);
         this.fx.hit(e.x, e.y, sw.kind === 'side' ? dirX : 0, 0xffffff, 1);
@@ -506,6 +552,7 @@ class GameScene extends Phaser.Scene {
         this.hitStop(0.06);
       }
     }
+    for (const ln of this.lanterns) if (!sw.lit && Phaser.Geom.Intersects.RectangleToRectangle(r, ln.rect)) { sw.lit = true; this.lightLanterns(ln); }
     // Cracked walls
     const tiles = this.solid.getTilesWithinWorldXY(r.x, r.y, r.width, r.height, { isNotEmpty: true });
     for (const t of tiles) {
@@ -623,7 +670,7 @@ class GameScene extends Phaser.Scene {
   }
 
   castGetsuga(p) {
-    const dmg = (COMBAT.getsugaDamage + (GS.data.swordLevel || 0) * 4) * p.dmgMul();
+    const dmg = (COMBAT.getsugaDamage + GS.swordLevel() * 4) * p.dmgMul();
     new PlayerShot(this, p.x + p.facing * 18, p.body.center.y - 4, p.bankai ? 'getsuga_b' : 'getsuga', p.facing * 430, { dmg, life: 0.75, kind: 'getsuga', w: 18, h: 44 });
     Sfx.play('wave'); Sfx.play('hado');
     this.fx.shake(140, 0.007);
@@ -704,6 +751,8 @@ class GameScene extends Phaser.Scene {
       if (hurt) Sfx.play('heal');
       GS.save();
     }
+    const quest = this.questTalk(npc);
+    if (quest) { this.startDialog(info.name, quest.lines, quest.after || null, npc); return; }
     let lines = this.npcLines(info);
     if ((info.gives || info.seal) && !d.gifts[info.name]) {
       d.gifts[info.name] = true;
@@ -873,6 +922,19 @@ class GameScene extends Phaser.Scene {
       pk.collect();
       p.setPose('raise', 0.8);
       this.showPopup({ kind: 'seal', id: pk.id });
+    } else if (pk.type === 'petal') {
+      d.items.petals = (d.items.petals || 0) + 1;
+      Sfx.play('pickup'); Sfx.play('heal');
+      GS.save();
+      pk.collect();
+      this.toast(d.items.petals >= PETALS ? 'The last spirit of Orihime\'s hairpin. Take them home to her, in Las Noches.'
+        : `A spirit of Orihime's hairpin (${d.items.petals}/${PETALS}). It clings to you like a frightened petal.`);
+    } else if (pk.type === 'item') {
+      d.items[pk.id] = true;
+      Sfx.play('pickup');
+      GS.save();
+      pk.collect();
+      if (pk.id === 'gikongan') this.toast('Kon\'s spare Gikongan: a green pill in a cracked glass case. Kon will want this.');
     } else if (pk.type === 'ore') {
       d.ore = (d.ore || 0) + 1;
       Sfx.play('pickup');
@@ -906,7 +968,7 @@ class GameScene extends Phaser.Scene {
   }
   onSpike() {
     const p = this.player;
-    GS.data.hp -= 1;
+    GS.data.hp -= GS.lose(1);
     Sfx.play('hurt');
     this.fx.shake(200, 0.012);
     this.fx.flash(0xffffff, 100, 0.4);
@@ -997,7 +1059,7 @@ class GameScene extends Phaser.Scene {
     if (!p.grounded) return;
     const cells = this.lockCells.concat(this.doors);
     const near = cells.some(c => Math.abs(p.x - (c.x * TILE + 8)) < 7 * TILE && Math.abs(p.y - (c.y * TILE + 8)) < 8 * TILE);
-    if (!near) this.startBoss();
+    if (!near || GS.rush) this.startBoss();
   }
   startBoss() {
     this.bossStarted = true;
@@ -1015,11 +1077,19 @@ class GameScene extends Phaser.Scene {
   }
   onBossDefeated(boss) {
     const d = GS.data;
-    d.bosses[boss.id] = true;
     this.game.events.emit('boss-end', {});
     Music.setBoss(false);
     this.slowMo(0.25, 1100);
     this.fx.zoomPunch(0.08, 700);
+    if (GS.rush) { this.rushNext(); return; }
+    // the speedrun split: the first time each boss falls on this journey
+    if (!d.bosses[boss.id] && d.splits[boss.id] === undefined) {
+      d.splits[boss.id] = d.time;
+      const best = GS.bestSplits()[boss.id];
+      this.game.events.emit('split', { name: BOSSES[boss.id].name, t: d.time, best });
+      GS.recordSplit(boss.id, d.time);
+    }
+    d.bosses[boss.id] = true;
     if (boss.id === 'byakuya' && !GS.has('raiko')) {
       d.abilities.raiko = true;
       this.time.delayedCall(3200, () => { this.fx.flash(0xff4a30, 200, 0.3); this.showPopup({ kind: 'ability', id: 'raiko' }); });
@@ -1099,6 +1169,307 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // ------------------------------------------------------------------ favours
+  // What someone with a favour to ask (or to repay) says. Null: they have nothing about it to say now.
+  questTalk(npc) {
+    const d = GS.data, info = npc.info, q = d.quests;
+    const give = (kind, id) => () => { Sfx.play(kind === 'ability' || kind === 'form' ? 'ability' : 'pickup'); this.showPopup({ kind, id }); };
+    switch (info.name) {
+      case 'Kon': {
+        if (q.kon === 2) return { lines: ['Look at me, Ichigo. Still a stuffed lion. But a stuffed lion with a SPARE BODY. That changes everything.'] };
+        if (d.items.gikongan) {
+          q.kon = 2;
+          if (!d.seals.includes('pride')) d.seals.push('pride');
+          GS.save();
+          return { lines: ['Is that... MY GIKONGAN? You went into the Seireitei for me? Ichigo, I could kiss you. I will not. But I could.',
+            'Here. I have been keeping this in my mane for emergencies. It is the pride of a lion: the more beaten you are, the harder you bite.'], after: give('seal', 'pride') };
+        }
+        if (q.kon === 1) return { lines: ['Any luck? My spare Gikongan. Green, round, locked away under the Fourth Division in the Seireitei. Under! Look down for once!'] };
+        if (GS.has('grip')) {
+          q.kon = 1; GS.save();
+          return { lines: ['Ichigo! You can get into the Seireitei now, right? I need a favour.',
+            'The Twelfth Division confiscated my spare Gikongan. My Mod Soul pill! They keep that sort of thing locked up under the Fourth Division, in a hall full of lanterns.',
+            'Bring it back and I will give you something good. Lion\'s honour.'] };
+        }
+        return null;
+      }
+      case 'Ganju Shiba': {
+        if (q.ganju === 2) return { lines: ['Next time I am bringing Bonnie. She is a boar. She bites. Remember that.', 'Hey. Kukaku says hi. She said it with a cannon, but she meant it.'] };
+        if (!GS.has('hado')) return null;
+        q.ganju = 1;
+        return { lines: ['You again! I heard you brought down that Menos in the ravine. That makes you the number two delinquent of West Rukongai.',
+          'And number two does not get to walk past number one. Fight me! Right here! Fists, clubs and fireworks!'], after: () => this.startDuel(npc) };
+      }
+      case 'Orihime Inoue': {
+        const n = d.items.petals || 0;
+        if (q.orihime === 2) return null;
+        if (n >= PETALS) {
+          q.orihime = 2; GS.save();
+          return { lines: ['My Shun Shun Rikka! Ayame, Shun\'o, Baigon, Hinagiku, Lily... you found every one of them!',
+            'Tsubaki is pretending not to care, but he is happy too. Let me thank you properly. Hold still.',
+            'Soten Kisshun. I taught your Reiatsu how my flowers mend things. Your wounds will close faster now.'], after: give('perk', 'soten') };
+        }
+        q.orihime = 1; GS.save();
+        return { lines: info.lines.concat([`One more thing, Kurosaki-kun. When they brought me here, the spirits of my hairpin scattered. You have found ${n} of ${PETALS}.`,
+          'They look like small pale flowers. They hide where it is hard to reach: in the sky above the dunes, the shrine by the Sokyoku, the forest, the Dangai...']) };
+      }
+      case 'Kisuke Urahara': {
+        if (!info.study) return null;
+        if (q.urahara === 2) return { lines: ['Splendid work earlier! The Kodachi suits you. Short blades, short tempers.', 'The ladder is behind you. Mind the third rung.'] };
+        return { lines: ['Now then! A little light exercise before tea. Three waves of opponents, one after the other. Nothing serious.',
+          'Beat them all, and I will give that Zanpakuto of yours a new shape. Ready? Of course you are.'], after: () => this.startWaves() };
+      }
+      case 'Ichibē Hyōsube': {
+        if (d.palace < 2) { d.palace = 2; GS.save(); }
+        if (d.trueEnding) return { lines: ['You saw it, then. What lies under the last name. Ho! Do not tell me. Some names are better kept.', 'The altar is always open. Bind yourself tighter, if you are bored.'] };
+        return null;
+      }
+    }
+    return null;
+  }
+
+  // Urahara's light exercise: three waves of foes in the Study Room
+  startWaves() {
+    const d = GS.data;
+    d.quests.urahara = Math.max(d.quests.urahara || 0, 1);
+    this.waves = { active: true, i: -1, foes: [], wait: 0.8, list: [['e', 'e', 'i', 'h'], ['g', 'm', 'q', 'b'], ['a', 'x', 'j', 'm', 'q']] };
+    this.toast('Wave 1 of 3');
+    Sfx.play('boss');
+    Music.setBoss(true);
+  }
+  updateWaves(dt) {
+    const w = this.waves;
+    if (!w.active) return;
+    if (w.foes.some(e => e.alive)) return;
+    w.wait -= dt;
+    if (w.wait > 0) return;
+    w.i++;
+    if (w.i >= w.list.length) { this.wavesWon(); return; }
+    if (w.i > 0) this.toast(`Wave ${w.i + 1} of ${w.list.length}`);
+    const kinds = { e: Thug, g: Shinigami, j: Adjuchas, a: Arrancar, q: KidoCaster, i: Crawler, m: Onmitsu, x: Exequias, b: Brawler, h: Hollow };
+    const floor = this.arenaFloor || (this.arenaFloor = this.findFloor());
+    const p = this.player;
+    w.foes = w.list[w.i].map((k, n) => {
+      let x;
+      do { x = Phaser.Math.Between(4 * TILE, this.pxW - 4 * TILE); } while (Math.abs(x - p.x) < 7 * TILE);
+      const y = k === 'h' ? floor - 90 : floor;
+      this.fx.ring(x, y - 12, 0xbfe6ff, 30, 500, 2);
+      this.fx.motes(x, y - 12, 0xbfe6ff, 12);
+      const e = new kinds[k](this, x, y);
+      e.summoned = true;
+      return e;
+    });
+    w.wait = 1.5;
+    Sfx.play('door');
+  }
+  findFloor() {
+    const tx = Math.floor(this.player.x / TILE);
+    for (let y = Math.floor(this.player.y / TILE); y < this.H; y++) if (this.isSolidAt(tx * TILE + 8, y * TILE + 8)) return y * TILE;
+    return this.pxH - 4 * TILE;
+  }
+  wavesWon() {
+    const d = GS.data;
+    this.waves.active = false;
+    Music.setBoss(false);
+    d.quests.urahara = 2;
+    d.forms.kodachi = true;
+    d.reishi += 200;
+    GS.save();
+    Sfx.play('pickup');
+    this.toast('Urahara applauds with his fan. +200 reishi');
+    const urahara = this.interactables.find(it => it.info && it.info.name === 'Kisuke Urahara');
+    this.time.delayedCall(900, () => this.startDialog('Kisuke Urahara', ['Bravo, bravo! Not a scratch on the scenery, either. Well, a few scratches.',
+      'As promised: hold out your blade. There. Shorter, lighter, quicker. A Kodachi. Change between its shapes at any rest gate.'],
+      () => { Sfx.play('ability'); this.showPopup({ kind: 'form', id: 'kodachi' }); }, urahara));
+  }
+
+  // Ganju's rematch: he steps out of the crowd and fights for real
+  startDuel(npc) {
+    npc.setVisible(false);
+    this.interactables = this.interactables.filter(it => it !== npc);
+    const foe = new GanjuFighter(this, npc.x, npc.y);
+    foe.faceTo(this.player.x);
+    this.duel = { npc, foe };
+    this.fx.dust(npc.x, npc.y, 10);
+    Sfx.play('roarSmall');
+    Music.setBoss(true);
+    this.toast('Ganju wants a fair fight.');
+  }
+  duelWon(foe) {
+    const d = GS.data, npc = this.duel.npc;
+    Music.setBoss(false);
+    d.quests.ganju = 2;
+    if (!d.seals.includes('shiba')) d.seals.push('shiba');
+    GS.save();
+    npc.setPosition(foe.x, npc.y).setVisible(true);
+    this.interactables.push(npc);
+    this.duel = null;
+    this.time.delayedCall(700, () => this.startDialog('Ganju Shiba', ['Ow. Ow! OW. Fine! You win! Number one is you! Happy?',
+      'Here, take this. The crest of the Shiba clan. My sister makes the fireworks; this makes the Kido cheaper. Do not ask how. Nobody knows how.'],
+      () => { Sfx.play('pickup'); this.showPopup({ kind: 'seal', id: 'shiba' }); }, npc));
+  }
+
+  // ------------------------------------------------------------------ the Royal Guard
+  // At 100% a Hell Butterfly brings word from the Soul King Palace
+  checkPalace(dt) {
+    this.checkT -= dt;
+    if (this.checkT > 0) return;
+    this.checkT = 1;
+    const d = GS.data, p = this.player;
+    if (d.palace || GS.rush || this.bossStarted || this.frozen || p.state !== 'normal' || !p.grounded) return;
+    if (GS.completion() < 100) return;
+    d.palace = 1;
+    GS.save();
+    const bf = this.add.sprite(p.x - 170, p.y - 100, 'hellfly').play('hellfly:flap').setDepth(27).setScale(1.3);
+    Sfx.play('ability');
+    this.tweens.add({ targets: bf, x: p.x + p.facing * 12, y: p.y - 24, duration: 1900, ease: 'Sine.inOut', onComplete: () => {
+      this.startDialog('Ichibē Hyōsube', [
+        'A Hell Butterfly lands on your shoulder. A deep voice laughs out of it.',
+        'Ho! This is Ichibe Hyosube, of the Royal Guard. Every power, every seal, every lost soul, every favour asked of you: you have gathered all of it.',
+        'Then you have earned a name, and a fight. Come up to the Soul King Palace. Any rest gate will carry you there now.',
+        'There is something under the last name you learned. Only those who carry everything to the end ever see it.',
+      ], () => {
+        this.toast('Rest gates can now carry you to the Soul King Palace.');
+        this.tweens.add({ targets: bf, y: bf.y - 140, x: bf.x + 60, alpha: 0, duration: 2000, onComplete: () => bf.destroy() });
+      }, { texture: { key: 'npc_ichibe' } });
+    } });
+  }
+
+  // ------------------------------------------------------------------ the trials of the palace
+  bossRoom(id) { return Object.keys(ROOMS).find(r => ROOMS[r].boss === id); }
+  // mode 'gauntlet' (every boss in order) or 'single' (one boss); bind: the bindings chosen
+  startTrial(mode, list, bind) {
+    GS.startRush(mode, list, bind);
+    this.transitioning = false;
+    this.goTo(this.bossRoom(list[0]), { spawn: 'rush' });
+  }
+  rushNext() {
+    const r = GS.rush, done = r.i;
+    r.i++;
+    if (r.i >= r.list.length) { this.time.delayedCall(2800, () => this.finishTrial(true)); return; }
+    const rest = r.mode === 'gauntlet' && RUSH_RESTS.includes(done);
+    this.time.delayedCall(2000, () => {
+      if (!this.sys.isActive() || !GS.rush) return;
+      if (rest) {
+        GS.data.hp = GS.data.maxHp;
+        Sfx.play('save');
+        this.fx.ring(this.player.x, this.player.y, 0xffe8b0, 40, 600, 2);
+        this.fx.motes(this.player.x, this.player.y, 0xffe8b0, 20);
+        this.toast('A moment\'s respite. Your wounds close.');
+      }
+      this.toast(`Next: ${BOSSES[r.list[r.i]].name}  (${r.i + 1} of ${r.list.length})`);
+    });
+    this.time.delayedCall(rest ? 4600 : 3600, () => {
+      if (!this.sys.isActive() || !GS.rush) return;
+      this.transitioning = false;
+      this.goTo(this.bossRoom(r.list[r.i]), { spawn: 'rush' });
+    });
+  }
+  // The trial is over. Won as a whole: the true ending. Won as a duel: back to the palace. Lost: the same.
+  finishTrial(won) {
+    const r = GS.rush;
+    if (!r) return;
+    const info = { mode: r.mode, t: r.t, bind: Object.assign({}, r.bind), list: r.list.slice() };
+    const res = GS.endRush(won);
+    if (won && info.mode === 'gauntlet') {
+      GS.data.trueEnding = true;
+      GS.save();
+      this.cameras.main.fadeOut(1800, 255, 255, 255);
+      this.cameras.main.once('camerafadeoutcomplete', () => { this.scene.stop('ui'); this.scene.start('trueEnding', Object.assign(info, res)); });
+      return;
+    }
+    if (won) {
+      const n = BINDING_ORDER.filter(k => info.bind[k]).length;
+      this.toast(`${BOSSES[info.list[0]].name} falls again: ${fmtClock(info.t, true)}${n ? `, bound ${n} way${n > 1 ? 's' : ''}` : ''}${res.newBest ? '. A new record.' : ''}`);
+    }
+    this.transitioning = false;
+    this.goTo('palace', { spawn: 'rest' });
+  }
+
+  // ------------------------------------------------------------------ the land itself
+  // Quicksand and spirit pressure around the player's body, read before the player moves
+  senseEnv() {
+    const p = this.player, b = p.body;
+    p.env.sand = !!this.sandLayer.getTileAtWorldXY(b.center.x, b.bottom - 2);
+    p.env.pressure = !!this.pressure && this.pressureAt(b.center.x, b.center.y);
+  }
+  pressureAt(x, y) {
+    const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+    return tx >= 0 && ty >= 0 && tx < this.W && ty < this.H && this.pressure[ty * this.W + tx] === 1;
+  }
+  updateEnv(dt) {
+    const p = this.player, b = p.body;
+    if (p.state === 'dead' || this.respawning || this.transitioning) return;
+    // Quicksand holds you up a little and pulls you down slowly; go under and it spits you back out
+    if (p.env.sand && p.state !== 'dash') {
+      if (b.velocity.y > 22) b.velocity.y = 22;
+      const t = this.sandLayer.getTileAtWorldXY(b.center.x, b.bottom - 2);
+      let top = t.y;
+      while (top > 0 && this.sandLayer.getTileAt(t.x, top - 1)) top--;
+      if (Math.random() < dt * 10) this.fx.dust(p.x + Phaser.Math.Between(-5, 5), top * TILE + 1, 1);
+      if (b.top > top * TILE + 2) { this.toast('The sand swallows you whole.'); this.onSpike(); return; }
+    }
+    // Spirit pressure drains the vessel; with nothing left to push back, it crushes
+    if (p.env.pressure) {
+      GS.addReiatsu(-9 * dt);
+      if (Math.random() < dt * 14) this.fx.motes(p.x + Phaser.Math.Between(-8, 8), p.y - 14, 0xd04060, 1);
+      this.pressureT += dt;
+      if (GS.data.reiatsu <= 0 && this.pressureT > 2.2) { this.pressureT = 0; p.takeDamage(1, p.x, { noKnock: true }); }
+    } else this.pressureT = Math.min(this.pressureT, 1.2);
+  }
+  // The heavy air is drawn as a dark red haze that breathes, with motes sinking through it
+  buildPressure() {
+    const g = this.add.graphics().setDepth(23).setBlendMode('MULTIPLY');
+    const glow = this.add.graphics().setDepth(23).setBlendMode('ADD');
+    for (let y = 0; y < this.H; y++) for (let x = 0; x < this.W; x++) {
+      if (!this.pressure[y * this.W + x]) continue;
+      g.fillStyle(0xb06080, 1).fillRect(x * TILE, y * TILE, TILE, TILE);
+      if (!this.pressure[(y - 1) * this.W + x]) glow.fillStyle(0xff6080, 0.35).fillRect(x * TILE, y * TILE, TILE, 2);
+    }
+    this.tweens.add({ targets: g, alpha: 0.7, yoyo: true, repeat: -1, duration: 1300, ease: 'Sine.inOut' });
+    let x0 = Infinity, x1 = -1, y0 = Infinity, y1 = -1;
+    for (let i = 0; i < this.pressure.length; i++) if (this.pressure[i]) { const x = i % this.W, y = (i - x) / this.W; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    this.add.particles(0, 0, 'dot', {
+      x: { min: x0 * TILE, max: (x1 + 1) * TILE }, y: { min: y0 * TILE, max: (y1 + 1) * TILE }, speedY: { min: 30, max: 70 },
+      lifespan: 1400, scale: { start: 0.5, end: 0 }, alpha: { start: 0.5, end: 0 }, frequency: Math.round(70 / Settings.get('particles')), tint: 0xff7090, blendMode: 'ADD',
+    }).setDepth(23);
+  }
+
+  // Strike a lantern: every lantern in the room lights, the gold barriers open and the blue walls rise
+  lightLanterns(src) {
+    const fresh = this.litT <= 0;
+    this.litT = LANTERN_TIME;
+    this.litTick = 1;
+    this.lanterns.forEach(l => l.setLit(true));
+    this.fx.ring(src.x, src.y, 0xffd870, 30, 400, 2);
+    this.fx.motes(src.x, src.y - 4, 0xffd870, 10);
+    Sfx.play('hado');
+    if (!fresh) return;
+    this.barriers.gold.forEach(c => { this.solid.removeTileAt(c.x, c.y); this.fx.motes(c.x * TILE + 8, c.y * TILE + 8, 0xffd870, 2); });
+    this.barriers.blue.forEach(c => { if (!this.overlapsPlayer(c)) this.solid.putTileAt(T.LIGHT, c.x, c.y).setCollision(true); });
+    Sfx.play('door');
+  }
+  overlapsPlayer(c) {
+    const b = this.player.body;
+    return b.right > c.x * TILE && b.left < (c.x + 1) * TILE && b.bottom > c.y * TILE && b.top < (c.y + 1) * TILE;
+  }
+  updateLanterns(dt) {
+    if (this.litT <= 0) return;
+    this.litT -= dt;
+    this.litTick -= dt;
+    // the flame ticks down, faster at the end, and the barriers flicker before they return
+    if (this.litTick <= 0) { this.litTick = this.litT < 2 ? 0.25 : 1; Sfx.play(this.litT < 2 ? 'select' : 'telegraph'); }
+    if (this.litT < 2) this.lanterns.forEach(l => l.setAlpha(0.6 + 0.4 * Math.abs(Math.sin(this.litT * 12))));
+    if (this.litT > 0) return;
+    // A barrier never closes on the player: it waits for them to step out of it
+    if (this.barriers.gold.some(c => this.overlapsPlayer(c))) { this.litT = 0.1; return; }
+    this.lanterns.forEach(l => { l.setLit(false); l.setAlpha(1); });
+    this.barriers.gold.forEach(c => this.solid.putTileAt(T.BARRIER, c.x, c.y).setCollision(true));
+    this.barriers.blue.forEach(c => { this.solid.removeTileAt(c.x, c.y); this.fx.motes(c.x * TILE + 8, c.y * TILE + 8, 0x9ad8ff, 1); });
+    if (this.player.state === 'cling' && !this.player.touchingWall(this.player.wallDir)) this.player.exitCling();
+    Sfx.play('door');
+  }
+
   // ------------------------------------------------------------------ the Kototsu
   startChase() {
     this.chase = { x: -230, speed: 124, delay: 1.5, done: false, rumble: 0 };
@@ -1129,7 +1500,7 @@ class GameScene extends Phaser.Scene {
     }
     if (p.state !== 'dead' && !this.transitioning && !this.respawning && p.body.left < c.x - 6) {
       c.done = true;
-      GS.data.hp -= 1;
+      GS.data.hp -= GS.lose(1);
       Sfx.play('hurt');
       this.fx.flash(0xffffff, 400, 0.8);
       if (GS.data.hp <= 0) { GS.data.hp = 0; p.die(); return; }
@@ -1210,6 +1581,8 @@ class GameScene extends Phaser.Scene {
   }
   onPlayerDeath() {
     const d = GS.data, p = this.player;
+    if (GS.rush) { this.trialDeath(); return; }
+    if (this.waves) Music.setBoss(false);
     d.deaths++;
     Sfx.play('die');
     this.fx.shake(500, 0.01);
@@ -1235,6 +1608,28 @@ class GameScene extends Phaser.Scene {
       this.game.events.emit('toast', d.shade ? 'Your reishi lingers where you fell.' : 'You wake at the rest gate.');
       this.cameras.main.fadeOut(700, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ room: d.restRoom || 'kar_hub', spawn: 'rest', wake: true }));
+    });
+  }
+
+  // Falling in a trial ends it: the real save comes back and you wake in the palace
+  trialDeath() {
+    const p = this.player;
+    Sfx.play('die');
+    this.fx.shake(500, 0.01);
+    this.fx.burst(p.x, p.y, 0x17161f, 30);
+    this.fx.burst(p.x, p.y, 0xf2d68a, 16);
+    this.game.events.emit('prompt', null);
+    this.game.events.emit('boss-end', { silent: true });
+    this.game.events.emit('died');
+    Music.setBoss(false);
+    this.transitioning = true;
+    const r = GS.rush, reached = r.i, total = r.list.length;
+    this.time.delayedCall(1300, () => {
+      GS.endRush(false);
+      GS.data.hp = GS.data.maxHp;
+      this.game.events.emit('toast', total > 1 ? `The trial ends at ${reached + 1} of ${total}. The altar will be there when you are ready.` : 'The duel is lost. The altar will be there when you are ready.');
+      this.cameras.main.fadeOut(700, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ room: 'palace', spawn: 'rest', wake: true }));
     });
   }
 

@@ -41,11 +41,13 @@ const TILE_PAL = {
   end: { base: '#4e6a8c', mid: '#6a88aa', dark: '#34486a', top: '#dceaf8', line: '#2a3c58', spike: '#e8f4ff', plank: '#8aa6c8', plankHi: '#ffffff' },
   dan: { base: '#281f3c', mid: '#32284c', dark: '#18122a', top: '#b49ae8', line: '#3e3260', spike: '#e6d8ff', plank: '#5a4a8a', plankHi: '#9a84d8' },
   for: { base: '#1d1a25', mid: '#25202f', dark: '#110f18', top: '#52705f', line: '#2b2537', spike: '#ece8f4', plank: '#cfcbe0', plankHi: '#ffffff' },
+  stu: { base: '#6a5a48', mid: '#7a6a56', dark: '#4a3e32', top: '#b8a888', line: '#58493a', spike: '#e8dcc4', plank: '#8a6a4a', plankHi: '#b89470' },
+  rei: { base: '#e8e2d2', mid: '#f4f0e4', dark: '#c8bea4', top: '#e8c46a', line: '#d4caae', spike: '#c8a040', plank: '#c89a3a', plankHi: '#f4d68a' },
 };
 
 function makeTileset(scene, region) {
   const p = TILE_PAL[region];
-  const N = 11;
+  const N = 14;
   canvasTex(scene, 'tiles_' + region, TILE * N, TILE, (c) => {
     const rnd = seeded(region.length * 977 + region.charCodeAt(0));
     const solid = (ox) => {
@@ -65,6 +67,12 @@ function makeTileset(scene, region) {
         c.fillStyle = p.mid; c.fillRect(ox + 4, 0, 1, 16);
       } else if (region === 'for') {
         c.fillStyle = p.line; for (let i = 0; i < 3; i++) c.fillRect(ox + Math.floor(rnd() * 12), Math.floor(rnd() * 12), 4, 1);
+      } else if (region === 'rei') {   // white jade blocks with a gold seam
+        c.fillStyle = p.mid; c.fillRect(ox + 1, 1, 14, 14);
+        c.fillStyle = p.line; c.fillRect(ox, 15, 16, 1); c.fillRect(ox + 15, 0, 1, 16);
+        c.fillStyle = 'rgba(232,196,106,0.55)'; c.fillRect(ox + 2, 2, 12, 1);
+      } else if (region === 'stu') {   // packed rock with pale strata
+        c.fillStyle = p.line; c.fillRect(ox, 5, 16, 1); c.fillRect(ox, 11, 16, 1);
       } else if (region === 'end') {   // the glass and steel face of a fallen skyscraper
         c.fillStyle = p.line; c.fillRect(ox, 0, 16, 16);
         c.fillStyle = p.mid; c.fillRect(ox + 1, 1, 6, 6); c.fillRect(ox + 9, 1, 6, 6); c.fillRect(ox + 1, 9, 6, 6); c.fillRect(ox + 9, 9, 6, 6);
@@ -130,6 +138,20 @@ function makeTileset(scene, region) {
     c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(160, 4, 16, 12);
     c.fillStyle = p.dark;
     [[2, 5], [3, 6], [3, 7], [4, 8], [9, 4], [10, 5], [10, 6], [11, 7], [12, 8], [12, 9]].forEach(([x, y]) => c.fillRect(160 + x, y, 1, 1));
+    // 11 gold Kidō barrier: a lattice of light
+    c.fillStyle = 'rgba(242,200,90,0.35)'; c.fillRect(176, 0, 16, 16);
+    c.fillStyle = 'rgba(255,230,150,0.95)';
+    for (let i = 0; i < 16; i += 4) { c.fillRect(176 + i, 0, 1, 16); c.fillRect(176, i, 16, 1); }
+    c.fillStyle = '#ffffff'; c.fillRect(183, 7, 2, 2);
+    // 12 blue wall of light (stands only while a lantern burns)
+    c.fillStyle = 'rgba(110,190,255,0.45)'; c.fillRect(192, 0, 16, 16);
+    c.fillStyle = 'rgba(200,236,255,0.95)'; c.fillRect(192, 0, 2, 16); c.fillRect(206, 0, 2, 16);
+    for (let y = 2; y < 16; y += 5) c.fillRect(196, y, 8, 1);
+    // 13 quicksand: rippled sand with a darker, sinking middle
+    c.fillStyle = region === 'hm' ? '#d8d4e2' : p.top; c.fillRect(208, 0, 16, 16);
+    c.fillStyle = region === 'hm' ? '#b4b0c4' : p.mid;
+    for (let y = 3; y < 16; y += 4) for (let x = (y % 8 ? 0 : 3); x < 16; x += 6) c.fillRect(208 + x, y, 3, 1);
+    c.fillStyle = 'rgba(40,36,56,0.18)'; c.fillRect(208, 8, 16, 8);
   });
 }
 
@@ -516,6 +538,69 @@ function makeBackgrounds(scene, region) {
       };
       trunk(70, 26); trunk(420, 34);
     });
+  } else if (region === 'stu') {
+    // The Study Room: a painted blue sky with painted clouds, and real crags rising from a dusty floor
+    canvasTex(scene, k(0), W, H, c => {
+      sky(c, [[0, '#4a90c8'], [0.6, '#8cc0e4'], [1, '#d8e8ee']]);
+      clouds(c, 12, 211, 'rgba(255,255,255,0.75)', 30, 220, 60, 160, 8);
+      // the seams of the painted ceiling, just visible
+      c.fillStyle = 'rgba(40,70,100,0.12)';
+      for (let x = 0; x < W; x += 80) c.fillRect(x, 0, 1, H * 0.6);
+    });
+    canvasTex(scene, k(1), W, H, c => {
+      ridge(c, 'rgba(150,140,120,0.55)', 250, [[30, 2], [14, 5]], 1);
+    });
+    canvasTex(scene, k(2), W, H, c => {
+      const r = seeded(213);
+      c.fillStyle = '#8a7a62';
+      for (let i = 0; i < 7; i++) {
+        const bx = r() * W, w = 30 + r() * 50, h = 70 + r() * 110;
+        tile(o => { c.beginPath(); c.moveTo(bx + o, H); c.lineTo(bx + o + w * 0.2, H - h); c.lineTo(bx + o + w * 0.7, H - h * 0.92); c.lineTo(bx + o + w, H); c.closePath(); c.fill(); });
+      }
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      const r = seeded(217);
+      c.fillStyle = '#4a3e30';
+      c.beginPath(); c.moveTo(0, H);
+      for (let x = 0; x <= W; x += 20) c.lineTo(x, 322 + r() * 18);
+      c.lineTo(W, 330); c.lineTo(W, H); c.closePath(); c.fill();
+    });
+  } else if (region === 'rei') {
+    // The Soul King Palace: gold-roofed halls on floating islands above a sea of cloud
+    const hall = (c, x, y, w, col, roof) => {
+      c.fillStyle = col; c.fillRect(x, y, w, 26);
+      c.fillStyle = roof;
+      c.beginPath(); c.moveTo(x - 10, y); c.lineTo(x + w / 2, y - 18); c.lineTo(x + w + 10, y); c.closePath(); c.fill();
+      c.fillRect(x - 12, y - 1, w + 24, 3);
+      c.fillStyle = 'rgba(0,0,0,0.18)'; for (let px = x + 4; px < x + w - 4; px += 8) c.fillRect(px, y + 6, 3, 20);
+    };
+    canvasTex(scene, k(0), W, H, c => {
+      sky(c, [[0, '#f4d89a'], [0.45, '#f8ecd0'], [1, '#fcf8ee']]);
+      glowDisc(c, 320, 60, 160, 'rgba(255,240,200,0.7)', 'rgba(255,240,200,0)');
+      clouds(c, 8, 231, 'rgba(255,255,255,0.6)', 60, 200, 100, 220, 6);
+    });
+    canvasTex(scene, k(1), W, H, c => {
+      const r = seeded(233);
+      for (let i = 0; i < 4; i++) {
+        const x = r() * W, y = 90 + r() * 80;
+        tile(o => {
+          c.fillStyle = 'rgba(200,180,140,0.5)';
+          c.beginPath(); c.moveTo(x + o - 50, y + 26); c.lineTo(x + o + 90, y + 26); c.lineTo(x + o + 30, y + 70); c.closePath(); c.fill();
+          hall(c, x + o - 20, y, 80, 'rgba(236,226,206,0.7)', 'rgba(210,170,80,0.7)');
+        });
+      }
+    });
+    canvasTex(scene, k(2), W, H, c => {
+      clouds(c, 10, 237, 'rgba(255,255,255,0.85)', 230, 300, 140, 300, 12);
+      const r = seeded(239);
+      for (let i = 0; i < 2; i++) {
+        const x = r() * W, y = 170 + r() * 40;
+        tile(o => hall(c, x + o, y, 120, '#f0e8d6', '#d8a840'));
+      }
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      clouds(c, 9, 241, 'rgba(255,255,255,0.95)', 320, 352, 160, 320, 16);
+    });
   } else if (region === 'end') {
     // The Inner World: skyscrapers lying on their sides under a blue sky that never ends
     const slab = (c, x, y, w, h, col, win, frame) => {
@@ -562,6 +647,7 @@ const ICON_GLYPH = {
   edge: '刃', swift: '速', harvest: '魂', focus: '集', quick: '癒', magnet: '磁', long: '長', grace: '恩', moonfang: '月', phantom: '蝉', will: '志',
   kaido: '回', bell: '鈴', shunko: '鬨', hierro: '鋼', gentei: '限',
   raiko: '雷', recall: '憶', compass: '針',
+  pride: '獅', shiba: '花', zangetsu: '斬', odachi: '大', kodachi: '小', soten: '舜', gikongan: '丸', petal: '華',
   unknown: '?',
 };
 function makeIcons(scene) {
@@ -588,8 +674,28 @@ function makeIcons(scene) {
   });
 }
 
+// Marks drawn over enemies, at twice the world resolution (shown at half scale, so crisp at 2x zoom):
+// the bold attack warning, and the kanji medallion of each elite trait
+function makeMarks(scene) {
+  canvasTex(scene, 'warn_mark', 18, 26, c => {
+    c.fillStyle = '#07070b'; c.beginPath(); c.moveTo(9, 0); c.lineTo(18, 13); c.lineTo(9, 26); c.lineTo(0, 13); c.closePath(); c.fill();
+    c.fillStyle = '#ff3040'; c.beginPath(); c.moveTo(9, 2); c.lineTo(16, 13); c.lineTo(9, 24); c.lineTo(2, 13); c.closePath(); c.fill();
+    c.fillStyle = '#ffffff'; c.fillRect(8, 6, 3, 9); c.fillRect(8, 17, 3, 3);
+  });
+  Object.entries(ELITE_TRAITS).forEach(([id, t]) => {
+    const col = '#' + t.color.toString(16).padStart(6, '0');
+    canvasTex(scene, 'elite_' + id, 26, 26, c => {
+      c.fillStyle = 'rgba(7,7,11,0.85)'; c.beginPath(); c.arc(13, 13, 12, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = col; c.lineWidth = 2; c.beginPath(); c.arc(13, 13, 11, 0, Math.PI * 2); c.stroke();
+      c.font = '800 15px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = col; c.fillText(t.jp, 13, 14);
+    });
+  });
+}
+
 function makeAllTextures(scene) {
   makeCharacterArt(scene);
+  makeMarks(scene);
 
   // Effects
   canvasTex(scene, 'slash', 46, 34, c => {
@@ -777,6 +883,38 @@ function makeAllTextures(scene) {
     c.beginPath(); c.arc(0, 29, 30, -1.3, 1.3); c.arc(-9, 29, 26, 1.15, -1.15, true); c.closePath(); c.fill();
     c.fillStyle = '#0a080c';
     c.beginPath(); c.arc(0, 29, 26, -1.25, 1.25); c.arc(-8, 29, 23, 1.15, -1.15, true); c.closePath(); c.fill();
+  });
+  // A stone lantern (tōrō); the lit one glows from inside
+  [['lantern_off', false], ['lantern_on', true]].forEach(([key, lit]) => canvasTex(scene, key, 14, 26, c => {
+    c.fillStyle = '#6a6458'; c.fillRect(4, 18, 6, 8); c.fillRect(2, 24, 10, 2);
+    c.fillStyle = '#8a8474'; c.fillRect(1, 6, 12, 2); c.fillRect(3, 8, 8, 9); c.fillRect(0, 16, 14, 2);
+    c.beginPath(); c.moveTo(0, 6); c.lineTo(7, 0); c.lineTo(14, 6); c.closePath(); c.fill();
+    c.fillStyle = lit ? '#ffd870' : '#1a1820'; c.fillRect(5, 10, 4, 5);
+    if (lit) { c.fillStyle = '#ffffff'; c.fillRect(6, 11, 2, 2); }
+  }));
+  // The altar of the trials: a gold-capped stone with the Soul King's crest
+  canvasTex(scene, 'altar', 30, 34, c => {
+    c.fillStyle = '#c8bea4'; c.fillRect(3, 12, 24, 20); c.fillRect(0, 30, 30, 4);
+    c.fillStyle = '#e8c46a'; c.fillRect(1, 9, 28, 4); c.fillRect(5, 4, 20, 5);
+    c.fillStyle = '#f4f0e4'; c.fillRect(5, 14, 20, 14);
+    c.strokeStyle = '#c89a3a'; c.lineWidth = 1.5; c.beginPath(); c.arc(15, 21, 5, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#c89a3a'; c.fillRect(14, 14, 2, 14);
+  });
+  // A rope ladder up to the shop
+  canvasTex(scene, 'ladder', 14, 64, c => {
+    c.fillStyle = '#8a6a4a'; c.fillRect(1, 0, 2, 64); c.fillRect(11, 0, 2, 64);
+    c.fillStyle = '#b89470'; for (let y = 4; y < 64; y += 8) c.fillRect(1, y, 12, 2);
+  });
+  // A spirit of Orihime's hairpin: a small pale flower with a glow
+  canvasTex(scene, 'petal', 14, 14, c => {
+    c.fillStyle = '#ffd0e4';
+    for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; c.beginPath(); c.ellipse(7 + Math.cos(a) * 3.5, 7 + Math.sin(a) * 3.5, 2.6, 1.6, a, 0, Math.PI * 2); c.fill(); }
+    c.fillStyle = '#7ab4ff'; c.fillRect(6, 6, 2, 2);
+  });
+  // Kon's spare Gikongan: a green pill
+  canvasTex(scene, 'gikongan', 12, 12, c => {
+    c.fillStyle = '#3ac86a'; c.beginPath(); c.arc(6, 6, 4.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#9af0b0'; c.fillRect(4, 3, 2, 2);
   });
   canvasTex(scene, 'restgate', 36, 52, c => {
     c.fillStyle = 'rgba(255,240,200,0.12)'; c.fillRect(6, 10, 24, 42);

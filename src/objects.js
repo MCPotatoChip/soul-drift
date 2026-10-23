@@ -287,15 +287,63 @@ class LostPlus extends Phaser.GameObjects.Sprite {
   }
 }
 
+// A stone lantern: strike it (or hit it with Kidō) and it burns for a while, opening the gold barriers
+// of the room and raising its blue walls of light (see GameScene.lightLanterns)
+class Lantern extends Phaser.GameObjects.Image {
+  constructor(scene, x, feet) {
+    super(scene, x, feet - 13, 'lantern_off');
+    scene.add.existing(this);
+    this.setDepth(6);
+    this.glow = scene.add.image(x, feet - 15, 'glow').setTint(0xffd870).setBlendMode('ADD').setDepth(5).setAlpha(0).setScale(1.6);
+  }
+  get rect() { return new Phaser.Geom.Rectangle(this.x - 7, this.y - 13, 14, 26); }
+  setLit(on) {
+    this.setTexture(on ? 'lantern_on' : 'lantern_off');
+    this.scene.tweens.killTweensOf(this.glow);
+    this.glow.setAlpha(on ? 0.75 : 0);
+    if (on) this.scene.tweens.add({ targets: this.glow, alpha: 0.45, yoyo: true, repeat: -1, duration: 300 });
+  }
+}
+
+// The altar of the trials in the Soul King Palace
+class TrialAltar extends Phaser.GameObjects.Image {
+  constructor(scene, x, feet) {
+    super(scene, x, feet - 17, 'altar');
+    scene.add.existing(this);
+    this.setDepth(6);
+    this.prompt = 'Trials';
+    this.glow = scene.add.image(x, feet - 24, 'glow').setTint(0xf2d68a).setBlendMode('ADD').setDepth(5).setAlpha(0.3).setScale(2.4);
+    scene.tweens.add({ targets: this.glow, alpha: 0.55, yoyo: true, repeat: -1, duration: 1600, ease: 'Sine.inOut' });
+    scene.time.addEvent({ delay: 300, loop: true, callback: () => { if (this.active) scene.fx.motes(x + Phaser.Math.Between(-12, 12), feet - 30, 0xf2d68a, 1); } });
+  }
+  interact() { Sfx.play('save'); this.scene.openMenu('trial'); }
+}
+
+// The rope ladder out of the Study Room, back up into the shop
+class Ladder extends Phaser.GameObjects.Image {
+  constructor(scene, x, feet) {
+    super(scene, x, feet - 32, 'ladder');
+    scene.add.existing(this);
+    this.setDepth(4);
+    this.prompt = 'Climb up';
+  }
+  interact() {
+    const s = this.scene;
+    if (s.waves && s.waves.active) { s.denied('Urahara\'s exercise is not over yet'); return; }
+    Sfx.play('door');
+    s.goTo('kar_hub', { spawn: 'shop' });
+  }
+}
+
 class Pickup extends Phaser.GameObjects.Image {
-  // type: 'ability' | 'seal' | 'fragment'
+  // type: 'ability' | 'seal' | 'fragment' | 'ore' | 'petal' | 'item' (a quest item, id names it)
   constructor(scene, x, y, type, id, key) {
-    const tex = type === 'seal' ? 'sealitem' : type === 'fragment' ? 'fragment' : type === 'ore' ? 'ore' : 'pickup';
+    const tex = type === 'seal' ? 'sealitem' : type === 'fragment' ? 'fragment' : type === 'ore' ? 'ore' : type === 'petal' ? 'petal' : type === 'item' ? id : 'pickup';
     super(scene, x, y, tex);
     scene.add.existing(this);
     this.type = type; this.id = id; this.key = key;
     this.setDepth(8);
-    const color = type === 'ability' ? (PICKUP_COLORS[id] || 0xffffff) : type === 'seal' ? 0xffd75e : type === 'ore' ? 0xb89aff : 0xffffff;
+    const color = type === 'ability' || type === 'item' ? (PICKUP_COLORS[id] || 0xffffff) : type === 'seal' ? 0xffd75e : type === 'ore' ? 0xb89aff : type === 'petal' ? 0xffb0d0 : 0xffffff;
     this.halo = scene.add.image(x, y, 'glow').setDepth(7).setTint(color).setAlpha(0.5).setScale(type === 'ability' ? 1.6 : 1);
     if (type === 'ability') this.setTint(color);
     scene.tweens.add({ targets: [this, this.halo], y: y - 4, yoyo: true, repeat: -1, duration: 1100, ease: 'Sine.inOut' });
@@ -312,6 +360,7 @@ class Pickup extends Phaser.GameObjects.Image {
 const PICKUP_COLORS = {
   dash: 0x9fb4ff, hado: 0xff6a4a, grip: 0x7fe8ff, bakudo: 0xffd75e, wings: 0xe8f4ff,
   konso: 0xbfe6ff, burst: 0xff8a3a, bankai: 0xe0303c, hollow: 0xf4f1ea, getsuga: 0x9ac8ff, raiko: 0xff4a30, compass: 0x7fe8ff,
+  zangetsu: 0xe8e4d8, odachi: 0xbfe0ff, kodachi: 0xffd890, soten: 0xffb0d0, gikongan: 0x3ac86a, petal: 0xffd0e4,
 };
 
 class Shard extends Phaser.Physics.Arcade.Image {

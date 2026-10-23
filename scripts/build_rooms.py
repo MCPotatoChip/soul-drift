@@ -55,10 +55,8 @@ def arena(w, h=23, door='left', floor=19, planks=(), lock=True, ceiling=2):
     return g
 
 
-OLD = json.load(open('/tmp/claude-1000/-home-hamza-Desktop-soulDrift/03a4ef70-f662-4ffa-a1d6-5f5df8fa597d/scratchpad/rooms_old.json')) \
-    if os.path.exists('/tmp/claude-1000/-home-hamza-Desktop-soulDrift/03a4ef70-f662-4ffa-a1d6-5f5df8fa597d/scratchpad/rooms_old.json') else None
-if OLD is None:
-    raise SystemExit('rooms_old.json missing: export the current rooms first')
+# The older rooms, kept as text grids (scripts/rooms_base.json) and edited below
+OLD = json.load(open(os.path.join(HERE, 'rooms_base.json')))
 
 
 def old(rid):
@@ -251,8 +249,9 @@ g.rect(8, 15, 13, 15, '=').rect(36, 15, 41, 15, '=')
 g.rect(48, 8, 53, 8, '#').put(50, 7, 'f')        # climb the east wall for this one
 g.put(4, 19, 'R').put(8, 19, 'N')
 g.put(16, 19, 'm').put(31, 14, '.').put(38, 14, 'q').put(44, 19, 'b').put(30, 4, 'v')
+g.rect(48, 20, 49, 24, '.').put(48, 24, '3').put(49, 24, '3')   # a broken grate: down to the Hall of Lanterns
 R['sei_4'] = dict(name='Fourth Division Sewers', region='sei', pos=[64.4, 2.1],
-    doors={'1': ['sei_2', '4'], '2': ['sei_renji', '1']},
+    doors={'1': ['sei_2', '4'], '2': ['sei_renji', '1'], '3': ['sei_lantern', '1']},
     npcs=[{'name': 'Hanatarō Yamada', 'seal': 'kaido', 'lines': [
         'Ah! Please do not hurt me! I am only Hanataro Yamada, Seventh Seat of the Fourth Division. We clean the sewers.',
         'You are going to the Senzaikyu? To Rukia-san? Then the lieutenant of the Sixth Division is waiting on the bridge. Renji Abarai.',
@@ -269,8 +268,10 @@ R['sei_renji'] = dict(name='Senzaikyu Bridge', region='sei', pos=[70, 2.1],
 # =========================================================================== Sokyoku Hill
 g = old('sok_1')
 g.put(8, 36, 'N')
+g.put(0, 2, '.').put(0, 3, '3')   # a gap in the west wall, near the top: the Pressure Shrine
+g.rect(34, 8, 38, 8, '=').rect(24, 7, 28, 7, '=').rect(14, 6, 18, 6, '=').rect(5, 5, 9, 5, '=').rect(1, 4, 3, 4, '=')   # planks across to it
 R['sok_1'] = dict(name='Sokyoku Ascent', region='sok', pos=[64.4, -2.0],
-    doors={'1': ['sei_2', '3'], '2': ['sok_boss', '1']},
+    doors={'1': ['sei_2', '3'], '2': ['sok_boss', '1'], '3': ['sok_shrine', '1']},
     npcs=[{'name': 'Yoruichi', 'seal': 'shunko', 'lines': [
         'Do not look so surprised. A cat can talk. It is the Shinigami who listen that are rare.',
         'Byakuya Kuchiki waits at the top of the hill. He will not hold back, and Senbonzakura does not miss.',
@@ -288,8 +289,10 @@ g.put(11, 18, '.').put(15, 18, 'N')
 for (x, y) in [(31, 14), (32, 14), (33, 14), (24, 16), (25, 16), (26, 16), (38, 16), (39, 16), (40, 16)]:
     g.put(x, y, '.')
 g.rect(26, 12, 29, 12, '=').rect(36, 12, 39, 12, '=')   # sand ledges only Hirenkyaku reaches
+g.rect(55, 14, 59, 14, '=').rect(58, 10, 62, 10, '=').rect(53, 6, 57, 6, '=').rect(57, 2, 61, 2, '=')   # bone steps into the sky
+g.put(59, 0, '4').put(60, 0, '4')
 R['hm_1'] = dict(name='Hueco Mundo', region='hm', pos=[73.2, -4.6],
-    doors={'1': ['sok_boss', '2'], '2': ['hm_2', '1'], '3': ['forest_1', '1']},
+    doors={'1': ['sok_boss', '2'], '2': ['hm_2', '1'], '3': ['forest_1', '1'], '4': ['hm_sand', '1']},
     npcs=[{'name': 'Nel Tu', 'lines': [
         'Itsygo! Nel knew it was you! Nel smelled your Reiatsu from all the way over the dunes!',
         'That big white palace is Las Noches. The Espada live there. They are scary. Nel does not go there. Mostly.',
@@ -297,6 +300,7 @@ R['hm_1'] = dict(name='Hueco Mundo', region='hm', pos=[73.2, -4.6],
     tiles=g.rows())
 
 g = old('hm_2')
+g.put(8, 5, 'r')              # a petal of Orihime's hairpin
 g.put(36, 26, '.')            # Senkaimon Burst now comes from Grimmjow
 g.rect(44, 8, 55, 10, '.').put(55, 10, '4')
 g.rect(36, 22, 40, 22, '=').rect(39, 18, 43, 18, '=').rect(38, 14, 42, 14, '=')
@@ -357,6 +361,7 @@ R['hm_dome'] = dict(name='Dome of Las Noches', region='hm', pos=[85.6, -8.2],
 
 # =========================================================================== the Forest of Menos
 g = old('forest_1')
+g.put(22, 6, 'r')   # a petal of Orihime's hairpin, over the long ledge
 R['forest_1'] = dict(name='Forest of Menos', region='for', pos=[76.7, -2.3],
     doors={'1': ['hm_1', '3'], '2': ['forest_2', '1']}, seals=['phantom'],
     npcs=[{'name': 'Ashido Kanō', 'lines': [
@@ -376,6 +381,7 @@ R['dangai_1'] = dict(name='The Dangai', region='dan', pos=[-1.5, 5.6],
     doors={'1': ['kar_alley', '2'], '2': ['dangai_2', '1']}, chase=True, tiles=g.rows())
 
 g = old('dangai_2')
+g.put(12, 13, 'r')            # a petal of Orihime's hairpin
 R['dangai_2'] = dict(name='Precipice Shrine', region='dan', pos=[-5.5, 5.6],
     doors={'1': ['dangai_1', '2']}, abilities=['getsuga'], seals=['moonfang'],
     npcs=[{'name': 'Zangetsu', 'lines': [
@@ -394,13 +400,91 @@ R['end_boss'] = dict(name='Heart of the Inner World', region='end', pos=[7.2, 12
     doors={'1': ['end_1', '2']}, boss='final', tiles=g.rows())
 
 
+
+# =========================================================================== puzzle rooms
+# Hall of Lanterns, under the Fourth Division: strike a lantern and the gold barriers (Q) open while
+# blue ones (K) rise as walls of light, until the flame dies. The way up is a wall that is only
+# there while the lantern burns; the way out is the lantern at the far end.
+g = Grid(52, 22, '#')
+g.rect(1, 2, 50, 18, '.')
+g.rect(49, 0, 50, 1, '.').put(49, 0, '1').put(50, 0, '1')   # the grate from the sewers
+g.rect(1, 1, 30, 3, '#')                        # the gallery roof
+g.rect(1, 8, 30, 8, '#')                        # the gallery floor
+g.rect(31, 8, 31, 18, 'K')                      # a wall of light that rises while the flame burns
+g.rect(24, 4, 24, 7, 'Q').rect(16, 4, 16, 7, 'Q')   # gold barriers across the gallery
+g.put(44, 18, 't').put(7, 7, 't')               # lanterns: one by the grate, one past the barriers
+g.put(3, 7, 'C').put(11, 7, 'f')                # Kon's spare Gikongan, and a fragment
+g.put(20, 18, 'm').put(11, 18, 'q').put(38, 18, 'g')
+R['sei_lantern'] = dict(name='Hall of Lanterns', region='sei', pos=[64.4, 4.7],
+    doors={'1': ['sei_4', '3']}, tiles=g.rows())
+
+# The Sinking Dunes, above Hueco Mundo: white sand that swallows whatever stands still on it.
+# Bone pillars stick out of it; the far shelf holds a petal and a fragment.
+g = Grid(60, 23)
+g.rect(0, 0, 0, 22, '#')
+g.rect(0, 19, 59, 22, '#')
+g.rect(6, 19, 45, 20, 's')                      # quicksand, two tiles deep, over bedrock
+g.rect(1, 14, 5, 18, '#')                       # the far shelf
+g.rect(13, 15, 14, 18, '#').rect(22, 13, 23, 18, '#').rect(31, 15, 32, 18, '#').rect(39, 12, 40, 18, '#')   # bone pillars
+g.rect(52, 19, 53, 22, '.').put(52, 22, '1').put(53, 22, '1')   # the way down to Hueco Mundo
+g.put(2, 13, 'r').put(4, 13, 'f')
+g.put(49, 18, 'a').put(20, 6, 'h').put(35, 7, 'h')
+R['hm_sand'] = dict(name='Sinking Dunes', region='hm', pos=[73.4, -6.9],
+    doors={'1': ['hm_1', '4']}, tiles=g.rows())
+
+# The Pressure Shrine, beside the Sokyoku: a tunnel where a captain's spirit pressure still lies
+# heavy (p). It drags you down, slows you, and drains your Reiatsu; Shunpo is the way across.
+g = Grid(50, 38, '#')
+g.rect(1, 2, 48, 33, '.')
+g.put(49, 2, '.').put(49, 3, '1')                 # the gap from the Sokyoku Ascent
+g.rect(1, 2, 40, 21, '#')                       # the cliff above the tunnel
+g.rect(44, 4, 48, 4, '=')                       # the ledge you arrive on
+g.rect(4, 33, 40, 33, '^')                      # the tunnel floor: spikes
+for x in (36, 29, 22, 15, 8):
+    g.rect(x, 32, x + 1, 33, '#')               # stepping stones
+g.rect(1, 31, 3, 33, '#')                       # the shrine at the far end
+g.rect(4, 22, 40, 31, 'p').rect(4, 32, 7, 32, 'p').rect(10, 32, 14, 32, 'p').rect(17, 32, 21, 32, 'p').rect(24, 32, 28, 32, 'p').rect(31, 32, 35, 32, 'p').rect(38, 32, 40, 32, 'p')
+g.put(2, 30, 'r').put(1, 30, 'f')
+g.put(44, 16, 'h').put(46, 32, 'g')
+R['sok_shrine'] = dict(name='Pressure Shrine', region='sok', pos=[59.4, -2.0],
+    doors={'1': ['sok_1', '3']}, tiles=g.rows())
+
+# =========================================================================== hidden places
+# Urahara's Study Room: a vast cavern under the shop with a painted sky. Reached through the shop;
+# the ladder (U) climbs back up. Urahara runs his "light exercise" here.
+g = Grid(60, 24, '#')
+g.rect(1, 1, 58, 19, '.')
+g.rect(10, 15, 14, 15, '=').rect(45, 15, 49, 15, '=').rect(26, 11, 33, 11, '=')
+g.rect(20, 17, 22, 19, '#').rect(37, 17, 39, 19, '#')   # boulders
+g.put(4, 19, 'P').put(2, 19, 'U').put(8, 19, 'N')
+g.put(30, 10, 'f')   # a fragment on the high ledge (Urahara does not say who left it)
+R['kar_study'] = dict(name='The Study Room', region='stu', pos=[18.2, 12.6], doors={},
+    npcs=[{'name': 'Kisuke Urahara', 'study': True, 'lines': [
+        'Welcome to my little study room! I dug it out myself. Well, Tessai did. Mostly Tessai.',
+        'The sky is painted on. Please do not tell anyone.']}],
+    tiles=g.rows())
+
+# The Soul King Palace: Ichibē Hyōsube of the Royal Guard waits by the altar of the trials (A)
+g = Grid(56, 24, '#')
+g.rect(1, 1, 54, 19, '.')
+g.rect(0, 0, 55, 0, '.')
+g.rect(9, 14, 14, 14, '=').rect(41, 14, 46, 14, '=').rect(22, 10, 33, 10, '=')
+g.put(6, 19, 'R').put(28, 19, 'A').put(20, 19, 'N')
+R['palace'] = dict(name='Hall of the Royal Guard', region='rei', pos=[18, 4.5], doors={},
+    npcs=[{'name': 'Ichibē Hyōsube', 'lines': [
+        'Ho! So you are the one who learned every name in the three worlds. I am Ichibe Hyosube of the Royal Guard. I name things.',
+        'This altar holds the memory of every fight you have won. Touch it, and fight them again, one after another, as they were.',
+        'Carry all of it through to the end, and you will see what lies under the last name. Bind yourself, if you want a harder road. The altar remembers both.']}],
+    tiles=g.rows())
+
 # --------------------------------------------------------------------------- write
 ORDER = ['kar_hub', 'kar_alley', 'kar_roof', 'kar_river', 'kar_grave',
          'ruk_1', 'ruk_2', 'ruk_3', 'ruk_boss',
          'sei_gate', 'sei_ward', 'sei_1', 'sei_11', 'sei_2', 'sei_4', 'sei_renji',
          'sok_1', 'sok_boss',
          'hm_1', 'hm_2', 'hm_3', 'hm_grimm', 'hm_side', 'hm_boss', 'hm_dome',
-         'forest_1', 'forest_2', 'dangai_1', 'dangai_2', 'end_1', 'end_boss']
+         'forest_1', 'forest_2', 'dangai_1', 'dangai_2', 'end_1', 'end_boss',
+         'sei_lantern', 'hm_sand', 'sok_shrine', 'kar_study', 'palace']
 assert sorted(ORDER) == sorted(R), set(R) ^ set(ORDER)
 
 HEADER = '''// Room layouts, generated by scripts/build_rooms.py (edit that file, then run it).
@@ -415,6 +499,9 @@ HEADER = '''// Room layouts, generated by scripts/build_rooms.py (edit that file
 //          q kido caster      v ceiling diver (put it on the row under a ceiling)
 //          u reishi geyser (on the floor)        y stalactite (on the row under a ceiling)
 //          i acidwire crawler m onmitsukido agent  x exequias   b eleventh division brawler
+//          t lantern (strike it)   Q gold barrier (open while a lantern burns)   K blue barrier (solid only then)
+//          s quicksand   p spirit pressure (air that drags you down)   r Shun Shun Rikka petal   C Kon's Gikongan
+//          U ladder up to the shop   A altar of the trials
 // NPC entries: name, lines, and optionally gives (an ability), seal (a seal they hand over once),
 // heals (talking restores health) and after (what they say once they have given their gift).
 'use strict';

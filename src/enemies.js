@@ -34,12 +34,47 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (cfg.fly) this.body.setAllowGravity(false);
     scene.enemies.push(this);
     scene.enemyGroup.add(this);
+    this.makeElite();
+  }
+
+  // Some placements are elite: decided by the placement itself, so the same spot stays elite
+  makeElite() {
+    if (!this.uid || BOSS_KINDS.includes(this.kind) || GS.rush) return;
+    const plus = Math.min(3, GS.data.plus || 0);
+    const chance = plus ? 0.15 + 0.1 * plus : ELITE_REGIONS.includes(this.scene.region) ? 0.16 : 0;
+    if (!chance) return;
+    let h = 2166136261;
+    for (const ch of this.uid + ':' + plus) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    if ((h % 1000) / 1000 >= chance) return;
+    const traits = Object.keys(ELITE_TRAITS);
+    this.elite = traits[(h >>> 10) % traits.length];
+    this.hp = this.maxHp = Math.round(this.maxHp * 1.6);
+    this.drop *= 2;
+    const t = ELITE_TRAITS[this.elite], s = this.scene;
+    this.eliteMark = s.add.image(this.x, this.y, 'elite_' + this.elite).setDepth(26).setAlpha(0.95).setScale(0.5);
+    this.eliteAura = s.add.particles(0, 0, 'dot', {
+      speed: { min: 6, max: 22 }, angle: { min: 240, max: 300 }, lifespan: 600, scale: { start: 0.6, end: 0 },
+      alpha: { start: 0.6, end: 0 }, frequency: Math.round(110 / Settings.get('particles')), tint: t.color, blendMode: 'ADD',
+    }).setDepth(14);
+    this.eliteAura.startFollow(this);
+    this.calmT = 0;
+    this.once('destroy', () => { this.eliteMark.destroy(); this.eliteAura.destroy(); });
+  }
+  eliteTick(dt) {
+    this.eliteMark.setPosition(this.x, this.body.top - 9 + Math.sin(this.scene.time.now / 260) * 1.5);
+    if (this.elite === 'undying') {
+      this.calmT += dt;
+      if (this.calmT > 2 && this.hp < this.maxHp) {
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.05 * dt);
+        if (Math.random() < dt * 4) this.scene.fx.motes(this.x, this.y, 0x9aff6a, 1);
+      }
+    }
   }
 
   anim(name, timeScale = 1) {
     const key = this.sheet + ':' + name;
     if (!this.anims.currentAnim || this.anims.currentAnim.key !== key) this.play(key);
-    this.anims.timeScale = timeScale;
+    this.anims.timeScale = timeScale * (this.elite === 'hasty' ? 1.35 : 1);
   }
   // Humanoids: idle / run picked from movement
   moveAnim(speed = 150) {
@@ -63,6 +98,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   tick(dt) {
     if (!this.alive) return;
+    if (this.elite) { this.eliteTick(dt); if (this.elite === 'hasty') dt *= 1.35; }
+    if (this.warnOn !== undefined) this.updateWarn();
     this.dt = dt;
     if (!this.isBoss && !this.cfg.fly && this.inSpikes()) { this.drop = 0; this.die(0); return; }
     if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.refreshTint(); }
@@ -98,12 +135,27 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.boundT > 0) this.setTint(0xffd75e);
     else if (this.tintState) this.setTint(this.tintState);
   }
-  telegraph(color) { this.tintState = color; if (this.flashT <= 0) this.refreshTint(); }
-  untelegraph() { this.tintState = 0; if (this.flashT <= 0) this.refreshTint(); }
+  telegraph(color) { this.tintState = color; if (this.flashT <= 0) this.refreshTint(); this.warn(color !== 0x8080a0); }
+  untelegraph() { this.tintState = 0; if (this.flashT <= 0) this.refreshTint(); this.warn(false); }
+  // Bold attack warnings (an assist setting): a mark over the head for as long as a wind-up lasts
+  warn(on) {
+    this.warnOn = on && Settings.get('warnings') && this.alive;
+    if (this.warnOn && !this.warnMark) this.warnMark = this.scene.add.image(this.x, this.y, 'warn_mark').setDepth(32);
+    if (this.warnMark) { this.warnMark.setVisible(this.warnOn); this.updateWarn(); }
+  }
+  updateWarn() {
+    const m = this.warnMark;
+    if (!m) return;
+    if (!this.alive || !this.active) { m.destroy(); this.warnMark = null; this.warnOn = undefined; return; }
+    if (!this.warnOn) return;
+    m.setPosition(this.x, this.body.top - (this.elite ? 20 : 10)).setScale(0.5 + 0.08 * Math.abs(Math.sin(this.scene.time.now / 70)));
+  }
 
   hit(dmg, dirX, o = {}) {
     if (!this.alive || this.invulnerable) return 'none';
     if (this.blocks && this.blocks(dirX, o)) return 'block';
+    if (this.elite === 'armored') dmg *= 0.67;
+    this.calmT = 0;
     this.hp -= dmg;
     this.flashT = 0.08;
     if (!this.isBoss) this.hurtT = 0.16;
@@ -134,11 +186,28 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     s.spawnShards(this.x, this.y, this.drop);
     s.fx.kill(this, dirX || 0);
     Sfx.play('hit');
+    if (this.warnMark) { this.warnMark.destroy(); this.warnMark = null; }
+    if (this.elite === 'volatile') this.burstOnDeath();
     this.onDie && this.onDie();
     this.anims.pause();
     this.setTintFill(0xffffff);
     // dissolve upward into reishi
     s.tweens.add({ targets: this, alpha: 0, scaleX: 0.6, scaleY: 1.25, y: this.y - 8, duration: 420, ease: 'Cubic.in', onComplete: () => this.destroy() });
+  }
+
+  // A Volatile elite's last act: a ring that swells, then bursts
+  burstOnDeath() {
+    const s = this.scene, x = this.x, y = this.y, R = 30;
+    s.fx.ring(x, y, 0xff7a4a, R, 450, 2);
+    Sfx.play('telegraph');
+    s.time.delayedCall(450, () => {
+      if (!s.sys.isActive()) return;
+      s.fx.ring(x, y, 0xffd0a0, R * 1.3, 300, 3);
+      s.fx.burst(x, y, 0xff7a4a, 16);
+      s.fx.shake(150, 0.006);
+      Sfx.play('break');
+      s.addHurt(x - R, y - R, R * 2, R * 2, 1, 0.12);
+    });
   }
 
   memory() { return Phaser.Utils.Array.GetRandom(MEMORIES[this.kind] || ['"..."']); }
@@ -524,7 +593,7 @@ class Diver extends Enemy {
     this.anim('fly');
     this.facing = -1;
   }
-  untelegraph() { this.tintState = this.baseTint; if (this.flashT <= 0) this.refreshTint(); }
+  untelegraph() { this.tintState = this.baseTint; if (this.flashT <= 0) this.refreshTint(); this.warn(false); }
   afterTick() {
     if (this.anims.currentAnim) this.anims.timeScale = this.mode === 'hang' ? 0.15 : this.mode === 'dive' ? 1.8 : 1;
   }
@@ -832,5 +901,101 @@ class Brawler extends Enemy {
         if (this.mt <= 0) { this.untelegraph(); this.mode = 'patrol'; this.mt = 0.7; }
         break;
     }
+  }
+}
+
+// Ganju Shiba, fighting for real (his rematch in Inuzuri): he rushes in swinging, lobs fireworks when
+// you keep away, leaps on you when you climb, and yields instead of dying
+class GanjuFighter extends Enemy {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, 'ganju_f', { hp: 130, dmg: 1, drop: 0, bw: 11, bh: 21, kind: 'ganju', kb: 0.3, burst: 0xc84a3a, frame: 'idle0', frameFeet: HF.FEET });
+    this.mode = 'stalk'; this.mt = 0.9; this.tossT = 1.5; this.hits = 0;
+    this.anim('idle');
+  }
+  afterTick() {
+    switch (this.mode) {
+      case 'windup': this.anim('windup'); break;
+      case 'strike': this.anim('strike'); break;
+      case 'recover': this.anim('recover'); break;
+      case 'toss': this.anim('cast'); break;
+      case 'leap': this.anim('run', 0.4); break;
+      default: this.moveAnim(120);
+    }
+  }
+  think(dt) {
+    const b = this.body, s = this.scene, p = s.player;
+    const { dx, dy } = this.playerDelta(), dist = Math.abs(dx);
+    this.mt -= dt; this.tossT -= dt;
+    switch (this.mode) {
+      case 'stalk':
+        this.faceTo(p.x);
+        b.setVelocityX(approach(b.velocity.x, dist > 30 ? this.facing * 95 : 0, 700 * dt));
+        if (this.mt > 0 || !b.blocked.down) break;
+        if (dist < 40 && Math.abs(dy) < 30) { this.mode = 'windup'; this.mt = 0.36; this.hits = 2; this.telegraph(0xffa060); Sfx.play('telegraph'); }
+        else if (dy < -50 && dist < 130) { this.mode = 'leap'; this.leap(p.x); }
+        else if (dist > 90 && this.tossT <= 0) { this.mode = 'toss'; this.mt = 0.45; this.tossT = 2.6; b.setVelocityX(0); this.telegraph(0xff8a3a); Sfx.play('charge'); }
+        break;
+      case 'windup':
+        b.setVelocityX(approach(b.velocity.x, 0, 1200 * dt));
+        if (this.mt <= 0) {
+          this.untelegraph();
+          const f = this.facing;
+          s.addHurt(0, 0, 28, 20, 1, 0.13, (h) => { h.x = this.x + (f > 0 ? 2 : -30); h.y = this.y - 10; }, this);
+          s.fx.slashArc(this.x + f * 14, this.y, f, 0xffc080, 1);
+          Sfx.play('slash');
+          b.setVelocityX(f * 110);
+          this.mode = 'strike'; this.mt = 0.2;
+        }
+        break;
+      case 'strike':
+        if (this.mt <= 0) {
+          if (--this.hits > 0) { this.faceTo(p.x); this.mode = 'windup'; this.mt = 0.16; this.telegraph(0xffa060); }
+          else { this.mode = 'recover'; this.mt = 0.75; b.setVelocityX(0); this.telegraph(0x8080a0); }
+        }
+        break;
+      case 'toss':
+        if (this.mt <= 0) {
+          this.untelegraph();
+          // a firework lobbed to land where you stand
+          const T = 0.85, vx = Phaser.Math.Clamp(dx / T, -280, 280), vy = (dy - 0.5 * PHYS.gravity * T * T) / T;
+          new EnemyShot(s, this.x + this.facing * 6, this.y - 8, 'acid', vx, Math.max(-520, vy), { gravity: true, dmg: 1, life: 2.5, burst: 0xff8a3a, splash: true, tint: 0xff9a40, owner: this });
+          Sfx.play('throw');
+          this.mode = 'recover'; this.mt = 0.35;
+        }
+        break;
+      case 'leap':
+        if (this.mt <= 0 && b.blocked.down) {
+          b.setVelocityX(0);
+          s.fx.dust(this.x, b.bottom, 10); s.fx.shake(180, 0.008); Sfx.play('land');
+          s.spawnShock(this.x - 6, b.bottom, -1); s.spawnShock(this.x + 6, b.bottom, 1);
+          this.mode = 'recover'; this.mt = 0.6; this.telegraph(0x8080a0);
+        }
+        break;
+      case 'recover':
+        b.setVelocityX(approach(b.velocity.x, 0, 900 * dt));
+        if (this.mt <= 0) { this.untelegraph(); this.mode = 'stalk'; this.mt = 0.4; }
+        break;
+    }
+  }
+  leap(tx) {
+    const T = 0.8;
+    this.body.setVelocity(Phaser.Math.Clamp((tx - this.x) / T, -220, 220), -PHYS.gravity * T / 2);
+    this.mt = 0.2;
+    Sfx.play('jump');
+  }
+  // He does not die: he sits down hard and gives up
+  die(dirX) {
+    const s = this.scene;
+    this.alive = false;
+    this.body.enable = false;
+    this.untelegraph();
+    if (this.warnMark) { this.warnMark.destroy(); this.warnMark = null; }
+    s.hitStop(0.25);
+    s.fx.burst(this.x, this.y, 0xff8a3a, 18);
+    s.fx.dust(this.x, this.y + 10, 10);
+    Sfx.play('hit');
+    this.anim('hurt');
+    s.tweens.add({ targets: this, alpha: 0, delay: 650, duration: 350, onComplete: () => this.destroy() });
+    s.time.delayedCall(700, () => { if (s.sys.isActive() && s.duel) s.duelWon(this); });
   }
 }

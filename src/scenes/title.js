@@ -15,6 +15,7 @@ class TitleScene extends Phaser.Scene {
   constructor() { super('title'); }
 
   create() {
+    this.leaving = false;
     this.cameras.main.setBackgroundColor('#05050a');
     Music.setRegion('title');
     this.makeTitleArt();
@@ -59,14 +60,12 @@ class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: stroke, scaleX: 1.62, duration: 700, delay: 500, ease: 'Cubic.out' });
     this.add.text(146, 326, 'A Bleach metroidvania: Karakura, Soul Society, Hueco Mundo and the world within', { fontFamily: FONT_BODY, fontSize: '19px', color: '#b8b2c4' });
 
-    // menu
+    // menu: Continue picks up the journey played last; every save, new game and New Game+ lives under Journeys
     this.hasSave = GS.hasSave();
-    this.save = GS.peek();
     this.items = [];
     if (this.hasSave) this.items.push({ label: 'Continue', act: () => this.cont() });
-    // A finished journey can be walked again, keeping your powers, against tougher foes
-    if (this.save && this.save.cleared) this.items.push({ label: `New Game+${this.save.plus ? ' ' + (this.save.plus + 1) : ''}`, act: () => this.newGamePlus() });
-    this.items.push({ label: 'New game', act: () => this.newGame() });
+    else this.items.push({ label: 'New journey', act: () => this.startSlot(GS.slot, 'new') });
+    this.items.push({ label: 'Journeys', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'slots' }); } });
     this.items.push({ label: 'Controls', act: () => this.toggleControls() });
     this.items.push({ label: 'Settings', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'settings' }); } });
     this.sel = 0;
@@ -79,6 +78,9 @@ class TitleScene extends Phaser.Scene {
       return t;
     });
     this.note = this.add.text(150, 422 + this.items.length * 58 + 10, '', { fontFamily: FONT_BODY, fontSize: '17px', color: GOLD });
+    // which journey Continue opens
+    const sum = this.hasSave && GS.summary(GS.slot);
+    if (sum) this.add.text(this.menu[0].x + this.menu[0].width - 250, this.menu[0].y, `${SLOT_KANJI[GS.slot]}  ${sum.room} · ${sum.pct}%`, { fontFamily: FONT_BODY, fontSize: '16px', color: MUTED }).setOrigin(0, 0.5);
     this.keyHint = this.add.text(28, GAME_H - 20, '', { fontFamily: FONT_BODY, fontSize: '15px', color: MUTED }).setOrigin(0, 1).setAlpha(0.8);
     const hint = () => this.keyHint.setText(Touch.enabled ? 'Tap an option to choose' : Controls.fmt('Click the game first · {up} {down} choose · {jump} or Enter confirm'));
     hint();
@@ -161,34 +163,30 @@ class TitleScene extends Phaser.Scene {
   onKey(code) {
     Sfx.init();
     if (this.scene.isActive('menu')) return;
-    if (Controls.isUp(code)) { this.sel = (this.sel + this.items.length - 1) % this.items.length; this.confirming = false; this.confirmingPlus = false; this.note.setText(''); Sfx.play('select'); this.refresh(); }
-    else if (Controls.isDownKey(code)) { this.sel = (this.sel + 1) % this.items.length; this.confirming = false; this.confirmingPlus = false; this.note.setText(''); Sfx.play('select'); this.refresh(); }
+    if (Controls.isUp(code)) { this.sel = (this.sel + this.items.length - 1) % this.items.length; this.note.setText(''); Sfx.play('select'); this.refresh(); }
+    else if (Controls.isDownKey(code)) { this.sel = (this.sel + 1) % this.items.length; this.note.setText(''); Sfx.play('select'); this.refresh(); }
     else if (Controls.isConfirm(code) || code === 'Space') this.items[this.sel].act();
   }
 
   toggleControls() { Sfx.play('confirm'); this.scene.launch('menu', { type: 'controls' }); }
 
-  newGame() {
-    if (this.hasSave && !this.confirming) {
-      this.confirming = true;
-      this.note.setText(Touch.enabled ? 'This overwrites your saved journey. Tap New game again to begin anew.' : Controls.fmt('This overwrites your saved journey. Press {jump} again to begin anew.'));
-      Sfx.play('deny');
+  // Play a slot: continue it, begin it anew, or walk it again as New Game+ (the Journeys screen confirms first)
+  startSlot(i, mode) {
+    if (this.leaving) return;
+    GS.useSlot(i);
+    if (mode === 'continue') { this.cont(); return; }
+    if (mode === 'plus') {
+      const old = GS.peek(i);
+      if (!old) return;
+      GS.newGamePlus(old);
+      GS.save();
+      this.begin({ room: 'kar_hub', spawn: 'start' });
       return;
     }
-    GS.wipe();
+    GS.wipe(i);
     GS.newGame();
-    this.begin({ room: 'kar_hub', spawn: 'start' }, 'intro');
-  }
-  newGamePlus() {
-    if (!this.confirmingPlus) {
-      this.confirmingPlus = true;
-      this.note.setText(Touch.enabled ? 'A new journey with your powers, against tougher foes. Tap again to begin.' : Controls.fmt('A new journey with your powers, against tougher foes. Press {jump} again to begin.'));
-      Sfx.play('deny');
-      return;
-    }
-    GS.newGamePlus(this.save);
     GS.save();
-    this.begin({ room: 'kar_hub', spawn: 'start' });
+    this.begin({ room: 'kar_hub', spawn: 'start' }, 'intro');
   }
   cont() {
     if (!GS.load()) { this.note.setText('The save could not be read. Start a new game.'); return; }
@@ -196,6 +194,8 @@ class TitleScene extends Phaser.Scene {
     this.begin({ room: GS.data.restRoom || 'kar_hub', spawn: 'rest' });
   }
   begin(entry, via) {
+    if (this.leaving) return;
+    this.leaving = true;
     Sfx.play('confirm');
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
@@ -227,6 +227,11 @@ class EndingScene extends Phaser.Scene {
     const m = Math.floor(d.time / 60), s = Math.floor(d.time % 60);
     const stats = this.add.text(GAME_W / 2, 490, `Time ${m}:${String(s).padStart(2, '0')}   ·   ${GS.completion()}% complete   ·   ${d.deaths} deaths`, { fontFamily: FONT_BODY, fontSize: '20px', color: '#5a5668' }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: stats, alpha: 1, delay: 7000, duration: 1200 });
+    // a nudge toward the Soul King Palace for those who have not found everything
+    if (GS.completion() < 100) {
+      const more = this.add.text(GAME_W / 2, 540, 'Some say there is more, for those who find everything.', { fontFamily: FONT_DISPLAY, fontSize: '18px', fontStyle: '700', color: '#c89a3a' }).setOrigin(0.5).setAlpha(0);
+      this.tweens.add({ targets: more, alpha: 1, delay: 7600, duration: 1200 });
+    }
     const foot = this.add.text(GAME_W / 2, 620, (Touch.enabled ? 'Thank you for playing. Tap to return to the title.' : Controls.fmt('Thank you for playing. Press {jump} to return to the title.')), { fontFamily: FONT_BODY, fontSize: '17px', color: '#8a8497' }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: foot, alpha: 1, delay: 8000, duration: 1000 });
     this.time.delayedCall(3000, () => {
@@ -237,6 +242,60 @@ class EndingScene extends Phaser.Scene {
   }
 }
 
+
+// The true ending: the Trial of the Ten is won (deaths along the way do not matter). The Inner World
+// under a clear sky, Zangetsu and the white one side by side with you, and what the trial cost.
+class TrueEndingScene extends Phaser.Scene {
+  constructor() { super('trueEnding'); }
+  init(info) { this.info = info || {}; }
+  create() {
+    const d = GS.data, info = this.info;
+    Music.setRegion('end');
+    this.cameras.main.setBackgroundColor('#f4f1ea');
+    this.cameras.main.fadeIn(1600, 255, 255, 255);
+    const sky = this.add.image(0, 0, 'bg_end_0').setOrigin(0).setScale(ZOOM).setAlpha(0);
+    this.tweens.add({ targets: sky, alpha: 0.85, duration: 6000, delay: 1500 });
+    this.add.particles(0, 0, 'dot', {
+      x: { min: 0, max: GAME_W }, y: GAME_H + 10, speedY: { min: -40, max: -14 }, lifespan: 12000,
+      scale: { start: 0.8, end: 0.2 }, alpha: { start: 0.6, end: 0 }, frequency: 160, tint: 0xffffff, blendMode: 'ADD',
+    });
+    const lines = [
+      'Under the last name there is no name at all.',
+      'Only a clear sky, and the towers of the Inner World standing upright for the first time.',
+      'Zangetsu stands on one side of you. The white one stands on the other. Neither holds a blade.',
+      '"You carried all of it," the old man says. "Every soul. Every memory. Every favour."',
+      '"Tch," says the white one. "Fine. King. For now."',
+      'For the first time, the rain inside you has stopped.',
+    ];
+    lines.forEach((l, i) => {
+      const txt = this.add.text(GAME_W / 2, 92 + i * 44, l, { fontFamily: FONT_BODY, fontSize: '23px', color: '#17161f', stroke: '#f4f1ea', strokeThickness: 4 }).setOrigin(0.5).setAlpha(0);
+      this.tweens.add({ targets: txt, alpha: 1, delay: 1400 + i * 1900, duration: 1300 });
+    });
+    // the three of them, side by side
+    const at = 1400 + lines.length * 1900;
+    [['npc_zangetsu', 'npc_zangetsu:idle', 470, false], ['ichigo', 'ichigo:idle', 640, false], ['final', 'final:idle', 810, true]].forEach(([key, anim, x, flip], i) => {
+      const s = this.add.sprite(x, 470, key).setOrigin(0.5, HF.FEET / HF.H).setScale(4).setFlipX(flip).setAlpha(0);
+      s.play(anim);
+      this.tweens.add({ targets: s, alpha: 1, y: 462, delay: at + i * 400, duration: 1400, ease: 'Sine.out' });
+    });
+    const title = this.add.text(GAME_W / 2, 528, 'SOUL DRIFT', { fontFamily: FONT_DISPLAY, fontSize: '64px', fontStyle: '800', color: '#17161f' }).setOrigin(0.5).setAlpha(0);
+    const shin = this.add.text(GAME_W / 2 + title.width / 2 + 34, 520, '真', { fontFamily: FONT_DISPLAY, fontSize: '56px', fontStyle: '800', color: '#c89a3a' }).setOrigin(0.5).setAlpha(0);
+    const sub = this.add.text(GAME_W / 2, 578, 'The True Ending', { fontFamily: FONT_DISPLAY, fontSize: '24px', fontStyle: '700', color: '#c89a3a' }).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: [title, shin, sub], alpha: 1, delay: at + 1600, duration: 1500 });
+    const bound = BINDING_ORDER.filter(k => info.bind && info.bind[k]);
+    const stat = `Trial of the Ten ${fmtClock(info.t || 0, true)}${info.newBest ? ' (best)' : ''}   ·   ${bound.length ? 'bound: ' + bound.map(k => BINDINGS[k].jp).join(' ') : 'unbound'}   ·   journey ${fmtClock(d.time)}   ·   ${d.deaths} deaths`;
+    const stats = this.add.text(GAME_W / 2, 624, stat, { fontFamily: FONT_BODY, fontSize: '18px', color: '#5a5668' }).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: stats, alpha: 1, delay: at + 2600, duration: 1200 });
+    const foot = this.add.text(GAME_W / 2, 676, Touch.enabled ? 'Thank you for playing. Tap to return to the title.' : Controls.fmt('Thank you for playing. Press {jump} to return to the title.'), { fontFamily: FONT_BODY, fontSize: '16px', color: '#8a8497' }).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: foot, alpha: 1, delay: at + 3600, duration: 1000 });
+    this.time.delayedCall(at + 1000, () => {
+      const go = () => { off(); this.cameras.main.fadeOut(900, 255, 255, 255); this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('title')); };
+      const off = Controls.on((code) => { if (Controls.isConfirm(code)) go(); });
+      this.events.once('shutdown', off);
+      this.input.once('pointerdown', go);
+    });
+  }
+}
 
 // The opening: three quiet lines on black, with reishi rising, then the town
 class IntroScene extends Phaser.Scene {

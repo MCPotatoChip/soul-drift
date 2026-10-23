@@ -32,6 +32,13 @@ class Boss extends Enemy {
     // tuning every boss may override
     this.walker = true; this.walkSpeed = 70; this.prefer = 90; this.patience = 3.2; this.pause = 0.45; this.nearDist = 110;
   }
+  // A new phase of the fight also raises the music and tells the HUD
+  get phase() { return this._phase; }
+  set phase(v) {
+    const up = this._phase && v > this._phase;
+    this._phase = v;
+    if (up && this.scene && this.scene.bossStarted) { Music.setPhase(v); this.scene.game.events.emit('boss-phase', v); }
+  }
   // Hold an animation clip for a while (wind-ups, strikes, casts)
   setPose(name, t = 0.3) { this.poseName = name; this.poseT = t; this.anim(name); }
   defaultPose() {

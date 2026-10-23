@@ -12,8 +12,11 @@ const FONT_DISPLAY = '"Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho",
 const FONT_BODY = '"Zen Kaku Gothic New", "Hiragino Sans", "Segoe UI", system-ui, sans-serif';
 
 // Tile indices inside every generated tileset
-const T = { SOLID: 0, TOP: 1, ONEWAY: 2, SPIKE: 3, KIDO: 4, GATE: 5, CRACK: 6, BANKAI: 7, HIDDEN: 8, LOCK: 9, COLLAPSE: 10 };
-const SOLID_INDEXES = [T.SOLID, T.TOP, T.KIDO, T.GATE, T.CRACK, T.BANKAI, T.LOCK, T.COLLAPSE];
+// BARRIER: a gold Kidō barrier that opens while a lantern burns; LIGHT: a blue wall of light that stands only
+// then; SAND: quicksand (never solid, on a layer of its own)
+const T = { SOLID: 0, TOP: 1, ONEWAY: 2, SPIKE: 3, KIDO: 4, GATE: 5, CRACK: 6, BANKAI: 7, HIDDEN: 8, LOCK: 9, COLLAPSE: 10, BARRIER: 11, LIGHT: 12, SAND: 13 };
+const SOLID_INDEXES = [T.SOLID, T.TOP, T.KIDO, T.GATE, T.CRACK, T.BANKAI, T.LOCK, T.COLLAPSE, T.BARRIER, T.LIGHT];
+const LANTERN_TIME = 6.5;   // seconds a struck lantern burns
 
 // Movement tuning (pixels / seconds). Jump ≈ 4.6 tiles high, ≈ 6.5 tiles long.
 const PHYS = {
@@ -71,6 +74,16 @@ const COMBAT = {
   genteiMul: 1.5,         // Gentei Kaijo seal: Bankai lasts this much longer
 };
 
+// Elite enemies: tougher than their kind, with one trait each, marked by a kanji over the head.
+// New Game+ meets them everywhere (more each cycle); a first journey only in Hueco Mundo and the Forest.
+const ELITE_TRAITS = {
+  armored:  { name: 'Armoured', jp: '鋼', color: 0xc8d4e8, desc: 'takes a third less damage' },
+  hasty:    { name: 'Hasty', jp: '速', color: 0x7fe8ff, desc: 'winds up and recovers faster' },
+  volatile: { name: 'Volatile', jp: '爆', color: 0xff7a4a, desc: 'bursts when it falls' },
+  undying:  { name: 'Undying', jp: '再', color: 0x9aff6a, desc: 'mends itself when left alone' },
+};
+const ELITE_REGIONS = ['hm', 'for'];
+
 // Swordsmith upgrades: cost of each level of the Zanpakuto's edge
 // What enemies do to each other: melee swings, projectiles, charges and beams
 const FRIENDLY = { melee: 9, shot: 16, charge: 14, beam: 18 };
@@ -80,6 +93,20 @@ const FORGE = [
   { reishi: 250, ore: 1 },
   { reishi: 450, ore: 2 },
 ];
+
+// Zanpakutō forms: the same blade, reforged. cd scales the time between slashes, dmg the slash damage,
+// reach the slash range, rei the Reiatsu each landed slash draws. Switched at rest gates.
+const FORMS = {
+  zangetsu: { name: 'Zangetsu', jp: '斬月', cd: 1, dmg: 1, reach: 1, rei: 1, tint: 0xffffff,
+    desc: 'The blade as it first came to you. Balanced in reach, speed and weight.' },
+  odachi: { name: 'Ōdachi', jp: '大太刀', cd: 1.3, dmg: 1.35, reach: 1.3, rei: 1.15, tint: 0xbfe0ff,
+    desc: 'A great blade forged long. Slow, heavy strikes that reach far and land hard.', how: 'Forged by the swordsmith in Rukongai.' },
+  kodachi: { name: 'Kodachi', jp: '小太刀', cd: 0.68, dmg: 0.7, reach: 0.85, rei: 0.8, tint: 0xffd890,
+    desc: 'A short blade for close work. Quick strikes that hit softer and come one after another.', how: 'Earned in the Study Room under Urahara\'s shop.' },
+};
+const FORM_ORDER = ['zangetsu', 'odachi', 'kodachi'];
+// The swordsmith's price for the Ōdachi (after the first sharpening)
+const ODACHI_COST = { reishi: 400, ore: 1 };
 
 const ABILITIES = {
   dash:   { name: 'Shunpo', key: '{dash}', desc: 'Flash Step: a burst of speed too quick for the eye. Usable once in midair, refreshed when you land or grip a wall.' },
@@ -114,6 +141,8 @@ const SEALS = {
   shunko:  { name: 'Shunkō', cost: 2, desc: 'Flash War Cry: Shunpo cuts through every enemy in its path.' },
   hierro:  { name: 'Hierro', cost: 2, desc: 'Skin of steel: blows no longer knock you back, and every fourth one is shrugged off.' },
   gentei:  { name: 'Gentei Kaijo', cost: 2, desc: 'Limit release: Bankai lasts half again as long.' },
+  pride:   { name: 'Lion\'s Pride', cost: 1, desc: 'Kon\'s courage: with one mask left, your strikes hit 75% harder.' },
+  shiba:   { name: 'Shiba Crest', cost: 2, desc: 'The fireworks clan\'s mark: every Kidō costs a quarter less Reiatsu.' },
 };
 
 // Things the shop sells that are neither seals nor fragments
@@ -137,13 +166,15 @@ const REGIONS = {
   sei: { name: 'Seireitei', sub: 'Court of Pure Souls, home of the Gotei 13', kanji: '瀞霊廷', color: 0xe8e2d0, dark: 0 },
   sok: { name: 'Sōkyoku Hill', sub: 'The execution grounds', kanji: '双殛の丘', color: 0xd0504a, dark: 0 },
   hm:  { name: 'Hueco Mundo', sub: 'Endless night, white sand', kanji: '虚圏', color: 0xb8c4dc, dark: 0.85 },
+  stu: { name: 'The Study Room', sub: 'A painted sky under Urahara\'s shop', kanji: '勉強部屋', color: 0x8ac8e8, dark: 0 },
+  rei: { name: 'The Soul King Palace', sub: 'Above the clouds, where the Royal Guard waits', kanji: '霊王宮', color: 0xf2d68a, dark: 0 },
   end: { name: 'The Inner World', sub: 'Sideways towers under an endless sky', kanji: '精神世界', color: 0x7fb4e8, dark: 0 },
   dan: { name: 'The Dangai', sub: 'The Precipice World between worlds', kanji: '断界', color: 0x9a7ad8, dark: 0.3 },
   for: { name: 'Forest of Menos', sub: 'Beneath the white sand', kanji: '大虚の森', color: 0x6a8a7a, dark: 0.72 },
 };
 
 // What the ground sounds like underfoot in each region
-const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand' };
+const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand', stu: 'dirt', rei: 'crystal' };
 
 
 // notches: health fractions where the fight changes phase (drawn on the boss bar). jp: the name in Japanese.
@@ -178,6 +209,7 @@ const MEMORIES = {
   onmitsu: ['"No name, no face, no grave. That was the contract."', '"I was ordered to watch you. I never stopped."'],
   exequias: ['"We clean up after the Espada. Someone has to."', '"Behind the skull, I am still afraid."'],
   brawler: ['"The captain said a real fight is the only prayer that counts."', '"I lost the fight. I would lose it again, gladly."'],
+  ganju: ['"My brother died for a Shinigami. I hated them all. Then I met you."'],
   fisher: ['"I wore her face to lure them in. I never knew her name."', '"Fifty-four years of hunting. I only ever wanted to be full."'],
   renji: ['"I chased one back for half my life. I will not stop now."', '"Rukia. I am sorry I was too slow."'],
   kenpachi: ['"A fight that ends too soon is the worst kind of loss."'],
@@ -215,3 +247,33 @@ const BOSS_KINDS = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow
 
 // The old man in Rukongai wants to hear what the dead remember
 const QUEST_NAMES = { npc: 'Old Man of Junrinan', need: ['thug', 'shini', 'hollow'], reishi: 200, seal: 'recall' };
+
+// Every favour asked in the world. d.quests[id]: 0 not asked, 1 under way, 2 done. Each counts toward completion.
+const QUESTS = {
+  names:   { name: 'Names of the Dead', giver: 'Old Man of Junrinan', where: 'Rukongai',
+    todo: 'Read the memories of a ruffian, a corrupted Shinigami and a Hollow with the Konsō hilt.', reward: '200 reishi and the Soul Recall seal' },
+  kon:     { name: 'A Body for Kon', giver: 'Kon', where: 'Karakura Town',
+    todo: 'Find Kon\'s spare Gikongan, locked away somewhere in the Seireitei.', reward: 'The Lion\'s Pride seal' },
+  urahara: { name: 'The Study Room', giver: 'Kisuke Urahara', where: 'under the Urahara Shop',
+    todo: 'Survive three waves of Urahara\'s "light exercise".', reward: 'The Kodachi form' },
+  ganju:   { name: 'Ganju\'s Rematch', giver: 'Ganju Shiba', where: 'Inuzuri, Rukongai',
+    todo: 'Beat Ganju in a fair fight. He insists.', reward: 'The Shiba Crest seal' },
+  orihime: { name: 'The Six Flowers', giver: 'Orihime Inoue', where: 'Las Noches',
+    todo: 'Find the five spirits of Orihime\'s hairpin, scattered across the worlds.', reward: 'Sōten Kisshun: heals take a quarter less time' },
+};
+const QUEST_ORDER = ['names', 'kon', 'urahara', 'ganju', 'orihime'];
+const PETALS = 5;   // Shun Shun Rikka spirits to find for Orihime
+
+// ---------------------------------------------------------------------------
+// The Soul King Palace. At 100% the Royal Guard send word; at the palace the trials replay
+// the bosses. The full trial, won with any bindings (or none), shows the true ending.
+// Like the bindings of Godhome, each can be chosen alone or with the others.
+const BINDINGS = {
+  blade:   { name: 'Binding of the Blade', jp: '刃', desc: 'Your Zanpakutō returns to its first edge: no swordsmith\'s work counts.' },
+  shell:   { name: 'Binding of the Shell', jp: '殻', desc: 'Your soul holds four masks of health and no more.' },
+  seals:   { name: 'Binding of the Seals', jp: '封', desc: 'No seal may be worn.' },
+  reiatsu: { name: 'Binding of the Spirit', jp: '霊', desc: 'Your vessel holds a third of its Reiatsu, and Bankai will not answer.' },
+};
+const BINDING_ORDER = ['blade', 'shell', 'seals', 'reiatsu'];
+const RUSH_ORDER = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'ulquiorra', 'espada', 'vasto', 'final'];
+const RUSH_RESTS = [2, 5, 7];   // after these fights (by index) the trial grants a respite: health restored

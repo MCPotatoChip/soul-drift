@@ -11,7 +11,11 @@
 //   node scripts/check_world.js kar_river  only that room, every ability set
 //
 // It is a model, not the game: enemies, pogo jumps and tricks are left out,
-// so it can only say a route exists using ordinary movement.
+// so it can only say a route exists using ordinary movement. Quicksand counts as
+// deadly (a route must jump or dash over it), spirit pressure is modelled (heavier
+// fall, shorter jumps, slower running, no wall grip), and lantern rooms are checked
+// as if the lantern were lit (gold barriers open, blue walls standing): the timing
+// of the run is not.
 // ---------------------------------------------------------------------------
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -25,7 +29,7 @@ const DT = 1 / 60, BW = 10, BH = 20;
 // ------------------------------------------------------------------ the grid
 function makeGrid(room, A) {
   const rows = room.tiles, H = rows.length, W = Math.max(...rows.map(r => r.length));
-  const solid = new Uint8Array(W * H), oneway = new Uint8Array(W * H), spike = new Uint8Array(W * H);
+  const solid = new Uint8Array(W * H), oneway = new Uint8Array(W * H), spike = new Uint8Array(W * H), press = new Uint8Array(W * H);
   const doors = [], targets = [], plats = [];
   const cnt = { k: 0, c: 0, N: 0, M: 0 };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -37,7 +41,9 @@ function makeGrid(room, A) {
       case 'D': if (!A.bankai) solid[i] = 1; break;
       case '=': oneway[i] = 1; break;
       case 'H': if (A.konso) oneway[i] = 1; break;
-      case '^': spike[i] = 1; break;
+      case '^': case 's': spike[i] = 1; break;
+      case 'K': solid[i] = 1; break;
+      case 'p': press[i] = 1; break;
       case 'M': plats.push({ x: x * TILE + 8, top: y * TILE, cfg: (room.platforms || [])[cnt.M++] || {} }); break;
     }
     const feet = (y + 1) * TILE, cx = x * TILE + 8;
@@ -45,7 +51,7 @@ function makeGrid(room, A) {
     else if (ch === 'k') targets.push({ kind: 'ability', id: (room.abilities || [])[cnt.k++], x: cx, feet, r: 14 });
     else if (ch === 'c') targets.push({ kind: 'seal', id: (room.seals || [])[cnt.c++], x: cx, feet, r: 14 });
     else if (ch === 'N') { const npc = (room.npcs || [])[cnt.N++] || {}; targets.push({ kind: 'npc', id: npc.name, npc, x: cx, feet, r: 24, ground: true }); }
-    else if ('flo'.includes(ch)) targets.push({ kind: { f: 'fragment', l: 'plus', o: 'ore' }[ch], x: cx, feet, r: ch === 'l' ? 24 : 14 });
+    else if ('florC'.includes(ch)) targets.push({ kind: { f: 'fragment', l: 'plus', o: 'ore', r: 'petal', C: 'gikongan' }[ch], x: cx, feet, r: ch === 'l' ? 24 : 14 });
     else if (ch === 'R') targets.push({ kind: 'rest', x: cx, feet, r: 24, ground: true });
     else if (ch === 'B') targets.push({ kind: 'boss', id: room.boss, x: cx, feet, r: 40 });
     else if (ch === 'P') targets.push({ kind: 'start', x: cx, feet, r: 1 });
@@ -56,10 +62,11 @@ function makeGrid(room, A) {
     const range = (p.cfg.dy || 6) * TILE, w = (p.cfg.w || 3) * TILE;
     for (let d = 0; d <= range; d += 8) extra.push({ l: p.x - w / 2, r: p.x + w / 2, top: p.top + d });
   }
-  return { W, H, pxW: W * TILE, pxH: H * TILE, solid, oneway, spike, doors, targets, extra, rows };
+  return { W, H, pxW: W * TILE, pxH: H * TILE, solid, oneway, spike, press, doors, targets, extra, rows };
 }
 const at = (g, arr, tx, ty) => (tx < 0 || ty < 0 || tx >= g.W || ty >= g.H) ? 0 : arr[ty * g.W + tx];
 const solidAt = (g, x, y) => at(g, g.solid, Math.floor(x / TILE), Math.floor(y / TILE)) === 1;
+const pressAt = (g, s) => at(g, g.press, Math.floor(s.x / TILE), Math.floor((s.y - BH / 2) / TILE)) === 1;
 
 // ------------------------------------------------------------------ one body, one frame at a time
 function moveX(g, s) {
@@ -132,32 +139,36 @@ function run(g, A, start, ctl, maxT = 2.6) {
     const dir = c.dir || 0;
     if (dir) s.facing = dir;
     if (s.lock > 0) s.lock -= DT;
+    const heavy = pressAt(g, s);
     if (s.mode === 'burst') {
       s.vx = s.burstDir * PHYS.burstSpeed; s.vy = 0;
       if (c.jumpP || s.blocked) { s.mode = 'normal'; s.vx = s.burstDir * PHYS.runSpeed; }
     } else if (s.mode === 'dash') {
       s.vx = s.dashDir * PHYS.dashSpeed; s.vy = 0; s.dashT -= DT;
       if (s.dashT <= 0 || s.blocked === s.dashDir) { s.mode = 'normal'; s.vx = s.dashDir * PHYS.runSpeed; }
+    } else if (s.mode === 'climb' && heavy) {
+      s.mode = 'normal';   // no holding on to a wall under spirit pressure
     } else if (s.mode === 'climb') {
       s.vx = s.wallDir * 30; s.vy = -PHYS.wallClimb;
       if (!touchingWall(g, s, s.wallDir, true)) { s.mode = 'normal'; s.vy = -250; s.vx = s.wallDir * 90; }
       else if (solidAt(g, s.x, s.y - BH - 2)) { out.rests.push({ cling: s.wallDir, x: s.x, y: s.y }); break; }
     } else {
       const accel = s.grounded ? (dir ? PHYS.accelGround : PHYS.decelGround) : PHYS.accelAir;
-      const k = s.lock > 0 ? 0.2 : 1, target = dir * PHYS.runSpeed;
+      const k = s.lock > 0 ? 0.2 : 1, target = dir * PHYS.runSpeed * (heavy ? 0.78 : 1);
       s.vx = s.vx < target ? Math.min(target, s.vx + accel * k * DT) : Math.max(target, s.vx - accel * k * DT);
-      if (c.jumpP && (s.grounded || s.coyote > 0)) { s.vy = -PHYS.jumpVel; s.jumping = true; s.coyote = 0; s.grounded = false; }
-      else if (c.jumpP && !s.grounded && s.airJumps > 0) { s.airJumps--; s.vy = -PHYS.doubleJumpVel; s.jumping = true; }
+      const jk = heavy ? 0.82 : 1;
+      if (c.jumpP && (s.grounded || s.coyote > 0)) { s.vy = -PHYS.jumpVel * jk; s.jumping = true; s.coyote = 0; s.grounded = false; }
+      else if (c.jumpP && !s.grounded && s.airJumps > 0) { s.airJumps--; s.vy = -PHYS.doubleJumpVel * jk; s.jumping = true; }
       if (s.jumping && !c.jump && s.vy < 0) { s.vy *= PHYS.jumpCut; s.jumping = false; }
       if (s.vy >= 0) s.jumping = false;
       if (c.dash && A.dash && s.canDash) { s.mode = 'dash'; s.dashDir = dir || s.facing; s.dashT = PHYS.dashTime; s.canDash = false; s.vy = 0; }
       if (c.burst && A.burst && (s.grounded || c.fromWall)) { s.mode = 'burst'; s.burstDir = dir || s.facing; s.vy = 0; }
-      if (A.grip && !s.grounded && dir && s.vy > -200 && s.lock <= 0.04 && s.mode === 'normal' && touchingWall(g, s, dir) && t > 0.02) {
+      if (A.grip && !heavy && !s.grounded && dir && s.vy > -200 && s.lock <= 0.04 && s.mode === 'normal' && touchingWall(g, s, dir) && t > 0.02) {
         out.rests.push({ cling: dir, x: s.x, y: s.y });
         break;
       }
     }
-    if (s.mode === 'normal') { s.vy = Math.min(PHYS.maxFall, s.vy + PHYS.gravity * DT); }
+    if (s.mode === 'normal') { s.vy = Math.min(PHYS.maxFall, s.vy + PHYS.gravity * (heavy ? 1.6 : 1) * DT); }
     moveX(g, s);
     moveY(g, s, c.drop && t < 0.25);
     if (s.grounded) { s.coyote = PHYS.coyote; s.canDash = true; s.airJumps = A.wings ? 1 : 0; } else if (s.coyote > 0) s.coyote -= DT;
@@ -281,7 +292,7 @@ function explore(rid, Afull, entry) {
 // ------------------------------------------------------------------ the whole journey
 const ABIL = ['konso', 'dash', 'hado', 'grip', 'bakudo', 'wings', 'raiko', 'burst', 'bankai', 'getsuga', 'hollow'];
 function journey() {
-  const A = {}, got = [], seen = new Set(), bosses = new Set(), seals = new Set(), items = { fragment: 0, plus: 0, ore: 0 };
+  const A = {}, got = [], seen = new Set(), bosses = new Set(), seals = new Set(), items = { fragment: 0, plus: 0, ore: 0, petal: 0, gikongan: 0 };
   const log = (what, rid, via) => got.push({ what, rid, via });
   let changed = true, rounds = 0;
   const rooms = Object.keys(ROOMS);
@@ -300,8 +311,10 @@ function journey() {
       reach.get(rid).add(entry);
       const res = explore(rid, A, entry);
       if (!res) continue;
-      for (const door of res.doors) {
-        const [to, toDoor] = ROOMS[rid].doors[door] || [];
+      const ways = [...res.doors].map(door => ROOMS[rid].doors[door] || []);
+      // the shop's trapdoor (with Bakudo, as in the game); the Study Room's ladder leads back up
+      if (rid === 'kar_hub' && A.bakudo) ways.push(['kar_study', 'start']);
+      for (const [to, toDoor] of ways) {
         if (!to) continue;
         if (!dist.has(to)) dist.set(to, d + 1);
         const k = visitKey(to, toDoor);
@@ -334,7 +347,7 @@ function journey() {
             continue;
           }
           if (tg.kind === 'seal') { seen.add(tag); if (!seals.has(tg.id)) { seals.add(tg.id); log('seal ' + tg.id, rid, entry); } continue; }
-          if (['fragment', 'plus', 'ore'].includes(tg.kind)) { seen.add(tag); items[tg.kind]++; continue; }
+          if (['fragment', 'plus', 'ore', 'petal', 'gikongan'].includes(tg.kind)) { seen.add(tag); items[tg.kind]++; continue; }
         }
       }
     }
@@ -433,7 +446,8 @@ const missing = ABIL.filter(a => !J.A[a]);
 const bossMissing = Object.keys(BOSSES).filter(b => !J.bosses.has(b));
 console.log(`\nPowers never reached: ${missing.join(', ') || 'none'}`);
 console.log(`Bosses never reached: ${bossMissing.join(', ') || 'none'}`);
-console.log(`Seals: ${J.seals.size}  fragments: ${J.items.fragment}  lost pluses: ${J.items.plus}  ore: ${J.items.ore}`);
-const unreached = Object.keys(ROOMS).filter(r => !journey.reach.has(r));
-console.log(`Rooms never entered: ${unreached.join(', ') || 'none'}`);
+console.log(`Seals: ${J.seals.size}  fragments: ${J.items.fragment}  lost pluses: ${J.items.plus}  ore: ${J.items.ore}  petals: ${J.items.petal}  Kon's pill: ${J.items.gikongan}`);
+// the palace opens at 100% (by fast travel), so it is never walked into
+const unreached = Object.keys(ROOMS).filter(r => !journey.reach.has(r) && r !== 'palace');
+console.log(`Rooms never entered: ${unreached.join(', ') || 'none'} (the Soul King Palace opens at 100%)`);
 console.log(`(${((Date.now() - t0) / 1000).toFixed(1)}s)`);

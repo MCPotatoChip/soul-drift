@@ -2,7 +2,9 @@
 // ---------------------------------------------------------------------------
 // Player-facing settings, saved in localStorage (separate from the game save).
 // Everything that scales an effect reads through here so the pause menu can
-// tune it: sound, music, screen shake, screen flashes, particle density.
+// tune it: sound, music, screen shake, screen flashes, particle density. The
+// assist rows (damage taken, recovery, Reiatsu, game speed, warnings) live on a
+// screen of their own and make the game gentler without locking anything away.
 // ---------------------------------------------------------------------------
 
 const SETTINGS_KEY = 'soul-drift-settings-v1';
@@ -13,16 +15,27 @@ const Settings = {
   schema: [
     ['sfx', 'Sound effects', 'slider'],
     ['music', 'Music', 'slider'],
-    ['shake', 'Screen shake', 'steps', [[0, 'off'], [0.5, 'light'], [1, 'full']]],
+    ['shake', 'Screen shake', 'slider'],
     ['flash', 'Screen flashes', 'steps', [[0, 'off'], [0.5, 'soft'], [1, 'full']]],
     ['particles', 'Particles', 'steps', [[0.4, 'low'], [1, 'normal'], [1.6, 'high']]],
     ['damageNumbers', 'Damage numbers', 'steps', [[false, 'off'], [true, 'on']]],
     ['rumble', 'Controller rumble', 'steps', [[false, 'off'], [true, 'on']]],
+    ['timer', 'Speedrun timer', 'steps', [[false, 'off'], [true, 'on']]],
+  ],
+  assist: [
+    ['damage', 'Damage taken', 'steps', [[1, 'normal'], [0.5, 'half'], [0, 'none'], [2, 'double']]],
+    ['invuln', 'Recovery after a hit', 'steps', [[1, 'normal'], [1.6, 'longer'], [2.2, 'longest']]],
+    ['reiatsuGain', 'Reiatsu from strikes', 'steps', [[1, 'normal'], [1.5, '1.5×'], [2, '2×']]],
+    ['speed', 'Game speed', 'steps', [[1, '100%'], [0.9, '90%'], [0.8, '80%'], [0.7, '70%']]],
+    ['warnings', 'Attack warnings', 'steps', [[false, 'normal'], [true, 'bold']]],
   ],
 
   defaults() {
     const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
-    return { sfx: 0.8, music: 0.55, shake: 1, flash: 1, particles: coarse ? 0.4 : 1, damageNumbers: false, rumble: true };
+    return {
+      sfx: 0.8, music: 0.55, shake: 1, flash: 1, particles: coarse ? 0.4 : 1, damageNumbers: false, rumble: true, timer: false,
+      damage: 1, invuln: 1, reiatsuGain: 1, speed: 1, warnings: false,
+    };
   },
 
   load() {
@@ -51,6 +64,9 @@ const Settings = {
   count(n) { return Math.max(1, Math.round(n * this.data.particles)); },
   shake() { return this.data.shake; },
   flash() { return this.data.flash; },
+
+  // Any assist setting away from its default (shown on the save slot, never held against the player)
+  assisted() { return this.data.damage < 1 || this.data.invuln > 1 || this.data.reiatsuGain > 1 || this.data.speed < 1; },
 
   // Step a 'steps' or 'slider' row by dir (-1 / +1)
   adjust(row, dir) {
