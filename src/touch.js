@@ -15,6 +15,10 @@ const TOUCH_ACTIONS = [
   ['map', 'MAP', 'Map'], ['inventory', 'BAG', 'Inventory'], ['pause', 'II', 'Pause'],
   ['up', '▲', 'Up'], ['down', '▼', 'Down'], ['left', '◀', 'Left'], ['right', '▶', 'Right'],
 ];
+// Powers a button needs before it appears (any one of them); actions not listed are always shown
+const TOUCH_NEEDS = {
+  dash: ['dash'], kido: ['hado', 'bakudo', 'raiko'], konso: ['konso'], burst: ['burst'], bankai: ['bankai'], mask: ['hollow'],
+};
 const TOUCH_LABEL = Object.fromEntries(TOUCH_ACTIONS.map(a => [a[0], a[1]]));
 
 // Positions are percentages of the screen; sizes are percentages of its short side
@@ -50,6 +54,12 @@ const Touch = {
   editing: false,
   selected: null,
   resumeAfterEdit: false,
+
+  // The label of the on-screen button for an action ('' when the layout has none)
+  labelFor(action) {
+    const b = this.layout && this.layout.buttons.find(x => x.action === action);
+    return b ? TOUCH_LABEL[action] : '';
+  },
 
   // ---------------------------------------------------------------- setup
   attach(game) {
@@ -248,6 +258,7 @@ const Touch = {
       el.firstChild.textContent = TOUCH_LABEL[b.action];
       el.classList.toggle('hold', ['heal', 'konso', 'burst', 'attack'].includes(b.action));
     }
+    this.refreshLocks();
   },
 
   // ---------------------------------------------------------------- modes
@@ -269,6 +280,16 @@ const Touch = {
   tick() {
     const m = this.detectMode();
     if (m !== this.mode) this.applyMode(m);
+    this.refreshLocks();
+  },
+  // Buttons for powers the save does not own yet stay hidden (the layout editor shows them all)
+  refreshLocks() {
+    for (const b of this.layout.buttons) {
+      const el = this.els[b.id]; if (!el) continue;
+      const need = TOUCH_NEEDS[b.action];
+      const locked = !this.editing && !!need && !(typeof GS !== 'undefined' && need.some(a => GS.has(a)));
+      el.classList.toggle('locked', locked);
+    }
   },
   applyMode(m, force) {
     if (m === this.mode && !force) return;

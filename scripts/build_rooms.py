@@ -483,6 +483,79 @@ from new_rooms import add_rooms
 NEW_ROOMS = add_rooms(R, Grid)
 
 
+# --------------------------------------------------------------------------- entrances
+# World 4: rooms grow a run-up beside every doorway on their edge, and no foe stands within reach of a way in.
+PAD = 9            # tiles added beside an edge doorway
+SAFE = 22          # tiles of distance foes keep from every doorway
+GROUND_FOES = set('eganiqmxb')
+FLYING_FOES = set('hj')
+CEILING_FOES = set('v')
+FOES = GROUND_FOES | FLYING_FOES | CEILING_FOES
+STRUCTURAL = set('#=.^sp')   # may be copied into the new run-up as they are; everything else becomes air there
+
+
+def widen(R):
+    pads = {}
+    for rid, r in R.items():
+        rows = [list(x) for x in r['tiles']]
+        w = len(rows[0])
+        if r.get('boss') or rid in ('end_boss', 'hm_grimm', 'dangai_1'):
+            pads[rid] = 0
+            continue
+        left = any(row[0] in '123456789' for row in rows)
+        right = any(row[w - 1] in '123456789' for row in rows)
+        out = []
+        for row in rows:
+            blank = lambda c: c if c in STRUCTURAL else '.'
+            new = ([row[0]] + [blank(row[1])] * PAD + row[1:]) if left else list(row)
+            if right:
+                new = new[:-1] + [blank(new[-2])] * PAD + [new[-1]]
+            out.append(new)
+        r['tiles'] = [''.join(x) for x in out]
+        pads[rid] = PAD if left else 0
+    return pads
+
+
+def steer_foes(R):
+    """Move foes out of the doorway zone toward the middle of their room (same row, nearest legal spot)."""
+    moved = 0
+    for rid, r in R.items():
+        rows = [list(x) for x in r['tiles']]
+        h, w = len(rows), len(rows[0])
+        doors = [(x, y) for y in range(h) for x in range(w) if rows[y][x] in '123456789']
+        if not doors:
+            continue
+
+        def near(x, y):
+            return min((abs(x - dx) for dx, dy in doors if abs(y - dy) < 8), default=999)
+
+        def legal(c, x, y):
+            if not (1 <= x < w - 1) or rows[y][x] != '.':
+                return False
+            if y < 1 or rows[y - 1][x] != '.':          # foes are two tiles tall
+                return False
+            below = rows[y + 1][x] if y + 1 < h else '#'
+            if c in GROUND_FOES:
+                return below in '#=' and rows[y][x - 1] != '^' and rows[y][x + 1] != '^'
+            return True
+        for y in range(h):
+            for x in range(w):
+                c = rows[y][x]
+                if c not in FOES or c in CEILING_FOES or near(x, y) >= SAFE:
+                    continue
+                for nx in sorted(range(1, w - 1), key=lambda v: abs(v - x)):
+                    if near(nx, y) >= SAFE and legal(c, nx, y):
+                        rows[y][x] = '.'
+                        rows[y][nx] = c
+                        moved += 1
+                        break
+        r['tiles'] = [''.join(x) for x in rows]
+    return moved
+
+
+PADS = widen(R)
+print('foes steered', steer_foes(R))
+
 # Where each room sits on the map (top-left corner, in map units: a room's box is its size in tiles divided by ten).
 # Rooms stand beside the door that leads to them, with a gap between neighbours so names and marks never crowd.
 LAYOUT = {
@@ -508,10 +581,14 @@ LAYOUT = {
 }
 
 
+XSCALE = 1.45      # the map spreads sideways as rooms grow
+
+
 def apply_layout(R):
     boxes = {}
     for rid, r in R.items():
         x, y = LAYOUT[rid]
+        x = round(x * XSCALE, 1)
         r['pos'] = [x, y]
         boxes[rid] = (x, y, len(r['tiles'][0]) / 10, len(r['tiles']) / 10)
     ids = sorted(boxes)

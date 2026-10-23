@@ -245,6 +245,11 @@ const Controls = {
   },
   // The name of the first input for an action on the device in use (interact falls back to up on a pad)
   key(action) {
+    // On a touch screen hints name the on-screen button, not a key nobody can press
+    if (this.device !== 'pad' && typeof Touch !== 'undefined' && Touch.enabled) {
+      const b = Touch.labelFor(action);
+      if (b) return b;
+    }
     if (this.device === 'pad') {
       const c = (this.pad[action] || [])[0] || (action === 'interact' ? (this.pad.up || [])[0] : null);
       if (c) return this.keyName(c);

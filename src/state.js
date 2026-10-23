@@ -14,6 +14,9 @@ const slotKey = (i) => i ? `${SAVE_KEY}-${i + 1}` : SAVE_KEY;
 // Where each room sat on the map before it was spread out (world version 3), so pins placed on the old map move with their rooms
 const LEGACY_POS = {"kar_hub":[18,10],"kar_alley":[14,10],"kar_roof":[20,7.7],"kar_river":[24,10],"kar_grave":[31,7.6],"ruk_1":[31,10],"ruk_2":[38,10],"ruk_3":[44,10],"ruk_boss":[50.4,10],"sei_gate":[44,7.2],"sei_ward":[49.2,7.4],"sei_1":[55.6,6.4],"sei_11":[50.8,4.8],"sei_2":[59.6,1.8],"sei_4":[64.4,2.1],"sei_renji":[70,2.1],"sok_1":[64.4,-2],"sok_boss":[69.2,-3.1],"hm_1":[73.2,-4.6],"hm_2":[79.6,-5.4],"hm_3":[85.2,-5.4],"hm_grimm":[91.2,-4.6],"hm_side":[79.6,-7.7],"hm_boss":[85.2,-2.4],"hm_dome":[85.6,-8.2],"forest_1":[76.7,-2.3],"forest_2":[81.1,0.1],"dangai_1":[-1.5,5.6],"dangai_2":[-5.5,5.6],"end_1":[12,12.4],"end_boss":[7.2,12.4],"sei_lantern":[64.4,4.7],"hm_sand":[73.4,-6.9],"sok_shrine":[59.4,-2],"kar_study":[18.2,12.6],"palace":[18,4.5]};
 
+// Where each room sat in world version 3 as [x, y, width in tiles, tiles added on its left by world 4]
+const LEGACY3 = {"kar_hub":[0,0,60,9],"kar_alley":[-5,0,40,0],"kar_roof":[3.8,-3.2,50,0],"kar_river":[6.9,0,70,9],"kar_grave":[14.7,-3.2,48,0],"ruk_1":[22.7,0,70,9],"ruk_2":[38.3,0,60,9],"ruk_3":[45.1,0,64,9],"ruk_boss":[59.1,0,40,0],"sei_gate":[44.5,-6.4,52,9],"sei_ward":[57.7,-6.4,64,9],"sei_1":[71.7,-7,50,9],"sei_11":[66.6,-3.4,48,0],"sei_2":[75.6,-12.5,48,9],"sei_4":[87.6,-10.3,56,9],"sei_renji":[94,-10.3,52,0],"sok_1":[81.3,-15.3,48,9],"sok_boss":[93.9,-14.9,40,0],"hm_1":[98.8,-16.4,64,9],"hm_2":[115.3,-17.2,56,9],"hm_3":[121.8,-17.2,60,9],"hm_grimm":[136,-16.4,52,0],"hm_side":[116.4,-20.4,40,0],"hm_boss":[121.8,-12.5,48,0],"hm_dome":[122.2,-20.9,52,0],"forest_1":[102.3,-13.2,44,0],"forest_2":[115.7,-10.8,48,0],"dangai_1":[-16,-8,150,0],"dangai_2":[-0.2,-8,40,9],"end_1":[-6.8,3.4,60,9],"end_boss":[-12.4,3.4,48,0],"sei_lantern":[87.5,-6.9,52,0],"hm_sand":[99.5,-20.3,60,0],"sok_shrine":[75.4,-19.5,50,0],"kar_study":[2.2,3.2,60,0],"palace":[6,-14,56,0],"kar_canal":[14.7,0,72,9],"ruk_orchard":[30.5,-0.7,70,9],"ruk_kido_hall":[30.5,-3.9,44,9],"ruk_ravine_edge":[52.3,0,60,9],"sei_canal":[50.5,-6.4,64,9],"sei_barracks":[64.9,-6.4,60,9],"sei_infirmary":[81.2,-10.3,56,9],"sok_stair":[87,-14.9,60,9],"hm_dunes":[106,-17.1,84,9],"hm_vault":[110.8,-20.3,48,0],"hm_hall2":[128.7,-16.4,64,9],"forest_depths":[107.6,-11.1,72,9],"dangai_3":[4.6,-8,80,9]};
+
 const GS = {
   data: null,
   // Transient per-life state carried across rooms but never saved.
@@ -55,7 +58,7 @@ const GS = {
       plus: 0,               // New Game+ cycles completed
       kills: {},             // enemy kind -> how many fell (the Journal)
       gifts: {},             // NPC name -> true once they have handed over their gift
-      world: 3,              // layout version of the save (2: the expanded world, 3: upgrades, new rooms, new places for old rewards)
+      world: 4,              // layout version of the save (2: the expanded world, 3: upgrades, new rooms, new places for old rewards, 4: wider rooms)
       upgrades: {},          // power upgrades found: track id -> level (see UPGRADES)
       notes: [],             // things the game tells the player once on loading (what a migration changed)
       forms: { zangetsu: true },   // Zanpakutō forms owned
@@ -196,6 +199,24 @@ const GS = {
   // at the start, and two arenas lost the rest gates that sat inside them. World 3 (upgrades, new rooms,
   // Raikōhō and Shunkō moved out of Byakuya's corner) keeps every old pickup where it was found: seals and
   // powers are remembered by what you own, so the ones that moved are never handed out twice.
+  // Move map pins that sat on rooms in `from` ({room: [x, y, ...]}) to where `to(room, pin)` says
+  carryPins(pins, from, to) {
+    if (!Array.isArray(pins) || !pins.length) return pins;
+    return pins.map(pin => {
+      let best = null, bestD = Infinity;
+      Object.keys(from).forEach(id => {
+        const r = ROOMS[id], o = from[id];
+        if (!r) return;
+        const w = (LEGACY3[id] ? LEGACY3[id][2] : r.tiles[0].length) / 10, h = r.tiles.length / 10;
+        const dx = Math.max(o[0] - pin.x, 0, pin.x - (o[0] + w)), dy = Math.max(o[1] - pin.y, 0, pin.y - (o[1] + h));
+        const dist = Math.hypot(dx, dy) + (dx === 0 && dy === 0 ? 0 : 1) + (w * h) / 1000;   // inside beats near, small rooms beat big ones
+        if (dist < bestD) { bestD = dist; best = id; }
+      });
+      if (!best) return pin;
+      const [x, y] = to(best, pin);
+      return Object.assign({}, pin, { x, y });
+    });
+  },
   migrate(d) {
     if (d.bosses.captain) { d.bosses.byakuya = true; delete d.bosses.captain; }
     if ((d.world || 1) < 2) {
@@ -213,26 +234,16 @@ const GS = {
         d.notes.push('Urahara took the Pin Compass back and refunded 180 reishi. It goes on sale again once the Hollow within has fallen.');
       }
       // Map pins are saved as map coordinates, and every room has moved: carry each pin along with the room it sat on
-      if (Array.isArray(d.pins) && d.pins.length) {
-        d.pins = d.pins.map(pin => {
-          let best = null, bestD = Infinity;
-          Object.keys(LEGACY_POS).forEach(id => {
-            const r = ROOMS[id], o = LEGACY_POS[id];
-            if (!r) return;
-            const w = r.tiles[0].length / 10, h = r.tiles.length / 10;
-            const dx = Math.max(o[0] - pin.x, 0, pin.x - (o[0] + w)), dy = Math.max(o[1] - pin.y, 0, pin.y - (o[1] + h));
-            const dist = Math.hypot(dx, dy) + (dx === 0 && dy === 0 ? 0 : 1) + (w * h) / 1000;   // inside beats near, small rooms beat big ones
-            if (dist < bestD) { bestD = dist; best = id; }
-          });
-          if (!best) return pin;
-          const o = LEGACY_POS[best], n = ROOMS[best].pos;
-          return Object.assign({}, pin, { x: n[0] + (pin.x - o[0]), y: n[1] + (pin.y - o[1]) });
-        });
-      }
+      d.pins = this.carryPins(d.pins, LEGACY_POS, (id, o) => [LEGACY3[id][0] + (o.x - LEGACY_POS[id][0]), LEGACY3[id][1] + (o.y - LEGACY_POS[id][1])]);
       // A body of work from before the update that already finished Byakuya has Raikōhō: nothing to do.
       // One that is still short of him finds it in the Kidō Shrine of Junrinan instead.
       if (d.bosses.byakuya && !d.abilities.raiko) d.abilities.raiko = true;
       d.world = 3;
+    }
+    if (d.world < 4) {
+      // World 4 widened the rooms (a run-up beside each doorway) and spread the map sideways: pins follow their rooms again
+      d.pins = this.carryPins(d.pins, LEGACY3, (id, o) => [ROOMS[id].pos[0] + (o.x - LEGACY3[id][0]) + LEGACY3[id][3] / 10, ROOMS[id].pos[1] + (o.y - LEGACY3[id][1])]);
+      d.world = 4;
     }
     d.upgrades = d.upgrades || {};
     d.notes = d.notes || [];
