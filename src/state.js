@@ -85,6 +85,7 @@ const GS = {
       abilities: Object.assign({}, old.abilities), seals: old.seals.slice(), equipped: old.equipped.slice(),
       sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, maxHp: old.maxHp, hp: old.maxHp,
       fragmentsTotal: old.fragmentsTotal, ore: old.ore || 0, reishi: old.reishi || 0, plus: (old.plus || 0) + 1,
+      gifts: Object.assign({}, old.gifts),
     });
     this.data = d;
     this.run = this.freshRun();
