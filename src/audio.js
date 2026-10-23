@@ -128,6 +128,14 @@ const Sfx = {
       case 'save': [784, 988, 1175].forEach((f, i) => this.tone(f, 0.25, { type: 'sine', vol: 0.08, delay: i * 0.1 })); break;
       case 'die': this.tone(300, 1.2, { type: 'sawtooth', vol: 0.15, to: 40 }); this.noise(1.0, { vol: 0.2, freq: 400, to: 60, type: 'lowpass' }); break;
       case 'door': this.noise(0.6, { vol: 0.2, freq: 160, type: 'lowpass' }); break;
+      case 'whip': this.noise(0.2, { vol: 0.2, freq: 3200, to: 900 }); this.tone(520, 0.12, { type: 'triangle', vol: 0.05, to: 260 }); break;
+      case 'spit': this.noise(0.14, { vol: 0.14, freq: 700, to: 1800, type: 'bandpass', q: 2 }); this.tone(180, 0.1, { type: 'sine', vol: 0.06, to: 320 }); break;
+      case 'throw': this.noise(0.08, { vol: 0.14, freq: 5000, to: 2500 }); break;
+      case 'roarSmall': this.noise(0.4, { vol: 0.16, freq: 420, to: 200, type: 'lowpass' }); this.tone(150, 0.35, { type: 'sawtooth', vol: 0.06, to: 90 }); break;
+      case 'bell': this.tone(1760 + Math.random() * 200, 0.25, { type: 'sine', vol: 0.05 }); this.tone(2640, 0.18, { type: 'sine', vol: 0.025 }); break;
+      case 'petals': this.noise(0.6, { vol: 0.12, freq: 6000, to: 2000, type: 'highpass' }); this.tone(1320, 0.4, { type: 'sine', vol: 0.03, to: 1760 }); break;
+      case 'zap': this.noise(0.12, { vol: 0.2, freq: 7000, type: 'highpass' }); this.tone(2200, 0.1, { type: 'square', vol: 0.05, to: 600 }); break;
+      case 'saved': this.tone(880, 0.12, { type: 'sine', vol: 0.03 }); break;
       case 'geyser': this.noise(0.7, { vol: 0.18, freq: 260, to: 1900, type: 'bandpass', q: 0.8 }); this.tone(70, 0.6, { type: 'sine', vol: 0.1, to: 140 }); break;
     }
   },

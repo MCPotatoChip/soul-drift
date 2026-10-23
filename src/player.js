@@ -78,7 +78,25 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   get bankai() { return GS.run.bankaiT > 0; }
 
   speedMul() { return (this.bankai ? 1.15 : 1) * (GS.run.maskOn ? 1.1 : 1); }
-  dmgMul() { return (GS.sealOn('edge') ? 1.4 : 1) * (GS.run.maskOn ? 1.5 : 1) * (this.bankai ? 1.8 : 1); }
+  dmgMul() { return (GS.sealOn('edge') ? 1.4 : 1) * (GS.run.maskOn ? 1.5 : 1) * (this.bankai ? 1.8 : 1) * this.bellMul(); }
+  // Bell of the Eleventh: each strike that follows quickly on the last hits a little harder
+  bellMul() { return GS.sealOn('bell') && this.bellT > 0 ? 1 + Math.min(COMBAT.bellMax, this.bellN * COMBAT.bellStep) : 1; }
+  landedHit() {
+    if (!GS.sealOn('bell')) return;
+    this.bellN = this.bellT > 0 ? Math.min(4, (this.bellN || 0) + 1) : 0;
+    this.bellT = 0.9;
+    if (this.bellN > 0) { Sfx.play('bell'); this.scene.fx.ring(this.x, this.body.center.y, 0xf2d040, 14 + this.bellN * 4, 220, 1); }
+  }
+  healCost() { return COMBAT.spellCost - (GS.sealOn('kaido') ? COMBAT.kaidoDiscount : 0); }
+  // Caught by a binding Kido: held in place for a moment
+  bindStun(t) {
+    if (this.state === 'dead') return;
+    if (['cling', 'dash', 'charge', 'burst'].includes(this.state)) this.body.setAllowGravity(true);
+    this.state = 'stunned'; this.t.state = t;
+    this.body.setVelocity(0, this.body.velocity.y);
+    this.boundT = t;
+    Sfx.play('bakudo');
+  }
   spellMul() { return (GS.sealOn('focus') ? 1.5 : 1) * (GS.run.maskOn ? 1.3 : 1) * (this.bankai ? 1.3 : 1); }
 
   touchingWall(dir, lowOnly) {
@@ -95,6 +113,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   update(dt) {
     const s = this.scene, inp = s.inp, body = this.body;
     for (const k in this.t) if (this.t[k] > 0) this.t[k] -= dt;
+    if (this.bellT > 0) this.bellT -= dt;
+    if (this.boundT > 0) this.boundT -= dt;
 
     if (this.state === 'dead') { body.setVelocity(0, 0); return; }
 
@@ -202,6 +222,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.velocity.y = 0;
     this.canDash = false;
     this.t.dashCD = PHYS.dashCooldown * (GS.sealOn('swift') ? 0.5 : 1) * (this.bankai ? 0.6 : 1);
+    this.dashHit = new Set();
     Sfx.play('dash');
     this.scene.fx.dust(this.x, this.body.bottom, 6);
   }
@@ -212,6 +233,16 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.t.after -= dt;
     if (this.t.after <= 0) { this.t.after = 0.025; this.scene.fx.afterimage(this, this.bankai ? 0xc8202c : 0x6f7cff, 0.5); }
     const blocked = this.dashDir > 0 ? body.blocked.right : body.blocked.left;
+    // Shunko: the flash step cuts whatever it passes through
+    if (GS.sealOn('shunko')) {
+      const s = this.scene, r = bodyRect(body);
+      r.x -= 4; r.width += 8;
+      for (const e of s.enemies) {
+        if (!e.alive || this.dashHit.has(e) || !e.hittable() || !Phaser.Geom.Intersects.RectangleToRectangle(r, bodyRect(e.body))) continue;
+        this.dashHit.add(e);
+        if (e.hit(GS.slashDamage() * 1.2 * this.dmgMul(), this.dashDir, { kind: 'dash' }) === 'hit') { s.fx.hit(e.x, e.y, this.dashDir, 0xffe8a0, 1); Sfx.play('hit'); s.hitStop(0.03); }
+      }
+    }
     if (inp.attackP) { this.endDash(); this.attack(inp, this.grounded); return; }
     if (inp.jumpP && this.t.coyote > 0) { this.endDash(); this.doJump(PHYS.jumpVel, false); return; }
     if (this.t.state <= 0 || blocked) this.endDash();
@@ -356,7 +387,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   // ---------------- Reiatsu Suppression (heal) ----------------
-  canHeal() { return GS.data.reiatsu >= COMBAT.spellCost && GS.data.hp < GS.data.maxHp; }
+  canHeal() { return GS.data.reiatsu >= this.healCost() && GS.data.hp < GS.data.maxHp; }
   startHeal() {
     this.state = 'heal';
     this.healBase = GS.data.reiatsu;
@@ -372,11 +403,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const time = GS.sealOn('quick') ? COMBAT.quickHealTime : COMBAT.healTime;
     if (this.bankai) this.healBase = Math.min(COMBAT.maxReiatsu, this.healBase + COMBAT.bankaiRegen * dt);
     this.healProg += dt;
-    GS.data.reiatsu = Math.max(0, this.healBase - COMBAT.spellCost * Math.min(1, this.healProg / time));
+    GS.data.reiatsu = Math.max(0, this.healBase - this.healCost() * Math.min(1, this.healProg / time));
     if (Math.random() < 0.5) this.scene.fx.motes(this.x + Phaser.Math.Between(-8, 8), this.y + 8, 0xe8f4ff, 1);
     if (this.healProg >= time) {
       const d = GS.data;
-      d.reiatsu = this.healBase - COMBAT.spellCost;
+      d.reiatsu = this.healBase - this.healCost();
       d.hp = Math.min(d.maxHp, d.hp + 1);
       Sfx.play('heal');
       this.scene.fx.ring(this.x, this.y, 0xe8f4ff, 26, 350);
@@ -519,7 +550,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (!GS.has('bankai') || this.bankai) return;
     if (GS.data.reiatsu < COMBAT.maxReiatsu - 0.5) { s.denied('Bankai needs a full Reiatsu vessel'); return; }
     GS.data.reiatsu = 0;
-    GS.run.bankaiT = COMBAT.bankaiDuration;
+    GS.run.bankaiT = COMBAT.bankaiDuration * (GS.sealOn('gentei') ? COMBAT.genteiMul : 1);
+    Controls.rumble(450, 0.9, 0.6);
     Sfx.play('bankai');
     s.fx.shake(400, 0.012);
     s.fx.flash(0xc8202c, 300, 0.45);
@@ -555,6 +587,13 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (!o.force && this.t.invuln > 0) return false;
     if (!o.force && this.state === 'dash' && GS.sealOn('phantom')) return false;
     const s = this.scene, body = this.body;
+    // Hierro: every fourth blow glances off, and none of them knock you around
+    if (!o.force && GS.sealOn('hierro')) {
+      this.hierroN = (this.hierroN || 0) + 1;
+      o = Object.assign({}, o, { noKnock: true });
+      if (this.hierroN % 4 === 0) { this.t.invuln = 0.5; Sfx.play('clang'); s.fx.spark(this.x, this.y, 0xe8e4d8, 10); s.fx.ring(this.x, this.body.center.y, 0xe8e4d8, 20, 200, 2); return false; }
+    }
+    Controls.rumble(200, 0.8, 0.5);
     if (['cling', 'dash', 'charge', 'burst'].includes(this.state)) body.setAllowGravity(true);
     GS.data.hp -= amount;
     this.t.invuln = 1.1;
@@ -637,13 +676,14 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.anims.timeScale = Phaser.Math.Clamp(Math.abs(this.body.velocity.x) / PHYS.runSpeed, 0.6, 1.4);
       // a puff of dust on each footfall
       const fi = this.anims.currentFrame ? this.anims.currentFrame.index : 0;
-      if (fi !== this.lastRunFrame && (fi === 1 || fi === 5)) { this.scene.fx.dust(this.x - this.facing * 4, this.body.bottom, 2); Sfx.step(REGION_SURFACE[this.scene.region]); }
+      if (fi !== this.lastRunFrame && (fi === 1 || fi === RUN_N / 2 + 1)) { this.scene.fx.dust(this.x - this.facing * 4, this.body.bottom, 2); Sfx.step(REGION_SURFACE[this.scene.region]); }
       this.lastRunFrame = fi;
     } else this.anims.timeScale = 1;
     this.setFlipX(this.facing < 0);
     const blink = this.t.invuln > 0 && Math.floor(this.t.invuln * 18) % 2 === 0;
     this.setAlpha(this.state === 'dead' ? 0 : blink ? 0.35 : 1);
-    if (this.state === 'heal') this.setTint(0xdfe8ff);
+    if (this.boundT > 0) this.setTint(0xffd75e);
+    else if (this.state === 'heal') this.setTint(0xdfe8ff);
     else if (this.state === 'charge') this.setTint(this.charge >= PHYS.burstCharge ? 0xffd0a0 : 0xffa070);
     else if (this.state === 'konso') this.setTint(0xbfe6ff);
     else if (this.gReady) this.setTint(Math.floor(this.scene.time.now / 90) % 2 ? 0xcfe4ff : 0xffffff);

@@ -82,6 +82,9 @@ class GameScene extends Phaser.Scene {
     this.game.events.emit('room', this.roomId);
     // The Kototsu sweeps the Dangai from the left whenever you enter from that side
     if (this.def.chase && this.entry.door === '1') this.startChase();
+    // A new journey opens with Rukia, who hands over the Konso
+    const rukia = this.interactables.find(it => it.info && it.info.gives === 'konso');
+    if (rukia && !d.gifts[rukia.info.name] && this.entry.spawn === 'start') this.time.delayedCall(1100, () => { if (!this.transitioning) this.talkTo(rukia); });
     GS.save();
   }
 
@@ -177,6 +180,10 @@ class GameScene extends Phaser.Scene {
         case 'j': this.uid(x, y); new Adjuchas(this, cx, feet); break;
         case 'a': this.uid(x, y); new Arrancar(this, cx, feet); break;
         case 'q': this.uid(x, y); new KidoCaster(this, cx, feet); break;
+        case 'i': this.uid(x, y); new Crawler(this, cx, feet); break;
+        case 'm': this.uid(x, y); new Onmitsu(this, cx, feet); break;
+        case 'x': this.uid(x, y); new Exequias(this, cx, feet); break;
+        case 'b': this.uid(x, y); new Brawler(this, cx, feet); break;
         case 'v': this.uid(x, y); new Diver(this, cx, y * TILE); break;
         case 'u': new Geyser(this, cx, feet); break;
         case 'y': new Stalactite(this, cx, y * TILE); break;
@@ -478,6 +485,7 @@ class GameScene extends Phaser.Scene {
       const dirX = sw.kind === 'side' ? p.facing : (Math.sign(e.x - p.x) || p.facing);
       const res = e.hit(GS.slashDamage() * p.dmgMul(), dirX, { kind: sw.kind, slash: true });
       if (res === 'hit') {
+        p.landedHit();
         GS.addReiatsu(COMBAT.reiatsuPerHit * (GS.sealOn('harvest') ? 1.5 : 1));
         if (GS.run.maskOn) GS.run.hollow += COMBAT.hollowPerHit;
         this.hitStop(0.045);
@@ -560,7 +568,7 @@ class GameScene extends Phaser.Scene {
     });
     Sfx.play('break');
     this.fx.shake(200, 0.01);
-    if (index === T.KIDO) this.toast('The Kido seal shatters.');
+    if (index === T.KIDO) this.toast('The Kidō seal shatters.');
     if (index === T.GATE) this.toast('The Senkaimon gate breaks open.');
     if (index === T.CRACK) Sfx.play('pickup');
     GS.save();
@@ -676,7 +684,35 @@ class GameScene extends Phaser.Scene {
     GS.save();
   }
 
-  // Quest dialogue for the Old Rukongai Resident; every other speaker just uses their lines
+  // Talking to someone: the quest giver, people with a gift, Orihime's healing, or plain lines
+  talkTo(npc) {
+    const d = GS.data, info = npc.info;
+    let after = null;
+    if (info.heals) {
+      const hurt = d.hp < d.maxHp;
+      d.hp = d.maxHp;
+      this.fx.ring(this.player.x, this.player.y, 0xffb070, 30, 500, 2);
+      this.fx.motes(this.player.x, this.player.y, 0xffd0a0, 18);
+      if (hurt) Sfx.play('heal');
+      GS.save();
+    }
+    let lines = this.npcLines(info);
+    if ((info.gives || info.seal) && !d.gifts[info.name]) {
+      d.gifts[info.name] = true;
+      if (info.gives) d.abilities[info.gives] = true;
+      if (info.seal && !d.seals.includes(info.seal)) d.seals.push(info.seal);
+      GS.save();
+      if (npc.glow) { this.tweens.killTweensOf(npc.glow); this.tweens.add({ targets: npc.glow, alpha: 0, duration: 600, onComplete: () => npc.glow.destroy() }); }
+      after = () => {
+        if (info.gives) { Sfx.play('ability'); this.fx.flash(0xffffff, 250, 0.5); this.player.setPose('raise', 1.0); if (info.gives === 'konso') this.enableTrueSight(); }
+        else Sfx.play('pickup');
+        this.showPopup(info.gives ? { kind: 'ability', id: info.gives } : { kind: 'seal', id: info.seal });
+      };
+    } else if ((info.gives || info.seal) && info.after) lines = info.after;
+    this.startDialog(info.name, lines, after, npc);
+  }
+
+  // Quest dialogue for the old man of Junrinan; every other speaker just uses their lines
   npcLines(info) {
     const d = GS.data;
     if (info.name !== QUEST_NAMES.npc) return info.lines;
@@ -687,7 +723,7 @@ class GameScene extends Phaser.Scene {
       d.reishi += QUEST_NAMES.reishi;
       if (!d.seals.includes(QUEST_NAMES.seal)) d.seals.push(QUEST_NAMES.seal);
       GS.save();
-      this.time.delayedCall(1600, () => this.showPopup({ kind: 'seal', id: QUEST_NAMES.seal }));
+      this.time.delayedCall(1600, () => { if (this.sys.isActive()) this.showPopup({ kind: 'seal', id: QUEST_NAMES.seal }); });
       return ['A thug who wanted one more day. A Shinigami who stayed after the orders stopped. A Hollow who remembers bread.', 'They were people. I knew it. I just needed someone else to know it too.', `Take this. ${QUEST_NAMES.reishi} reishi, and a seal I carried out of the old district. It listens the way you do.`];
     }
     if (st === 1) return [`You have heard ${have} of the ${need.length} I asked for: a thug, a corrupted Shinigami, and a Hollow.`, 'Strike each with the hilt and listen. Then come tell me what they said.'];
@@ -922,7 +958,7 @@ class GameScene extends Phaser.Scene {
     const t = this.solid.getTileAtWorldXY(p.x + p.facing * 12, p.y);
     if (t) {
       const msg = {
-        [T.KIDO]: GS.has('hado') ? Controls.fmt('A violet Kido seal. Press {kido} to blast it with Hado.') : 'A violet Kido seal. Only Kido can shatter it.',
+        [T.KIDO]: GS.has('hado') ? Controls.fmt('A violet Kidō seal. Press {kido} to blast it with Shakkahō.') : 'A violet Kidō seal. Only Kidō can shatter it.',
         [T.GATE]: GS.has('burst') ? Controls.fmt('A sealed Senkaimon. Hold {burst}, then release to burst through.') : 'A sealed Senkaimon. It would take a tremendous burst to break.',
         [T.BANKAI]: 'A seal that answers only to Bankai.',
       }[t.index];
@@ -962,9 +998,11 @@ class GameScene extends Phaser.Scene {
     Sfx.play('boss');
     Music.setBoss(true);
     this.fx.shake(500, 0.008);
+    this.boss.faceTo(this.player.x);
     if (this.boss.intro) this.boss.intro();
     const info = BOSSES[this.boss.id];
-    this.game.events.emit('boss-start', { name: info.name, title: info.title, notches: info.notches });
+    this.game.events.emit('boss-start', { name: info.name, title: info.title, jp: info.jp, notches: info.notches });
+    Controls.rumble(500, 0.5, 0.5);
     this.time.delayedCall(1000, () => { if (this.boss && this.boss.alive) this.boss.activate(); });
   }
   onBossDefeated(boss) {
@@ -974,7 +1012,7 @@ class GameScene extends Phaser.Scene {
     Music.setBoss(false);
     this.slowMo(0.25, 1100);
     this.fx.zoomPunch(0.08, 700);
-    if (boss.id === 'captain' && !GS.has('raiko')) {
+    if (boss.id === 'byakuya' && !GS.has('raiko')) {
       d.abilities.raiko = true;
       this.time.delayedCall(3200, () => { this.fx.flash(0xff4a30, 200, 0.3); this.showPopup({ kind: 'ability', id: 'raiko' }); });
     }
@@ -999,11 +1037,13 @@ class GameScene extends Phaser.Scene {
   spawnReward(x) {
     if (this.def.rewardItems) {
       const n = this.def.rewardItems.length;
-      this.def.rewardItems.forEach((type, i) => {
+      this.def.rewardItems.forEach((item, i) => {
         const key = this.roomId + ':reward' + i;
         if (GS.isTaken(key)) return;
         const px = x + (i - (n - 1) / 2) * 44;
-        const pk = new Pickup(this, px, this.arena.floor - 16, type, null, key);
+        const [type, id] = item.startsWith('seal:') ? ['seal', item.slice(5)] : [item, null];
+        if (type === 'seal' && GS.data.seals.includes(id)) return;
+        const pk = new Pickup(this, px, this.arena.floor - 16, type, id, key);
         this.pickups.push(pk);
         this.fx.ring(px, this.arena.floor - 16, pk.color, 40, 600, 3);
       });
@@ -1145,8 +1185,9 @@ class GameScene extends Phaser.Scene {
     GS.markTaken(key);
     d.pluses++;
     d.reishi += 60;
-    this.toast(`A lost soul crosses over (${d.pluses}/6). +60 reishi`);
+    this.toast(`A lost soul crosses over to Soul Society (${d.pluses}/${GS.totals().pluses}). +60 reishi`);
     if (d.pluses === 2) { d.sealSlots++; this.toast('Gratitude of the departed: +1 seal slot'); }
+    if (d.pluses === GS.totals().pluses) { d.sealSlots++; d.reishi += 300; this.toast('Every lost soul is home. +1 seal slot, +300 reishi'); }
     if (d.pluses === 4) {
       d.sealSlots++;
       if (!d.seals.includes('grace')) d.seals.push('grace');
@@ -1199,9 +1240,11 @@ class GameScene extends Phaser.Scene {
     this.freeze(true);
     this.game.events.emit('popup', Object.assign({}, info, { onClose: () => this.freeze(false) }));
   }
-  startDialog(name, lines) {
+  // after: runs once the last line is read. speaker: drawn as the portrait.
+  startDialog(name, lines, after = null, speaker = null) {
     this.freeze(true);
-    this.game.events.emit('dialog', { name, lines: lines.map(l => Controls.fmt(l)), onClose: () => this.freeze(false) });
+    const portrait = speaker ? { key: speaker.texture.key, frame: 'idle0', creature: !!NPC_CREATURE[speaker.texture.key] } : null;
+    this.game.events.emit('dialog', { name, portrait, lines: lines.map(l => Controls.fmt(l)), onClose: () => { this.freeze(false); if (after) after(); } });
   }
   openMenu(type) {
     this.game.events.emit('prompt', null);
