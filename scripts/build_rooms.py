@@ -138,7 +138,7 @@ R['kar_grave'] = dict(name='Hillside Cemetery', region='kar', pos=[31, 7.6],
 
 # =========================================================================== Rukongai
 g = old('ruk_1')
-g.put(48, 18, '.')   # Shunpo now comes from Grand Fisher
+g.put(47, 18, '.')   # Shunpo now comes from Grand Fisher
 R['ruk_1'] = dict(name='Junrinan, West District 1', region='ruk', pos=[31, 10],
     doors={'1': ['kar_river', '2'], '2': ['ruk_2', '1']},
     npcs=[{'name': 'Old Man of Junrinan', 'lines': [
@@ -271,7 +271,7 @@ R['sok_boss'] = dict(name='Sokyoku Hill', region='sok', pos=[62.8, -3.1],
 # =========================================================================== Hueco Mundo
 g = old('hm_1')
 g.put(11, 18, '.').put(15, 18, 'N')
-for (x, y) in [(31, 14), (32, 14), (33, 14), (24, 16), (25, 16), (26, 16), (39, 16), (40, 16), (41, 16)]:
+for (x, y) in [(31, 14), (32, 14), (33, 14), (24, 16), (25, 16), (26, 16), (38, 16), (39, 16), (40, 16)]:
     g.put(x, y, '.')
 g.rect(26, 12, 29, 12, '=').rect(36, 12, 39, 12, '=')   # sand ledges only Hirenkyaku reaches
 R['hm_1'] = dict(name='Hueco Mundo', region='hm', pos=[66.8, -4.6],
