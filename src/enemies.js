@@ -152,6 +152,16 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
   playerDelta() { const p = this.scene.player; return { dx: p.x - this.x, dy: p.y - this.y }; }
   faceTo(x) { this.facing = Math.sign(x - this.x) || this.facing; }
+  // Can this enemy see the player (nothing solid on the straight line between them)?
+  sees(r = 0) { const s = this.scene, p = s.player; return !s.flow || s.flow.clear(this.x, this.y, p.x, p.body.center.y, r); }
+  // Flyers spread out a little instead of stacking on one spot
+  separate(dt) {
+    for (const o of this.scene.enemies) {
+      if (o === this || !o.alive || !o.cfg.fly || o.isBoss) continue;
+      const dx = this.x - o.x, dy = this.y - o.y, d = Math.hypot(dx, dy);
+      if (d > 0.1 && d < 16) { this.body.velocity.x += dx / d * 260 * dt; this.body.velocity.y += dy / d * 260 * dt; }
+    }
+  }
 }
 
 // Rukongai thug: simple patrol that turns at walls and ledges
@@ -264,11 +274,13 @@ class Shinigami extends Enemy {
   }
 }
 
-// Lesser Hollow: small flyer that drifts near home, then swoops at the player
+// Lesser Hollow: small flyer that drifts near home, then swoops at the player. It follows the
+// room's flow field, so it hunts you around walls and through gaps instead of into the stone.
 class Hollow extends Enemy {
   constructor(scene, x, y) {
     super(scene, x, y + 5, 'hollow', { hp: 8, dmg: 1, drop: 1, bw: 12, bh: 10, kind: 'hollow', fly: true, kb: 1.4, frame: 'fly0', frameFeet: 17 });
     this.anim('fly');
+    this.anims.setProgress(Math.random());
     this.home = { x, y };
     this.mode = 'idle';
     this.clk = Math.random() * 10;
@@ -276,9 +288,11 @@ class Hollow extends Enemy {
   // After landing a hit, peel away for a moment instead of swarming an invulnerable player
   onContact() { this.mode = 'retreat'; this.retreatT = 0.9; }
   think(dt) {
-    const b = this.body;
-    const { dx, dy } = this.playerDelta();
-    const d = Math.hypot(dx, dy) || 1;
+    const b = this.body, s = this.scene, p = s.player;
+    const px = p.x, py = p.body.center.y;
+    const dx = px - this.x, dy = py - this.y, d = Math.hypot(dx, dy) || 1;
+    const steps = s.flow ? s.flow.distAt(this.x, this.y) : (d / TILE);   // path length in tiles, -1 when walled off
+    const k = Math.min(1, dt * 2.6);
     this.clk += dt;
     if (this.mode === 'retreat') {
       this.retreatT -= dt;
@@ -289,16 +303,20 @@ class Hollow extends Enemy {
     }
     if (this.mode === 'idle') {
       const tx = this.home.x + Math.cos(this.clk * 1.3) * 22, ty = this.home.y + Math.sin(this.clk * 2.1) * 10;
-      b.setVelocity((tx - this.x) * 2.2, (ty - this.y) * 2.2);
-      if (d < 170) { this.mode = 'chase'; Sfx.play('telegraph'); }
+      b.velocity.x += ((tx - this.x) * 2.2 - b.velocity.x) * k;
+      b.velocity.y += ((ty - this.y) * 2.2 - b.velocity.y) * k;
+      if (steps >= 0 && steps <= 11 && p.state !== 'dead') { this.mode = 'chase'; Sfx.play('telegraph'); }
       this.facing = Math.sign(b.velocity.x) || this.facing;
     } else {
-      const sp = 125;
-      const k = Math.min(1, dt * 2.4);
-      b.velocity.x += (dx / d * sp - b.velocity.x) * k;
-      b.velocity.y += (dy / d * sp - b.velocity.y) * k;
+      // Head for the next corner on the shortest open path (or straight at you when nothing is in the way)
+      const tgt = (s.flow && s.flow.steer(this.x, this.y, px, py, 6)) || { x: px, y: py };
+      const tx = tgt.x - this.x, ty = tgt.y - this.y, td = Math.hypot(tx, ty) || 1;
+      const sp = 125, bob = Math.sin(this.clk * 7) * 18;
+      b.velocity.x += (tx / td * sp - b.velocity.x) * k;
+      b.velocity.y += (ty / td * sp + bob - b.velocity.y) * k;
+      this.separate(dt);
       this.facing = Math.sign(dx) || this.facing;
-      if (d > 340) this.mode = 'idle';
+      if (steps < 0 || steps > 24) { this.mode = 'idle'; this.home = { x: this.x, y: this.y }; }
     }
   }
 }
