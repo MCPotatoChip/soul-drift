@@ -343,24 +343,49 @@ function journey() {
   return { A, got, bosses, seals, items };
 }
 
-// Rooms passed between two places on the door graph (shortest), with the powers held at the time
-function roomsBetween(A, from, to) {
-  if (from === to) return 0;
-  const q = [[from, 0]], vis = new Set([from]);
+// The shortest way between two rooms on the door graph, with the powers held at the time:
+// the rooms walked through, each with the door you come in by and the door you leave by
+function routeBetween(A, from, to) {
+  if (from === to) return [{ rid: to, entry: null, exit: null }];
+  const q = [[from, null, []]], vis = new Set([from]);
   while (q.length) {
-    const [rid, d] = q.shift();
-    for (const entry of Object.keys(ROOMS[rid].doors).concat(['rest', 'start'])) {
-      const res = explore(rid, A, entry);
+    const [rid, entry, path] = q.shift();
+    for (const e of (entry ? [entry] : Object.keys(ROOMS[rid].doors).concat(['rest', 'start']))) {
+      const res = explore(rid, A, e);
       if (!res) continue;
       for (const door of res.doors) {
-        const [nx] = ROOMS[rid].doors[door] || [];
+        const [nx, nd] = ROOMS[rid].doors[door] || [];
         if (!nx || vis.has(nx)) continue;
-        if (nx === to) return d + 1;
-        vis.add(nx); q.push([nx, d + 1]);
+        const step = path.concat([{ rid, entry: e, exit: door }]);
+        if (nx === to) return step.concat([{ rid: to, entry: nd, exit: null }]);
+        vis.add(nx); q.push([nx, nd, step]);
       }
     }
   }
-  return Infinity;
+  return null;
+}
+const roomsBetween = (A, from, to) => { const r = routeBetween(A, from, to); return r ? r.length - 1 : Infinity; };
+
+// A rough number of seconds for a route: the way across each room at a running pace with time
+// for jumps, a few seconds per enemy in the room, and a boss fight where there is one
+function doorXY(rid, id) {
+  const rows = ROOMS[rid].tiles;
+  for (let y = 0; y < rows.length; y++) { const x = rows[y].indexOf(id); if (x >= 0) return [x, y]; }
+  const rows2 = rows.join('\n');
+  return [Math.floor(rows[0].length / 2), Math.floor(rows.length / 2)];
+}
+function routeSeconds(route, endsAtBoss) {
+  let t = 0;
+  for (const leg of route) {
+    const r = ROOMS[leg.rid], W = r.tiles[0].length, H = r.tiles.length;
+    const a = leg.entry && /\d/.test(leg.entry) ? doorXY(leg.rid, leg.entry) : [W / 2, H / 2];
+    const b = leg.exit ? doorXY(leg.rid, leg.exit) : [W / 2, H / 2];
+    const tiles = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) * 1.6;
+    const foes = (r.tiles.join('').match(/[eghjaqvnimxb]/g) || []).length;
+    t += tiles * TILE / PHYS.runSpeed * 1.5 + foes * 3.5 + 6;
+  }
+  if (endsAtBoss) t += 120;
+  return t;
 }
 
 // ------------------------------------------------------------------ main
@@ -389,11 +414,21 @@ const J = journey();
 console.log('Order of play (shortest route from the last power to the next):');
 let prevRoom = 'kar_hub', n = 0;
 const held = { konso: false };
+const gaps = [];
 for (const e of J.got) {
-  const gap = e.what.startsWith('ability') ? roomsBetween(Object.assign({}, held), prevRoom, e.rid) : null;
-  console.log(`  ${(++n + '.').padEnd(4)} ${e.what.padEnd(20)} in ${e.rid.padEnd(12)} ${gap !== null ? `(${gap} room${gap === 1 ? '' : 's'} from the last power)` : ''}`);
+  let note = '';
+  if (e.what.startsWith('ability')) {
+    const route = routeBetween(Object.assign({}, held), prevRoom, e.rid);
+    if (route) {
+      const secs = routeSeconds(route, !!ROOMS[e.rid].boss && e.via === 'reward');
+      note = `(${route.length - 1} room${route.length === 2 ? '' : 's'}, about ${Math.round(secs / 60 * 10) / 10} min from the last power: ${route.map(l => l.rid).join(' > ')})`;
+      if (prevRoom !== e.rid || route.length > 1) gaps.push(secs);
+    } else note = '(reached by fast travel)';
+  }
+  console.log(`  ${(++n + '.').padEnd(4)} ${e.what.padEnd(20)} in ${e.rid.padEnd(12)} ${note}`);
   if (e.what.startsWith('ability')) { held[e.what.split(' ')[1]] = true; prevRoom = e.rid; }
 }
+if (gaps.length) console.log(`\nShortest gap between two powers: about ${Math.round(Math.min(...gaps) / 6) / 10} min (a lower bound: straight routes, no detours, no deaths)`);
 const missing = ABIL.filter(a => !J.A[a]);
 const bossMissing = Object.keys(BOSSES).filter(b => !J.bosses.has(b));
 console.log(`\nPowers never reached: ${missing.join(', ') || 'none'}`);

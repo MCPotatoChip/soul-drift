@@ -313,7 +313,7 @@ const ROOMS = {
     name: "Hakutomon, the West Gate",
     region: "sei",
     pos: [44, 7.2],
-    doors: {"1": ["ruk_2", "3"], "2": ["sei_1", "1"]},
+    doors: {"1": ["ruk_2", "3"], "2": ["sei_ward", "1"]},
     npcs: [{"name": "Uryū Ishida", "lines": ["Kurosaki. I came to rescue Kuchiki-san, not to help you. Remember that.", "Past this gate is the Seireitei, the court of the Gotei 13. The walls are sekkiseki: they swallow spiritual pressure whole.", "Somewhere inside, a wall waits that only a Shinigami who can grip with their Reiatsu could climb. Look for it before you look for trouble."]}, {"name": "Jidanbō", "lines": ["You beat a Menos to get here? Then you have earned the right to pass, little Shinigami. Jidanbo keeps his word.", "I will hold the White Way Gate open. Inside, the captains do not keep words. Mind the Stealth Force: they strike from behind.", "And the Eleventh Division. They do not care who you are. They only care how hard you hit."]}],
     tiles: [
       '#..................................................#',
@@ -346,11 +346,45 @@ const ROOMS = {
       '####################################################',
     ],
   },
+  sei_ward: {
+    name: "Outer Ward Rooftops",
+    region: "sei",
+    pos: [49.2, 7.4],
+    doors: {"1": ["sei_gate", "2"], "2": ["sei_1", "1"]},
+    tiles: [
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................#.......................',
+      '........................................X.......................',
+      '........................................X.......................',
+      '........................................X.......................',
+      '........................................X.......................',
+      '........................................X.......................',
+      '........................................X.......................',
+      '..............####........#####.........X.........q.............',
+      '..............####........#####..=====..X......======...........',
+      '.........====.####........#####.........X.......................',
+      '..............####........#####.........X.......................',
+      '..............####........#####.........X.......................',
+      '1.............####^^^^^^^^#####.b..m....X....g..........m......2',
+      '################################################################',
+      '################################################################',
+      '################################################################',
+      '################################################################',
+    ],
+  },
   sei_1: {
     name: "Seireitei Courtyard",
     region: "sei",
-    pos: [49.2, 6.4],
-    doors: {"1": ["sei_gate", "2"], "2": ["sei_2", "1"], "3": ["sei_11", "1"]},
+    pos: [55.6, 6.4],
+    doors: {"1": ["sei_ward", "2"], "2": ["sei_2", "1"], "3": ["sei_11", "1"]},
     abilities: ["grip"],
     tiles: [
       '##...........................................2..##',
@@ -388,7 +422,7 @@ const ROOMS = {
   sei_11: {
     name: "Eleventh Division Grounds",
     region: "sei",
-    pos: [44.4, 4.8],
+    pos: [50.8, 4.8],
     doors: {"1": ["sei_1", "3"]},
     boss: "kenpachi",
     rewardItems: ["seal:bell", "fragment"],
@@ -421,7 +455,7 @@ const ROOMS = {
   sei_2: {
     name: "Seireitei Towers",
     region: "sei",
-    pos: [53.2, 1.8],
+    pos: [59.6, 1.8],
     doors: {"1": ["sei_1", "2"], "2": ["kar_roof", "2"], "3": ["sok_1", "1"], "4": ["sei_4", "1"]},
     seals: ["focus"],
     platforms: [{"w": 3, "dy": 6, "period": 1.25}],
@@ -477,7 +511,7 @@ const ROOMS = {
   sei_4: {
     name: "Fourth Division Sewers",
     region: "sei",
-    pos: [58, 2.1],
+    pos: [64.4, 2.1],
     doors: {"1": ["sei_2", "4"], "2": ["sei_renji", "1"]},
     npcs: [{"name": "Hanatarō Yamada", "seal": "kaido", "lines": ["Ah! Please do not hurt me! I am only Hanataro Yamada, Seventh Seat of the Fourth Division. We clean the sewers.", "You are going to the Senzaikyu? To Rukia-san? Then the lieutenant of the Sixth Division is waiting on the bridge. Renji Abarai.", "Here, take this. It is only a little Kaido, the healing arts of my division, but it helps you mend for less Reiatsu."], "after": ["The bridge is past the end of this tunnel. Renji-san's Zabimaru reaches much farther than a sword should. Please be careful!"]}],
     tiles: [
@@ -511,7 +545,7 @@ const ROOMS = {
   sei_renji: {
     name: "Senzaikyu Bridge",
     region: "sei",
-    pos: [63.6, 2.1],
+    pos: [70, 2.1],
     doors: {"1": ["sei_4", "2"]},
     boss: "renji",
     reward: "bakudo",
@@ -544,7 +578,7 @@ const ROOMS = {
   sok_1: {
     name: "Sokyoku Ascent",
     region: "sok",
-    pos: [58, -2.0],
+    pos: [64.4, -2.0],
     doors: {"1": ["sei_2", "3"], "2": ["sok_boss", "1"]},
     npcs: [{"name": "Yoruichi", "seal": "shunko", "lines": ["Do not look so surprised. A cat can talk. It is the Shinigami who listen that are rare.", "Byakuya Kuchiki waits at the top of the hill. He will not hold back, and Senbonzakura does not miss.", "Here: Shunko, a trick of mine. Pour your Reiatsu into your back and shoulders, and your Shunpo will cut whatever it passes through."], "after": ["When the petals come, do not stand still. Byakuya is patient. You must not be."]}],
     tiles: [
@@ -593,7 +627,7 @@ const ROOMS = {
   sok_boss: {
     name: "Sokyoku Hill",
     region: "sok",
-    pos: [62.8, -3.1],
+    pos: [69.2, -3.1],
     doors: {"1": ["sok_1", "2"], "2": ["hm_1", "1"]},
     boss: "byakuya",
     reward: "wings",
@@ -626,7 +660,7 @@ const ROOMS = {
   hm_1: {
     name: "Hueco Mundo",
     region: "hm",
-    pos: [66.8, -4.6],
+    pos: [73.2, -4.6],
     doors: {"1": ["sok_boss", "2"], "2": ["hm_2", "1"], "3": ["forest_1", "1"]},
     npcs: [{"name": "Nel Tu", "lines": ["Itsygo! Nel knew it was you! Nel smelled your Reiatsu from all the way over the dunes!", "That big white palace is Las Noches. The Espada live there. They are scary. Nel does not go there. Mostly.", "The sand at the far east rings hollow. Hit it hard from above and it falls into the Forest of Menos. Nel fell in once. It was not fun."]}],
     tiles: [
@@ -658,7 +692,7 @@ const ROOMS = {
   hm_2: {
     name: "Las Noches Corridor",
     region: "hm",
-    pos: [73.2, -5.4],
+    pos: [79.6, -5.4],
     doors: {"1": ["hm_1", "2"], "2": ["hm_boss", "1"], "3": ["hm_side", "1"], "4": ["hm_3", "1"]},
     tiles: [
       '######..3...############################################',
@@ -696,7 +730,7 @@ const ROOMS = {
   hm_3: {
     name: "Las Noches Halls",
     region: "hm",
-    pos: [78.8, -5.4],
+    pos: [85.2, -5.4],
     doors: {"1": ["hm_2", "4"], "2": ["hm_grimm", "1"], "3": ["hm_dome", "1"]},
     npcs: [{"name": "Orihime Inoue", "heals": true, "lines": ["Kurosaki-kun! You came all this way... Hold still. Soten Kisshun: I reject.", "There. All your wounds are gone. Come back whenever you are hurt. I am not going anywhere, it seems.", "Grimmjow is in the Sixth Palace, past the east hall. And Ulquiorra keeps to the top of the dome. Please, do not go up there yet."]}],
     tiles: [
@@ -735,7 +769,7 @@ const ROOMS = {
   hm_grimm: {
     name: "Sixth Palace",
     region: "hm",
-    pos: [84.8, -4.6],
+    pos: [91.2, -4.6],
     doors: {"1": ["hm_3", "2"]},
     boss: "grimmjow",
     reward: "burst",
@@ -768,7 +802,7 @@ const ROOMS = {
   hm_side: {
     name: "Mask Shrine",
     region: "hm",
-    pos: [73.2, -7.7],
+    pos: [79.6, -7.7],
     doors: {"1": ["hm_2", "3"]},
     abilities: ["hollow"],
     seals: ["long"],
@@ -802,7 +836,7 @@ const ROOMS = {
   hm_boss: {
     name: "Throne of Sand",
     region: "hm",
-    pos: [78.8, -2.4],
+    pos: [85.2, -2.4],
     doors: {"1": ["hm_2", "2"]},
     boss: "vasto",
     reward: "bankai",
@@ -835,7 +869,7 @@ const ROOMS = {
   hm_dome: {
     name: "Dome of Las Noches",
     region: "hm",
-    pos: [79.2, -8.2],
+    pos: [85.6, -8.2],
     doors: {"1": ["hm_3", "3"]},
     boss: "ulquiorra",
     rewardItems: ["seal:hierro", "ore"],
@@ -873,7 +907,7 @@ const ROOMS = {
   forest_1: {
     name: "Forest of Menos",
     region: "for",
-    pos: [70.3, -2.3],
+    pos: [76.7, -2.3],
     doors: {"1": ["hm_1", "3"], "2": ["forest_2", "1"]},
     seals: ["phantom"],
     npcs: [{"name": "Ashido Kanō", "lines": ["A Shinigami? Here? I am Ashido Kano. I have lived in this forest longer than I can count, wearing what I have killed.", "The Gillian here are not hunting you. They are hiding from something deeper in, something that eats Hollows and hates the light.", "Nobody has ever seen it. Strike what you cannot see with the Konso hilt, and it may answer."]}],
@@ -929,7 +963,7 @@ const ROOMS = {
   forest_2: {
     name: "Hollow Clearing",
     region: "for",
-    pos: [74.7, 0.1],
+    pos: [81.1, 0.1],
     doors: {"1": ["forest_1", "2"]},
     boss: "espada",
     rewardItems: ["ore", "fragment"],
