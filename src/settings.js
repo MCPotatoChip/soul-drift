@@ -17,11 +17,12 @@ const Settings = {
     ['flash', 'Screen flashes', 'steps', [[0, 'off'], [0.5, 'soft'], [1, 'full']]],
     ['particles', 'Particles', 'steps', [[0.4, 'low'], [1, 'normal'], [1.6, 'high']]],
     ['damageNumbers', 'Damage numbers', 'steps', [[false, 'off'], [true, 'on']]],
+    ['rumble', 'Controller rumble', 'steps', [[false, 'off'], [true, 'on']]],
   ],
 
   defaults() {
     const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
-    return { sfx: 0.8, music: 0.55, shake: 1, flash: 1, particles: coarse ? 0.4 : 1, damageNumbers: false };
+    return { sfx: 0.8, music: 0.55, shake: 1, flash: 1, particles: coarse ? 0.4 : 1, damageNumbers: false, rumble: true };
   },
 
   load() {
