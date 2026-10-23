@@ -213,7 +213,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // ---------------- Black Step ----------------
+  // ---------------- Shunpo (flash step) ----------------
   startDash(dir) {
     this.state = 'dash';
     this.dashDir = dir; this.facing = dir;
@@ -417,7 +417,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // ---------------- Konso Blade ----------------
+  // ---------------- Konso (soul burial) ----------------
   startKonso() {
     this.state = 'konso';
     this.charge = 0;

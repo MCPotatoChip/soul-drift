@@ -9,7 +9,7 @@
 
 class FlowField {
   // source(): the world point the field leads to. period: seconds between rebuilds (0 builds once).
-  constructor(scene, source, period = 0.2, maxSteps = 70) {
+  constructor(scene, source, period = 0.2, maxSteps = 160) {
     this.s = scene;
     this.W = scene.W; this.H = scene.H;
     this.dist = new Int16Array(this.W * this.H).fill(-1);

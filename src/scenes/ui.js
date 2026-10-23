@@ -436,6 +436,10 @@ class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: parts, alpha: 0, delay: 1400, duration: 500 });
   }
   bossStart(b) {
+    // the boss's name takes the stage: an area title still showing steps aside
+    const area = [this.areaName, this.areaSub, this.areaKanji, this.areaStroke];
+    this.tweens.killTweensOf(area);
+    this.tweens.add({ targets: area, alpha: 0, duration: 200 });
     const intro = [this.bossTitle, this.bossName, this.bossJp];
     this.bossJp.setText(b.jp || '').setAlpha(0);
     this.bossTitle.setText(b.title).setAlpha(0);
