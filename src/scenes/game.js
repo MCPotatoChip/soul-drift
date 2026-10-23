@@ -31,7 +31,7 @@ class GameScene extends Phaser.Scene {
     this.interactables = []; this.pickups = []; this.platforms = []; this.shards = [];
     this.doors = []; this.lockCells = []; this.collapseCells = []; this.bankaiCells = []; this.hazards = [];
     this.hinted = {};
-    this.suppressed = new Set();
+    this.inputLock = 0;
     this.carryP = null; this.lastP = new Set();
     this.slow = null; this.tscale = 1; this.lookT = 0;
     this.anims.globalTimeScale = 1;
@@ -281,10 +281,8 @@ class GameScene extends Phaser.Scene {
     i.bankaiP = C.inSet('bankai', P); i.maskP = C.inSet('mask', P);
     i.interactP = C.inSet('interact', P); i.upP = C.inSet('up', P);
     i.mapP = C.inSet('map', P); i.invP = C.inSet('inventory', P); i.pauseP = C.inSet('pause', P);
-    // Held keys that must be let go of before they count again (see hazardRespawn)
-    for (const a of this.suppressed) {
-      if (C.isDown(a)) i[HELD_ACTIONS_INPUT[a]] = false; else this.suppressed.delete(a);
-    }
+    // Held keys do not count while the post-respawn lock runs (see hazardRespawn)
+    if (this.inputLock > 0) for (const a of HELD_ACTIONS) i[HELD_ACTIONS_INPUT[a]] = false;
   }
 
   // ------------------------------------------------------------------ loop
@@ -295,6 +293,7 @@ class GameScene extends Phaser.Scene {
       if (this.slow.t <= 0) { this.slow = null; this.applyTimeScale(1); }
     }
     dt *= this.tscale;
+    if (this.inputLock > 0) this.inputLock -= dt;
     this.readInput();
     if (this.frozen) return;
     if (this.hitStopT > 0) {
@@ -734,8 +733,9 @@ class GameScene extends Phaser.Scene {
     new EnemyShot(this, x, feet - 10, 'shock', dir * 250, 0, { dmg: 1, life: 1.6, w: 12, h: 18, flipX: dir < 0, pierce: true });
   }
 
-  addHurt(x, y, w, h, dmg, dur, update) {
-    const hb = { x, y, w, h, dmg, t: dur, update };
+  // owner: the enemy swinging it. A box with an owner also hurts the other enemies it touches.
+  addHurt(x, y, w, h, dmg, dur, update, owner = null) {
+    const hb = { x, y, w, h, dmg, t: dur, update, owner, hit: new Set() };
     if (update) update(hb);
     this.hurtBoxes.push(hb);
     return hb;
@@ -746,11 +746,29 @@ class GameScene extends Phaser.Scene {
     for (const hb of this.hurtBoxes) {
       if (hb.update) hb.update(hb);
       hb.t -= dt;
-      if (hb.t > 0 && p.state !== 'dead' && Phaser.Geom.Intersects.RectangleToRectangle(pr, new Phaser.Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
+      const rect = new Phaser.Geom.Rectangle(hb.x, hb.y, hb.w, hb.h);
+      if (hb.t > 0 && p.state !== 'dead' && Phaser.Geom.Intersects.RectangleToRectangle(pr, rect)) {
         p.takeDamage(hb.dmg, hb.x + hb.w / 2);
       }
+      if (hb.t > 0 && hb.owner) this.friendlyHit(rect, hb.owner, FRIENDLY.melee, hb.owner.facing, hb.hit);
+
     }
     this.hurtBoxes = this.hurtBoxes.filter(hb => hb.t > 0);
+  }
+  // One enemy's attack landing on another. Bosses are never hurt this way, and each victim is hurt once per `seen`.
+  friendlyHit(rect, owner, dmg, dir, seen) {
+    // only the nearest enemy in the way is hit: it absorbs the attack, the ones behind it are spared
+    let best = null, bd = Infinity;
+    for (const e of this.enemies) {
+      if (e === owner || e.isBoss || !e.alive || !e.hittable() || seen.has(e)) continue;
+      if (!Phaser.Geom.Intersects.RectangleToRectangle(rect, bodyRect(e.body))) continue;
+      const d = Math.abs(e.x - owner.x);
+      if (d < bd) { best = e; bd = d; }
+    }
+    if (!best) return null;
+    seen.add(best);
+    if (best.hit(dmg, dir || Math.sign(best.x - owner.x) || 1, { kind: 'enemy', knock: true }) === 'hit') { this.fx.hit(best.x, best.y, dir || 1, 0xff8a6a, 1); Sfx.play('hit'); }
+    return best;
   }
   beamHit(x1, y1, x2, y2, halfW, dmg) {
     const p = this.player, px = p.body.center.x, py = p.body.center.y;
@@ -849,9 +867,6 @@ class GameScene extends Phaser.Scene {
   hazardRespawn() {
     const p = this.player;
     this.respawning = true;
-    // Whatever is held right now (usually a direction) stays dead until released, so
-    // holding toward the spikes cannot walk the player straight back into them
-    this.suppressed = new Set(HELD_ACTIONS.filter(a => Controls.isDown(a)));
     p.state = 'locked';
     p.body.setVelocity(0, 0);
     p.body.setAllowGravity(false);
@@ -863,6 +878,9 @@ class GameScene extends Phaser.Scene {
       p.body.setAllowGravity(true);
       p.state = 'normal';
       p.t.invuln = 1.0;
+      // Held keys are ignored for half a second after landing, so holding toward the spikes
+      // cannot walk the player straight back into them
+      this.inputLock = 0.5;
       this.cameras.main.fadeIn(220, 0, 0, 0);
       this.respawning = false;
     });

@@ -51,9 +51,20 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   get contactDamage() { return this.alive && this.boundT <= 0 && !this.harmless && !(this.isBoss && this.invulnerable) ? this.dmg : 0; }
   hittable() { return this.alive && !this.invulnerable; }
 
+  // Ground enemies that end up on spikes (knocked in, or hit there) die
+  inSpikes() {
+    const b = this.body, s = this.scene, y = b.bottom - 2;
+    for (const x of [b.left + 2, b.center.x, b.right - 2]) {
+      const t = s.hazLayer.getTileAtWorldXY(x, y);
+      if (t && y >= t.pixelY + 7) return true;
+    }
+    return false;
+  }
+
   tick(dt) {
     if (!this.alive) return;
     this.dt = dt;
+    if (!this.isBoss && !this.cfg.fly && this.inSpikes()) { this.drop = 0; this.die(0); return; }
     if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.refreshTint(); }
     if (this.boundT > 0) {
       this.boundT -= dt;
@@ -166,7 +177,7 @@ class Thug extends Enemy {
         this.untelegraph();
         this.mode = 'strike'; this.mt = 0.25;
         const f = this.facing;
-        this.scene.addHurt(0, 0, 30, 18, 1, 0.15, (h) => { h.x = this.x + (f > 0 ? 2 : -32); h.y = this.y - 9; });
+        this.scene.addHurt(0, 0, 30, 18, 1, 0.15, (h) => { h.x = this.x + (f > 0 ? 2 : -32); h.y = this.y - 9; }, this);
         Sfx.play('slash');
       }
       return;
@@ -226,7 +237,7 @@ class Shinigami extends Enemy {
           this.mode = 'lunge'; this.mt = 0.2; this.guard = false;
           b.setVelocityX(this.groundAhead(this.facing) ? this.facing * 210 : 0);
           const f = this.facing;
-          this.scene.addHurt(0, 0, 26, 20, 1, 0.2, (h) => { h.x = this.x + (f > 0 ? 2 : -28); h.y = this.y - 10; });
+          this.scene.addHurt(0, 0, 26, 20, 1, 0.2, (h) => { h.x = this.x + (f > 0 ? 2 : -28); h.y = this.y - 10; }, this);
           this.scene.fx.slashArc(this.x + f * 14, this.y, f, 0xc8a8ff, 0.9);
           Sfx.play('slash');
         }
@@ -315,10 +326,12 @@ class Adjuchas extends Enemy {
       }
     } else if (this.mode === 'windup') {
       b.setVelocityX(0);
-      if (this.mt <= 0) { this.untelegraph(); this.mode = 'charge'; this.mt = 1.1; Sfx.play('dash'); }
+      if (this.mt <= 0) { this.untelegraph(); this.mode = 'charge'; this.mt = 1.1; this.trampled = new Set(); Sfx.play('dash'); }
     } else if (this.mode === 'charge') {
       b.setVelocityX(this.facing * 230);
       if (Math.random() < 0.4) this.scene.fx.dust(this.x - this.facing * 10, b.bottom, 1);
+      // it tramples whatever it runs through, but each enemy only once per charge
+      this.scene.friendlyHit(bodyRect(b), this, FRIENDLY.charge, this.facing, this.trampled || (this.trampled = new Set()));
       if (this.mt <= 0 || this.wallAhead(this.facing) || !this.groundAhead(this.facing)) { this.mode = 'recover'; this.mt = 0.7; b.setVelocityX(0); }
     } else {
       b.setVelocityX(0);
@@ -351,7 +364,7 @@ class Arrancar extends Enemy {
       if (this.mt <= 0) {
         this.untelegraph();
         const a = Math.atan2(dy, dx);
-        new EnemyShot(s, this.x + this.facing * 8, this.y - 4, 'bala', Math.cos(a) * 210, Math.sin(a) * 210, { dmg: 1, life: 2.5, tint: 0x40e0ff });
+        new EnemyShot(s, this.x + this.facing * 8, this.y - 4, 'bala', Math.cos(a) * 210, Math.sin(a) * 210, { dmg: 1, life: 2.5, tint: 0x40e0ff, owner: this });
         Sfx.play('hado');
         this.mode = 'cool'; this.mt = 0.7;
       }
@@ -405,7 +418,10 @@ class Gillian extends Enemy {
       g.lineStyle(7, 0xff4a70, 0.9); g.lineBetween(m.x, m.y, x2, y2);
       g.lineStyle(3, 0xffe0ea, 1); g.lineBetween(m.x, m.y, x2, y2);
       s.beamHit(m.x, m.y, x2, y2, 5, 1);
-      if (this.mt <= 0) { this.mode = 'cool'; this.mt = 2.4; g.clear(); }
+      this.beamSeen = this.beamSeen || new Set();
+      const beamBox = new Phaser.Geom.Rectangle(Math.min(m.x, x2), Math.min(m.y, y2) - 5, Math.abs(x2 - m.x), Math.abs(y2 - m.y) + 10);
+      s.friendlyHit(beamBox, this, FRIENDLY.beam, this.facing, this.beamSeen);
+      if (this.mt <= 0) { this.mode = 'cool'; this.mt = 2.4; g.clear(); this.beamSeen = null; }
       return;
     }
     if (this.mode === 'cool' && this.mt <= 0) this.mode = null;
@@ -464,7 +480,7 @@ class KidoCaster extends Enemy {
         if (this.mt <= 0) {
           this.untelegraph();
           const a = Math.atan2(s.player.body.center.y - (this.y - 4), s.player.x - this.x);
-          new EnemyShot(s, this.x + this.facing * 9, this.y - 4, 'bala', Math.cos(a) * 235, Math.sin(a) * 235, { dmg: 1, life: 2.4, tint: 0x8ab4ff, scale: 1.25, burst: 0x8ab4ff });
+          new EnemyShot(s, this.x + this.facing * 9, this.y - 4, 'bala', Math.cos(a) * 235, Math.sin(a) * 235, { dmg: 1, life: 2.4, tint: 0x8ab4ff, scale: 1.25, burst: 0x8ab4ff, owner: this });
           Sfx.play('hado');
           this.mode = 'cool'; this.mt = 0.55;
         }
