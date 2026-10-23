@@ -515,9 +515,10 @@ class UIScene extends Phaser.Scene {
       if (d.portrait.creature) {
         this.dlgPort.setCrop().setScale(4).setOrigin(0.5).setPosition(x + 76, y + H / 2);
       } else {
-        // head and shoulders: the top of the humanoid frame, drawn four times over
-        const scale = d.portrait.key === 'npc_jidanbo' ? 3.6 : 3.6;
-        this.dlgPort.setScale(scale).setOrigin(0.5, 0).setCrop(14, 8, 36, 30).setPosition(x + 76, y + 16 - 8 * scale + 4);
+        // head and shoulders, found from how tall the character stands in its frame, drawn four times over
+        const st = STYLES[d.portrait.key] || STYLE_ICHIGO, top = HF.FEET - st.legLen - st.torsoLen - 15, sc = 4.3, size = 26;
+        this.dlgPort.setScale(sc).setOrigin(0).setCrop(HF.HX - 13, top, size, size)
+          .setPosition(x + 76 - (HF.HX - 13 + size / 2) * sc, y + H / 2 - (top + size / 2) * sc);
       }
       this.dlgPort.setAlpha(0);
       this.tweens.add({ targets: this.dlgPort, alpha: 1, duration: 220 });

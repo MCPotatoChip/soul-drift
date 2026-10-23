@@ -9,8 +9,8 @@
 const TOUCH_KEY = 'soul-drift-touch-v1';
 
 const TOUCH_ACTIONS = [
-  ['jump', 'JUMP', 'Jump'], ['attack', 'SLASH', 'Slash'], ['dash', 'STEP', 'Black Step'], ['kido', 'KIDO', 'Kido'],
-  ['heal', 'HEAL', 'Heal (hold)'], ['konso', 'KONSO', 'Konso Blade (hold)'], ['burst', 'BURST', 'Senkaimon Burst (hold)'],
+  ['jump', 'JUMP', 'Jump'], ['attack', 'SLASH', 'Slash'], ['dash', 'SHUNPO', 'Shunpo'], ['kido', 'KIDŌ', 'Kidō'],
+  ['heal', 'HEAL', 'Heal (hold)'], ['konso', 'KONSŌ', 'Konsō (hold)'], ['burst', 'BURST', 'Senkaimon Burst (hold)'],
   ['bankai', 'BANKAI', 'Bankai'], ['mask', 'MASK', 'Hollow Mask'], ['interact', 'USE', 'Interact'],
   ['map', 'MAP', 'Map'], ['inventory', 'BAG', 'Inventory'], ['pause', 'II', 'Pause'],
   ['up', '▲', 'Up'], ['down', '▼', 'Down'], ['left', '◀', 'Left'], ['right', '▶', 'Right'],

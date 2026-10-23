@@ -75,7 +75,7 @@ class GameScene extends Phaser.Scene {
 
     if (GS.run.region !== this.region) {
       GS.run.region = this.region;
-      this.game.events.emit('area', { name: REGIONS[this.region].name, sub: REGIONS[this.region].sub });
+      this.game.events.emit('area', { name: REGIONS[this.region].name, sub: REGIONS[this.region].sub, kanji: REGIONS[this.region].kanji });
     } else if (firstVisit) {
       this.game.events.emit('area', { name: this.def.name, small: true });
     }
@@ -1214,6 +1214,7 @@ class GameScene extends Phaser.Scene {
     this.fx.burst(p.x, p.y, 0xf4f1ea, 16);
     this.game.events.emit('prompt', null);
     this.game.events.emit('boss-end', { silent: true });
+    this.game.events.emit('died');
     Music.setBoss(false);
     if (d.reishi > 0) {
       const s = this.validSafe(p.lastSafe);

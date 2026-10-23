@@ -57,7 +57,7 @@ class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: title, alpha: 1, x: 140, duration: 1200, ease: 'Cubic.out' });
     const stroke = this.add.image(132, 296, 'brush').setOrigin(0, 0.5).setScale(0, 0.32).setAlpha(0.95);
     this.tweens.add({ targets: stroke, scaleX: 1.62, duration: 700, delay: 500, ease: 'Cubic.out' });
-    this.add.text(146, 326, 'A metroidvania of Shinigami, Hollows and the spaces between', { fontFamily: FONT_BODY, fontSize: '19px', color: '#b8b2c4' });
+    this.add.text(146, 326, 'A Bleach metroidvania: Karakura, Soul Society, Hueco Mundo and the world within', { fontFamily: FONT_BODY, fontSize: '19px', color: '#b8b2c4' });
 
     // menu
     this.hasSave = GS.hasSave();
@@ -214,9 +214,9 @@ class EndingScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#f4f1ea');
     this.cameras.main.fadeIn(1200, 255, 255, 255);
     const lines = [
-      'The Fallen Vizard comes apart into drifting reishi.',
+      'The white one comes apart into drifting reishi, laughing.',
       'For a moment you see your own face in it, unmasked.',
-      'Then only the white sky of the Endpoint remains.',
+      'Then only the blue sky of the Inner World remains, and the towers right themselves.',
     ];
     lines.forEach((l, i) => {
       const t = this.add.text(GAME_W / 2, 170 + i * 46, l, { fontFamily: FONT_BODY, fontSize: '24px', color: '#17161f' }).setOrigin(0.5).setAlpha(0);
@@ -252,8 +252,8 @@ class IntroScene extends Phaser.Scene {
     });
     const lines = [
       'Karakura Town. A quiet night.',
-      'You can see the ones who never crossed over.',
-      'Something is calling from the spaces between.',
+      'You have always seen the ones who never crossed over.',
+      'Tonight, one of them sees you back.',
     ];
     this.texts = lines.map((l, i) => {
       const t = this.add.text(GAME_W / 2, GAME_H / 2 - 40 + i * 52, l, { fontFamily: FONT_DISPLAY, fontSize: '32px', fontStyle: '700', color: INK }).setOrigin(0.5).setAlpha(0);
