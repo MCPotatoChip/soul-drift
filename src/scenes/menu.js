@@ -507,22 +507,18 @@ class MenuScene extends Phaser.Scene {
     if (this.listening) return;
     const n = (this.items || []).length;
     if (this.view === 'controls') {
-      const half = Math.ceil(ACTIONS.length / 2);
-      if (code === 'Backspace' || code === 'Delete') {
-        const it = this.items[this.sel];
-        if (it && it.id && Controls.bindings[it.id].length > 1) { Controls.clearAlt(it.id); this.msg = ''; Sfx.play('select'); this.render(); }
-        return;
-      }
-      if ((code === 'ArrowLeft' || code === 'ArrowRight' || Controls.is(code, 'left') || Controls.is(code, 'right')) && this.sel < ACTIONS.length) {
-        this.sel = this.sel < half ? Math.min(this.sel + half, ACTIONS.length - 1) : this.sel - half;
-        this.msg = ''; Sfx.play('select'); this.render();
-        return;
-      }
-      if (code === 'Enter' || code === 'Space' || code === 'KeyZ') { const it = this.items[this.sel]; if (it) it.act(); return; }
-      if (code === 'Escape') { this.back(); return; }
+      // Fixed keys only here, so a rebinding mistake can never lock you out of this screen
+      if (code === 'Backspace' || code === 'Delete' || code === 'Pad3') { this.clearCell(); return; }
+      if (code === 'ArrowLeft' || code === 'PadLeft') { this.moveControls(-1, 0); return; }
+      if (code === 'ArrowRight' || code === 'PadRight') { this.moveControls(1, 0); return; }
+      if (code === 'ArrowUp' || code === 'PadUp') { this.moveControls(0, -1); return; }
+      if (code === 'ArrowDown' || code === 'PadDown') { this.moveControls(0, 1); return; }
+      if (code === 'Enter' || code === 'Space' || code === 'KeyZ' || code === 'Pad0') { const it = this.items[this.sel]; if (it) it.act(); return; }
+      if (code === 'Escape' || code === 'Pad1') { this.back(); return; }
+      return;
     }
     if (this.view === 'settings') {
-      const it = this.items[this.sel], L = code === 'ArrowLeft' || Controls.is(code, 'left'), R = code === 'ArrowRight' || Controls.is(code, 'right');
+      const it = this.items[this.sel], L = Controls.isLeft(code), R = Controls.isRight(code);
       if (it && it.row && (L || R)) { this.adjustSetting(it.row, L ? -1 : 1); return; }
     }
     if (Controls.isUp(code)) { if (n) { this.sel = (this.sel + n - 1) % n; this.msg = ''; Sfx.play('select'); this.render(); } return; }
