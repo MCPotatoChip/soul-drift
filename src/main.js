@@ -15,7 +15,7 @@ function startGame() {
     physics: { default: 'arcade', arcade: { gravity: { y: PHYS.gravity }, tileBias: 20, debug: false } },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { touch: { capture: true }, activePointers: 2 },
-    scene: [BootScene, TitleScene, IntroScene, GameScene, UIScene, MenuScene, EndingScene],
+    scene: [BootScene, TitleScene, IntroScene, GameScene, UIScene, MenuScene, EndingScene, TrueEndingScene],
   });
 
   Touch.attach(game);
@@ -108,6 +108,8 @@ Controls.onChange(renderKeyLegend);
 
 const JAPANESE_TEXT = [...new Set((Object.values(ICON_GLYPH).join('') + Object.values(REGIONS).map(r => r.kanji).join('') +
   Object.values(BOSSES).map(b => b.jp).join('') + Object.values(MENU_KANJI).join('') + Object.values(BANNER_KANJI).join('') +
+  Object.values(ELITE_TRAITS).map(t => t.jp).join('') + Object.values(FORMS).map(f => f.jp).join('') +
+  Object.values(BINDINGS).map(b => b.jp).join('') + '壱弐参真試旅助記斬魄刀決闘霊王宮勉強部屋' +
   '霊圧魂の漂流討浦原商店').split(''))].join('');
 
 (function boot() {

@@ -446,6 +446,19 @@ Object.assign(STYLES, {
   lure: variant(SOUL, { skin: '#f4eef0', skinShade: '#c8bcc4', hair: '#e8e4f0', hairHi: '#ffffff', hairShade: '#b8b4c8', hairStyle: 'longflow', eye: '#ff3040', robe: '#e8e4ee', legLen: 6, torsoLen: 7, chain: null, anims: ['idle', 'run'], alpha: 0.92 }),
 });
 
+// Ganju, ready for his rematch: the same bandana, a club, and every clip a fighter needs
+STYLES.ganju_f = variant(STYLES.npc_ganju, { anims: ENEMY_ANIMS, carry: 'hand', basePose: null,
+  weapon: { type: 'club', col: '#8a5a3a', hi: '#b47a50', len: 12, smear: '#ffb07060' } });
+// Ichibē Hyōsube of the Royal Guard: bald, a great black beard, dark robes and a string of prayer beads
+STYLES.npc_ichibe = {
+  skin: '#c89a74', skinShade: '#94704e', eye: '#1a1410', brow: '#16121a', beard: '#16121a',
+  hair: '#c89a74', hairHi: '#e0b890', hairShade: '#94704e', hairStyle: 'bald',
+  robe: '#1c1a22', robeHi: '#34303e', robeShade: '#0e0c12', inner: '#e8e2d2', sash: '#c89a3a',
+  hakama: '#1c1a22', hakamaShade: '#0e0c12', hakamaHi: '#34303e', tabi: '#e8e2d2', sandal: '#3a2a1a',
+  armband: '#c89a3a', legLen: 9, torsoLen: 11, carry: 'none', weapon: { type: 'none' }, anims: NPC_ANIMS,
+  basePose: { fh: [4, 6], bh: [-2, 7], lean: -1 },
+};
+
 // ---------------------------------------------------------------------------
 // Drawing
 // ---------------------------------------------------------------------------
@@ -1351,8 +1364,9 @@ const NPC_STYLES = {
   'Rukia Kuchiki': 'npc_rukia', 'Kon': 'npc_kon', 'Yasutora Sado': 'npc_chad', 'Orihime Inoue': 'npc_orihime',
   'Ganju Shiba': 'npc_ganju', 'Jidanbō': 'npc_jidanbo', 'Hanatarō Yamada': 'npc_hanataro', 'Uryū Ishida': 'npc_uryu',
   'Yoruichi': 'npc_cat', 'Nel Tu': 'npc_nel', 'Ashido Kanō': 'npc_ashido', 'Old Fisherman': 'npc_fisher',
+  'Ichibē Hyōsube': 'npc_ichibe',
 };
-// How big each NPC stands (Jidanbō is a giant)
-const NPC_SCALE = { npc_jidanbo: 3.2 };
+// How big each NPC stands (Jidanbō is a giant, Ichibē merely enormous)
+const NPC_SCALE = { npc_jidanbo: 3.2, npc_ichibe: 1.3 };
 // Sheets that are not on the humanoid rig: [frame height, row of the feet]
 const NPC_CREATURE = { npc_kon: [22, 21], npc_cat: [18, 17] };

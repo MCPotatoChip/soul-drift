@@ -6,7 +6,11 @@
 // ---------------------------------------------------------------------------
 
 // The faint kanji in the corner of each screen
-const MENU_KANJI = { pause: '休', rest: '休息', seals: '封印', travel: '門', shop: '浦原商店', forge: '鍛冶', map: '地図', inventory: '持物', journal: '記録', settings: '設定', controls: '操作' };
+const MENU_KANJI = { pause: '休', rest: '休息', seals: '封印', travel: '門', shop: '浦原商店', forge: '鍛冶', map: '地図', inventory: '持物', journal: '記録', settings: '設定', controls: '操作',
+  assist: '助', slots: '旅', slot: '旅', forms: '斬魄刀', records: '記', trial: '霊王宮', duels: '決闘' };
+const SLOT_KANJI = ['壱', '弐', '参'];
+// Pins the player sets on the map: each press on the same spot moves to the next kind, then clears it
+const PIN_KINDS = [['★', '#d9b35a'], ['!', '#ff5a64'], ['?', '#7fe8ff'], ['✕', '#b8b2c4']];
 
 class MenuScene extends Phaser.Scene {
   constructor() { super('menu'); }
@@ -84,7 +88,7 @@ class MenuScene extends Phaser.Scene {
   // Invisible tap target (touch screens); lives in the layer so every render rebuilds it
   hit(x, y, w, h, fn) {
     const z = this.add.zone(x, y, w, h).setOrigin(0).setInteractive();
-    z.on('pointerdown', fn);
+    z.on('pointerdown', (ptr) => fn(ptr));
     this.layer.add(z);
   }
   tapItem(i) {
@@ -103,20 +107,28 @@ class MenuScene extends Phaser.Scene {
         this.title('Paused', `${REGIONS[ROOMS[d.room].region].kanji}  ·  ${ROOMS[d.room].name}`);
         this.items = [{ label: 'Resume', act: () => this.close() }, { label: 'Map', act: () => this.go('map') },
           { label: 'Inventory', act: () => this.go('inventory') }, { label: 'Journal', act: () => this.go('journal') },
-          { label: 'Controls', act: () => this.go('controls') }, { label: 'Settings', act: () => this.go('settings') },
-          { label: 'Quit to title', act: () => this.quit() }];
-        this.list(this.items, GAME_W / 2 - 190, 196, 50);
-        this.footer('Progress saves at rest gates and when you collect things. Quitting returns you to your last rest gate.');
+          { label: 'Records', act: () => this.go('records') },
+          { label: 'Controls', act: () => this.go('controls') }, { label: 'Settings', act: () => this.go('settings') }];
+        if (GS.rush) this.items.push({ label: 'Leave the trial', act: () => this.leaveTrial() });
+        this.items.push({ label: 'Quit to title', act: () => this.quit() });
+        this.list(this.items, GAME_W / 2 - 190, 182, 48);
+        this.footer(GS.rush ? 'A trial is under way. Leaving it, or quitting, returns you to the palace with nothing lost.'
+          : 'Progress saves at rest gates and when you collect things. Quitting returns you to your last rest gate.');
         break;
       }
       case 'controls': { this.renderControls(); break; }
       case 'settings': { this.renderSettings(); break; }
+      case 'assist': { this.renderAssist(); break; }
+      case 'slots': { this.renderSlots(); break; }
+      case 'slot': { this.renderSlot(); break; }
       case 'rest': {
         this.title('Rest Gate', 'Progress saved · health restored · the Senkaimon hums'); 
         const gates = Object.keys(d.gates).length;
-        this.items = [{ label: 'Equip seals', right: `${GS.usedSlots()}/${d.sealSlots} slots`, act: () => this.go('seals') },
-          { label: 'Travel', right: gates > 1 ? `${gates} gates` : 'find more gates', disabled: gates < 2, act: () => gates > 1 && this.go('travel') },
-          { label: 'Rise', act: () => this.close() }];
+        const forms = FORM_ORDER.filter(f => d.forms[f]).length, palace = d.palace >= 1 && !d.gates.palace;
+        this.items = [{ label: 'Equip seals', right: `${GS.usedSlots()}/${d.sealSlots} slots`, act: () => this.go('seals') }];
+        if (forms > 1) this.items.push({ label: 'Zanpakutō form', right: GS.form().name, act: () => this.go('forms') });
+        this.items.push({ label: 'Travel', right: gates > 1 || palace ? `${gates + (palace ? 1 : 0)} gates` : 'find more gates', disabled: gates < 2 && !palace, act: () => (gates > 1 || palace) && this.go('travel') });
+        this.items.push({ label: 'Rise', act: () => this.close() });
         this.list(this.items, GAME_W / 2 - 210, 220, 50, 440);
         this.footer(Controls.fmt('{jump} select · {attack} rise'));
         break;
@@ -142,9 +154,13 @@ class MenuScene extends Phaser.Scene {
         this.footer(Controls.fmt('{jump} equip or remove · {attack} back'));
         break;
       }
+      case 'forms': this.renderForms(); break;
+      case 'trial': this.renderTrial(); break;
+      case 'records': this.renderRecords(); break;
+      case 'duels': this.renderDuels(); break;
       case 'travel': {
         this.title('Travel', 'Step through the gate to any rest gate you have found');
-        this.items = Object.keys(ROOMS).filter(id => d.gates[id]).map(id => ({
+        this.items = Object.keys(ROOMS).filter(id => d.gates[id] || (id === 'palace' && d.palace >= 1)).map(id => ({
           label: ROOMS[id].name, right: id === d.room ? 'here' : REGIONS[ROOMS[id].region].name, disabled: id === d.room,
           act: () => { if (id !== d.room) this.travel(id); },
         }));
@@ -159,12 +175,15 @@ class MenuScene extends Phaser.Scene {
           const name = it.type === 'seal' ? SEALS[it.id].name + ' (seal)' : it.type === 'tool' ? TOOLS[it.id].name : 'Soul Fragment';
           return { it, icon: it.type === 'seal' || it.type === 'tool' ? 'icon_' + it.id : 'ui_shard', label: name, right: sold ? 'sold' : it.price + ' reishi', disabled: sold, rightColor: !sold && d.reishi >= it.price ? GOLD : MUTED, act: () => this.buy(it) };
         });
+        if (GS.has('bakudo')) this.items.push({ label: 'The Study Room (trapdoor)', right: d.quests.urahara === 2 ? 'done' : 'a favour', rightColor: '#7fe8ff', act: () => this.toStudy() });
         this.items.push({ label: 'Leave', act: () => this.close() });
         this.list(this.items, 200, 200, 50, 520);
         const cur = this.items[this.sel];
         if (cur && cur.it) {
           const desc = cur.it.type === 'seal' ? SEALS[cur.it.id].desc : cur.it.type === 'tool' ? TOOLS[cur.it.id].desc : 'Collect four to grow your soul vessel by one mask.';
           this.txt(800, 200, desc, 21, INK, { wrap: 380 });
+        } else if (cur && cur.label.startsWith('The Study Room')) {
+          this.txt(800, 200, '"Oh, that? Just a little room I keep under the shop for exercise. Do go down. I insist."', 21, INK, { wrap: 380 });
         }
         this.txt(200, GAME_H - 110, `You carry ${d.reishi} reishi`, 20, '#7fe8ff', { bold: true });
         if (this.msg) this.txt(GAME_W / 2, GAME_H - 80, this.msg, 18, CRIMSON, { origin: 0.5 });
@@ -181,9 +200,80 @@ class MenuScene extends Phaser.Scene {
   renderSettings() {
     this.title('Settings', 'Left and right change a value. Changes save right away.');
     this.items = Settings.schema.map(row => ({ row, label: row[1], right: Settings.label(row), rightColor: GOLD, act: () => this.adjustSetting(row, 1, true) }));
+    this.items.push({ label: 'Assist and accessibility…', right: Settings.assisted() ? 'in use' : '', rightColor: '#7fe8ff', act: () => this.go('assist') });
+    this.items.push({ label: 'Back', act: () => this.back() });
+    this.list(this.items, GAME_W / 2 - 300, 178, 46, 600);
+    this.footer(Controls.fmt('{left} {right} change · {jump} next value · {attack} back'));
+  }
+  // Gentler (or harsher) play, for anyone who wants it. Nothing is locked away for using it.
+  renderAssist() {
+    this.title('Assist', 'Make the journey gentler or harder. Every ending and trial stays open whatever you choose.');
+    this.items = Settings.assist.map(row => ({ row, label: row[1], right: Settings.label(row), rightColor: GOLD, act: () => this.adjustSetting(row, 1, true) }));
     this.items.push({ label: 'Back', act: () => this.back() });
     this.list(this.items, GAME_W / 2 - 300, 200, 52, 600);
+    const cur = this.items[this.sel], about = {
+      damage: 'Half: every second blow costs a mask. None: blows still knock you back, but cost nothing. Double: every blow costs two.',
+      invuln: 'How long you flicker, untouchable, after taking a blow.',
+      reiatsuGain: 'How much Reiatsu each slash that lands draws out, for healing and Kidō.',
+      speed: 'Slows the whole world: you, your foes, their attacks. Menus are unaffected.',
+      warnings: 'Bold: a red mark appears over every foe while it winds up an attack.',
+    }[cur && cur.row && cur.row[0]];
+    if (about) this.txt(GAME_W / 2, GAME_H - 96, about, 18, '#b8b2c4', { origin: 0.5, wrap: 900, style: { align: 'center' } });
     this.footer(Controls.fmt('{left} {right} change · {jump} next value · {attack} back'));
+  }
+
+  // ------------------------------------------------------------------ save slots
+  // Three journeys side by side. Choosing one opens what can be done with it.
+  renderSlots() {
+    this.title('Journeys', 'Three saves, each its own journey');
+    this.items = [0, 1, 2].map(i => ({ slot: i, act: () => { this.slotSel = i; this.confirm = null; this.go('slot'); } }));
+    this.items.push({ label: 'Back', act: () => this.close() });
+    const g = this.add.graphics();
+    this.layer.add(g);
+    const x = GAME_W / 2 - 400, w = 800, h = 118;
+    [0, 1, 2].forEach(i => {
+      const y = 176 + i * 132, on = this.sel === i, sum = GS.summary(i);
+      g.fillStyle(on ? 0x2a1a22 : 0x14121b, 0.92).fillRect(x, y, w, h);
+      g.lineStyle(on ? 2 : 1, on ? 0xd8343f : 0xe9e4d8, on ? 0.9 : 0.18).strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      if (on) g.fillStyle(0xd8343f, 1).fillRect(x, y, 5, h);
+      this.txt(x + 58, y + h / 2, SLOT_KANJI[i], 54, on ? CRIMSON : '#4c4858', { display: true, origin: 0.5 });
+      if (!sum) {
+        this.txt(x + 120, y + 30, 'Empty', 28, on ? INK : '#8a8497', { display: true });
+        this.txt(x + 120, y + 72, 'Begin a new journey here.', 18, MUTED);
+      } else {
+        const reg = REGIONS[sum.region];
+        this.txt(x + 120, y + 18, sum.room, 28, on ? INK : '#cfc9d8', { display: true });
+        this.txt(x + 120, y + 60, `${reg.kanji}  ${reg.name}`, 17, '#' + reg.color.toString(16).padStart(6, '0'), { bold: true });
+        this.txt(x + 120, y + 86, `${this.fmtTime(sum.time)}  ·  ${sum.deaths} death${sum.deaths === 1 ? '' : 's'}${sum.plus ? `  ·  New Game+ ${sum.plus}` : ''}`, 16, MUTED);
+        this.txt(x + w - 30, y + 22, `${sum.pct}%`, 40, sum.pct >= 100 ? GOLD : INK, { display: true, origin: [1, 0] });
+        const marks = (sum.cleared ? '討' : '') + (sum.trueEnding ? '　真' : '');
+        if (marks) this.txt(x + w - 30, y + 76, marks, 22, sum.trueEnding ? GOLD : CRIMSON, { display: true, origin: [1, 0] });
+      }
+      this.hit(x, y, w, h, () => this.tapItem(i));
+    });
+    const by = 176 + 3 * 132 + 4, bon = this.sel === 3;
+    if (bon) this.selectStroke(GAME_W / 2 - 60, by, 160, 40);
+    this.txt(GAME_W / 2, by + 6, 'Back', 22, bon ? INK : '#b8b2c4', { origin: [0.5, 0], bold: bon });
+    this.hit(GAME_W / 2 - 100, by - 4, 200, 44, () => this.tapItem(3));
+    this.footer(Controls.fmt('{up} {down} choose · {jump} open · {attack} back · 討 the journey was finished · 真 the true ending was seen'));
+  }
+  renderSlot() {
+    const i = this.slotSel, sum = GS.summary(i), title = this.scene.get('title');
+    this.title(`Journey ${SLOT_KANJI[i]}`, sum ? `${sum.room}  ·  ${sum.pct}% complete  ·  ${this.fmtTime(sum.time)}` : 'An empty page');
+    const ask = (key, label, fn) => ({ label: this.confirm === key ? `${label}: press again to confirm` : label, danger: true,
+      act: () => { if (this.confirm === key) fn(); else { this.confirm = key; Sfx.play('deny'); this.render(); } } });
+    const start = (mode) => { this.scene.stop(); title.startSlot(i, mode); };
+    if (sum) {
+      this.items = [{ label: 'Continue', act: () => start('continue') }];
+      if (sum.cleared) this.items.push({ label: `New Game+${sum.plus ? ' ' + (sum.plus + 1) : ''}`, right: 'keep your powers, face tougher foes', act: () => start('plus') });
+      this.items.push(ask('over', 'Start over', () => start('new')));
+      this.items.push(ask('erase', 'Erase this journey', () => { GS.wipe(i); Sfx.play('break'); this.confirm = null; this.view = 'slots'; this.sel = i; this.render(); }));
+    } else this.items = [{ label: 'Begin a new journey', act: () => start('new') }];
+    this.items.push({ label: 'Back', act: () => this.back() });
+    this.items.forEach(it => { if (it.danger && this.confirm && it.label.includes('confirm')) it.rightColor = CRIMSON; });
+    this.list(this.items, GAME_W / 2 - 300, 220, 54, 600);
+    if (sum && sum.d.rush.wins) this.txt(GAME_W / 2, GAME_H - 96, `Trials of the Soul King Palace won: ${sum.d.rush.wins}  ·  best ${this.fmtTime(sum.d.rush.best)}`, 18, GOLD, { origin: 0.5, bold: true });
+    this.footer(Controls.fmt('{jump} choose · {attack} back'));
   }
   adjustSetting(row, dir, wrap = false) {
     // Confirm and taps wrap a slider round to 0 instead of sticking at full
@@ -312,11 +402,17 @@ class MenuScene extends Phaser.Scene {
       g.fillStyle(i < lvl ? 0xd9b35a : 0x2a2733, 1);
       g.fillPoints([{ x: cx, y: cy - 10 }, { x: cx + 10, y: cy }, { x: cx, y: cy + 10 }, { x: cx - 10, y: cy }], true);
     }
-    this.txt(GAME_W / 2, 262, next ? `Slash damage ${GS.slashDamage()} → ${GS.slashDamage() + COMBAT.swordBonus}` : `Slash damage ${GS.slashDamage()}`, 20, GOLD, { origin: 0.5, bold: true });
+    const dmgAt = (l) => Math.round((COMBAT.slashDamage + l * COMBAT.swordBonus) * GS.form().dmg * 10) / 10;
+    this.txt(GAME_W / 2, 262, next ? `Slash damage ${dmgAt(lvl)} → ${dmgAt(lvl + 1)}` : `Slash damage ${dmgAt(lvl)}`, 20, GOLD, { origin: 0.5, bold: true });
     this.items = [];
     if (next) {
       const ok = d.reishi >= next.reishi && (d.ore || 0) >= next.ore;
       this.items.push({ label: 'Sharpen the edge', right: `${next.reishi} reishi${next.ore ? `  ·  ${next.ore} ore` : ''}`, rightColor: ok ? GOLD : MUTED, act: () => this.forge() });
+    }
+    // after the first sharpening, the smith offers to reforge the blade long
+    if (lvl >= 1 && !d.forms.odachi) {
+      const ok = d.reishi >= ODACHI_COST.reishi && (d.ore || 0) >= ODACHI_COST.ore;
+      this.items.push({ label: 'Forge an Ōdachi form', right: `${ODACHI_COST.reishi} reishi  ·  ${ODACHI_COST.ore} ore`, rightColor: ok ? GOLD : MUTED, act: () => this.forgeOdachi() });
     }
     this.items.push({ label: 'Leave', act: () => this.close() });
     this.list(this.items, GAME_W / 2 - 270, 330, 52, 540);
@@ -345,6 +441,151 @@ class MenuScene extends Phaser.Scene {
     this.msg = '';
     this.game.events.emit('toast', `Your Zanpakuto's edge is sharper: level ${d.swordLevel}`);
     this.render();
+  }
+
+  forgeOdachi() {
+    const d = GS.data, c = ODACHI_COST;
+    if (d.reishi < c.reishi || (d.ore || 0) < c.ore) { Sfx.play('deny'); this.msg = `You need ${c.reishi} reishi and ${c.ore} ore.`; this.render(); return; }
+    d.reishi -= c.reishi; d.ore -= c.ore;
+    d.forms.odachi = true;
+    GS.save();
+    Sfx.play('clang'); Sfx.play('ability');
+    this.msg = '';
+    this.game.events.emit('toast', '"Long and heavy. It will not forgive a wasted swing." Change forms at any rest gate.');
+    this.render();
+  }
+
+  // The shapes the blade can take, chosen at a rest gate
+  renderForms() {
+    const d = GS.data;
+    this.title('Zanpakutō Form', 'The same blade in another shape. Changing it costs nothing.');
+    this.items = FORM_ORDER.map(id => {
+      const f = FORMS[id], have = !!d.forms[id], on = d.form === id;
+      return { id, icon: have ? 'icon_' + id : 'icon_unknown', label: have ? (on ? '● ' : '○ ') + f.name : '? ? ?', disabled: !have, right: have ? f.jp : '', rightColor: on ? GOLD : MUTED,
+        act: () => { d.form = id; GS.save(); Sfx.play('clang'); this.render(); } };
+    });
+    this.list(this.items, 170, 200, 54, 440);
+    const cur = this.items[this.sel], f = cur && d.forms[cur.id] ? FORMS[cur.id] : null;
+    const px = 700;
+    if (f) {
+      this.icon('icon_' + cur.id, px + 32, 216, 64);
+      this.txt(px + 80, 192, f.name, 34, INK, { display: true });
+      this.txt(px + 80, 236, f.jp, 18, CRIMSON, { display: true });
+      this.txt(px, 282, f.desc, 20, INK, { wrap: 480 });
+      const g = this.add.graphics(); this.layer.add(g);
+      [['Speed', 1 / f.cd], ['Damage', f.dmg], ['Reach', f.reach], ['Reiatsu drawn', f.rei]].forEach(([k, v], i) => {
+        const y = 380 + i * 40;
+        this.txt(px, y, k, 18, '#b8b2c4');
+        g.fillStyle(0x2a2733, 1).fillRect(px + 170, y + 6, 260, 10);
+        g.fillStyle(v > 1.01 ? 0xd9b35a : v < 0.99 ? 0x8a7aa0 : 0xe9e4d8, 1).fillRect(px + 170, y + 6, 260 * Math.min(1, v / 1.6), 10);
+        g.fillStyle(0xffffff, 0.6).fillRect(px + 170 + 260 / 1.6, y + 3, 2, 16);
+      });
+    } else if (cur) this.txt(px, 282, FORMS[cur.id].how || '', 20, MUTED, { wrap: 480 });
+    this.footer(Controls.fmt('{jump} take this form · {attack} back'));
+  }
+
+  // ------------------------------------------------------------------ the trials
+  renderTrial() {
+    const d = GS.data, rec = d.rush, bind = rec.lastBind || (rec.lastBind = {});
+    this.title('Altar of Trials', 'Every battle you have won, fought again as it was. Heal as you like; bind yourself if you dare.');
+    const all = RUSH_ORDER.every(b => d.bosses[b]);
+    this.items = [{ label: 'The Trial of the Ten', right: rec.best != null ? `best ${fmtClock(rec.best, true)}` : all ? 'unbeaten' : 'defeat every boss first', rightColor: GOLD, disabled: !all,
+      act: () => this.beginTrial('gauntlet', RUSH_ORDER) }];
+    BINDING_ORDER.forEach(k => this.items.push({ bind: k, label: `${BINDINGS[k].jp}   ${BINDINGS[k].name}`, right: bind[k] ? 'bound' : 'free', rightColor: bind[k] ? CRIMSON : MUTED,
+      act: () => { bind[k] = !bind[k]; Sfx.play(bind[k] ? 'bakudo' : 'select'); this.render(); } }));
+    this.items.push({ label: 'Single duels…', act: () => this.go('duels') });
+    this.items.push({ label: 'Leave', act: () => this.close() });
+    this.list(this.items, 150, 186, 50, 560);
+    // the record, and what the selected row means
+    const px = 760, g = this.add.graphics(); this.layer.add(g);
+    g.fillStyle(0x16141f, 0.8).fillRect(px - 20, 180, 520, 380);
+    g.lineStyle(1, 0xd9b35a, 0.3).strokeRect(px - 19.5, 180.5, 519, 379);
+    this.txt(px, 196, 'THE ALTAR REMEMBERS', 14, MUTED, { bold: true, style: { letterSpacing: 3 } });
+    this.txt(px, 226, rec.wins ? `Trial of the Ten won ${rec.wins} time${rec.wins > 1 ? 's' : ''}` : 'The Trial of the Ten has not been won.', 19, INK);
+    BINDING_ORDER.forEach((k, i) => this.txt(px + i * 56, 262, BINDINGS[k].jp, 34, rec.bound[k] ? GOLD : '#3a3646', { display: true }));
+    if (rec.bound.all) this.txt(px + 240, 270, 'all four at once', 16, GOLD, { bold: true });
+    const cur = this.items[this.sel];
+    const about = cur && cur.bind ? BINDINGS[cur.bind].desc
+      : this.sel === 0 ? `All ten in order, from Grand Fisher to the Hollow within. You keep your health between fights; after the third, sixth and eighth, a respite heals you. Finish it to see what lies under the last name.`
+      : cur && cur.label.startsWith('Single') ? 'Fight any one boss you have beaten, with the bindings you chose.' : '';
+    this.txt(px, 330, about, 18, '#cfc9d8', { wrap: 480 });
+    const on = BINDING_ORDER.filter(k => bind[k]).length;
+    this.txt(px, 520, on ? `Bound ${on} way${on > 1 ? 's' : ''}: ${BINDING_ORDER.filter(k => bind[k]).map(k => BINDINGS[k].jp).join(' ')}` : 'No bindings chosen.', 18, on ? CRIMSON : MUTED, { bold: true });
+    this.footer(Controls.fmt('{jump} choose or bind · {attack} leave'));
+  }
+  renderDuels() {
+    const d = GS.data, rec = d.rush;
+    this.title('Single Duels', 'One battle, with the bindings you chose at the altar');
+    this.items = RUSH_ORDER.filter(b => d.bosses[b]).map(b => {
+      const s = rec.single[b];
+      return { b, label: BOSSES[b].name, right: s ? `${fmtClock(s.best, true)}  ${'●'.repeat(s.bound)}${'○'.repeat(BINDING_ORDER.length - s.bound)}` : 'not yet', rightColor: s ? GOLD : MUTED,
+        act: () => this.beginTrial('single', [b]) };
+    });
+    if (!this.items.length) this.txt(GAME_W / 2, 300, 'Beat a boss somewhere in the world first.', 20, MUTED, { origin: 0.5 });
+    this.items.push({ label: 'Back', act: () => this.back() });
+    const per = 9, first = Phaser.Math.Clamp(this.sel - 4, 0, Math.max(0, this.items.length - per));
+    const shown = this.items.slice(first, first + per);
+    const sel = this.sel; this.sel = sel - first;
+    this.list(shown, GAME_W / 2 - 330, 186, 48, 660);
+    this.sel = sel;
+    this.footer(Controls.fmt('{jump} fight · {attack} back  ·  ● each binding worn when it fell'));
+  }
+  beginTrial(mode, list) {
+    const game = this.scene.get('game');
+    Sfx.play('boss');
+    this.scene.resume('game');
+    this.scene.stop();
+    game.startTrial(mode, list, GS.data.rush.lastBind || {});
+  }
+  leaveTrial() {
+    const game = this.scene.get('game');
+    this.scene.resume('game');
+    this.scene.stop();
+    game.game.events.emit('boss-end', { silent: true });
+    Music.setBoss(false);
+    GS.endRush(false);
+    game.transitioning = false;
+    game.goTo('palace', { spawn: 'rest' });
+  }
+  toStudy() {
+    const game = this.scene.get('game');
+    Sfx.play('door');
+    this.scene.resume('game');
+    this.scene.stop();
+    game.goTo('kar_study', { spawn: 'start' });
+  }
+
+  // Splits for this journey against the best ever, every favour asked, and the trials
+  renderRecords() {
+    const d = GS.data, best = GS.bestSplits();
+    this.title('Records', `${fmtClock(d.time)} on this journey · ${d.deaths} death${d.deaths === 1 ? '' : 's'}${d.plus ? ` · New Game+ ${d.plus}` : ''}`);
+    const x = 110;
+    this.txt(x, 178, 'SPLITS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+    this.txt(x + 300, 178, 'THIS JOURNEY', 13, MUTED, { bold: true, origin: [1, 0] });
+    this.txt(x + 430, 178, 'BEST', 13, MUTED, { bold: true, origin: [1, 0] });
+    RUSH_ORDER.forEach((b, i) => {
+      const y = 208 + i * 36, mine = d.splits[b], top = best[b], known = d.bosses[b] || mine != null;
+      this.txt(x, y, known ? BOSSES[b].name : '? ? ?', 19, known ? INK : '#4c4858');
+      this.txt(x + 300, y, mine != null ? fmtClock(mine) : '—', 19, mine != null && top != null && mine <= top ? '#8af0a0' : INK, { origin: [1, 0] });
+      this.txt(x + 430, y, top != null ? fmtClock(top) : '—', 19, GOLD, { origin: [1, 0] });
+    });
+    const qx = 650;
+    this.txt(qx, 178, 'FAVOURS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+    QUEST_ORDER.forEach((id, i) => {
+      const q = QUESTS[id], st = d.quests[id] || 0, y = 208 + i * 58;
+      this.txt(qx, y, st ? q.name : '? ? ?', 20, st === 2 ? GOLD : st ? INK : '#4c4858', { bold: true });
+      this.txt(qx + 520, y, st === 2 ? '✓ done' : st ? 'under way' : '', 16, st === 2 ? GOLD : '#7fe8ff', { origin: [1, 0] });
+      this.txt(qx, y + 26, st === 2 ? `${q.giver} · ${q.reward}` : st ? `${q.giver}, ${q.where}: ${q.todo}${id === 'orihime' ? ` (${d.items.petals || 0}/${PETALS})` : ''}` : 'Someone in the world has a favour to ask.', 15, st ? '#b8b2c4' : '#5c5868', { wrap: 540 });
+    });
+    if (d.palace >= 1) {
+      const r = d.rush;
+      this.txt(qx, 520, 'THE SOUL KING PALACE', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
+      this.txt(qx, 548, r.wins ? `Trial of the Ten: won ${r.wins}× · best ${fmtClock(r.best, true)}` : 'Trial of the Ten: not yet won', 18, r.wins ? GOLD : INK);
+      this.txt(qx, 578, BINDING_ORDER.map(k => BINDINGS[k].jp).join('  '), 24, r.bound.all ? GOLD : '#7a7486', { display: true });
+    }
+    this.items = [];
+    this.hit(0, 0, GAME_W, GAME_H, () => this.back());
+    this.footer(Controls.fmt('{attack} back · splits are when each boss first fell; the best is over every journey'));
   }
 
   renderMap() {
@@ -397,6 +638,14 @@ class MenuScene extends Phaser.Scene {
       }
     });
     this.drawPins(g, P, box);
+    // your own pins
+    (d.pins || []).forEach(pin => {
+      const pt = P(pin.x, pin.y), [ch, col] = PIN_KINDS[pin.k] || PIN_KINDS[0];
+      g.fillStyle(0x07070b, 0.85).fillCircle(pt.x, pt.y, 11);
+      g.lineStyle(2, Phaser.Display.Color.HexStringToColor(col).color, 1).strokeCircle(pt.x, pt.y, 11);
+      this.txt(pt.x, pt.y + 1, ch, 15, col, { bold: true, origin: 0.5 });
+    });
+    this.mapView = { P, sc, toMap: (sx, sy) => ({ x: minX + (sx - ox - ex) / sc, y: minY + (sy - oy - ey) / sc }) };
     // the player
     const cur = box(d.room), game = this.scene.get('game');
     if (game && game.player) {
@@ -415,8 +664,44 @@ class MenuScene extends Phaser.Scene {
     let lx = GAME_W / 2 - legend.length * 62;
     legend.forEach(([k, label]) => { this.pin(lg, k, lx, GAME_H - 76); this.txt(lx + 12, GAME_H - 86, label, 15, MUTED); lx += 28 + label.length * 8 + 28; });
     this.items = [];
-    this.hit(0, 0, GAME_W, GAME_H, () => this.back());
-    this.footer(Controls.fmt('Red marker: you · gold dot: rest gate · {map} or {attack} close'));
+    // a click pins the spot under it; the keyboard and pad move a cursor and pin with confirm
+    this.hit(0, 150, GAME_W, GAME_H - 230, (ptr) => { const m = this.mapView.toMap(ptr.x, ptr.y); this.pinAt(m.x, m.y); });
+    if (!this.cursor) {
+      const cb = box(d.room), pl = game && game.player;
+      this.cursor = pl ? { x: cb.x + pl.x / TILE / 10, y: cb.y + pl.y / TILE / 10 } : { x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 };
+    }
+    this.cursorG = this.add.graphics();
+    this.layer.add(this.cursorG);
+    this.drawCursor();
+    this.footer(Controls.fmt('Red marker: you · {left} {right} {up} {down} or click: place a pin, again to change it, a fourth time to clear · {map} or {attack} close'));
+  }
+  drawCursor() {
+    if (!this.cursorG || !this.mapView) return;
+    const p = this.mapView.P(this.cursor.x, this.cursor.y), g = this.cursorG;
+    g.clear();
+    g.lineStyle(2, 0xe9e4d8, 0.9).strokeCircle(p.x, p.y, 14);
+    g.lineBetween(p.x - 22, p.y, p.x - 16, p.y).lineBetween(p.x + 16, p.y, p.x + 22, p.y).lineBetween(p.x, p.y - 22, p.x, p.y - 16).lineBetween(p.x, p.y + 16, p.x, p.y + 22);
+  }
+  // Add a pin, step an existing one to its next kind, or clear it after the last
+  pinAt(x, y) {
+    const d = GS.data, pins = d.pins || (d.pins = []), near = 14 / this.mapView.sc;
+    const i = pins.findIndex(p => Math.hypot(p.x - x, p.y - y) < near);
+    if (i < 0) { pins.push({ x, y, k: 0 }); Sfx.play('confirm'); }
+    else if (pins[i].k + 1 < PIN_KINDS.length) { pins[i].k++; Sfx.play('select'); }
+    else { pins.splice(i, 1); Sfx.play('deny'); }
+    this.cursor = { x, y };
+    GS.save();
+    this.render();
+  }
+  // The map cursor glides while a direction is held
+  update(time, delta) {
+    if (this.view !== 'map' || !this.mapView || this.listening) return;
+    const dx = (Controls.isDown('right') ? 1 : 0) - (Controls.isDown('left') ? 1 : 0);
+    const dy = (Controls.isDown('down') ? 1 : 0) - (Controls.isDown('up') ? 1 : 0);
+    if (!dx && !dy) return;
+    const v = 340 / this.mapView.sc * delta / 1000;
+    this.cursor.x += dx * v; this.cursor.y += dy * v;
+    this.drawCursor();
   }
 
   // Where a door sits on the map: its tile, scaled into the room's box
@@ -556,9 +841,9 @@ class MenuScene extends Phaser.Scene {
   // ------------------------------------------------------------------ actions
   go(view) { this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); this.popIn(); }
   back() {
-    const parent = { seals: 'rest', travel: 'rest', controls: 'pause', settings: 'pause' }[this.view];
-    if (parent && this.type !== this.view) { this.view = parent; this.sel = 0; this.msg = ''; Sfx.play('select'); this.render(); this.popIn(); }
-    else if (['map', 'inventory', 'journal'].includes(this.view) && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); this.popIn(); }
+    const parent = { seals: 'rest', travel: 'rest', forms: 'rest', controls: 'pause', settings: 'pause', assist: 'settings', slot: 'slots', records: 'pause', duels: 'trial' }[this.view];
+    if (parent && this.type !== this.view) { this.view = parent; this.sel = parent === 'slots' ? this.slotSel || 0 : 0; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); this.popIn(); }
+    else if (['map', 'inventory', 'journal', 'records'].includes(this.view) && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); this.popIn(); }
     else this.close();
   }
   toggleSeal(id) {
@@ -586,6 +871,7 @@ class MenuScene extends Phaser.Scene {
     this.scene.stop();
   }
   quit() {
+    if (GS.rush) GS.endRush(false);
     GS.save();
     this.scene.stop('game');
     this.scene.stop('ui');
@@ -606,12 +892,14 @@ class MenuScene extends Phaser.Scene {
       if (code === 'Escape' || code === 'Pad1') { this.back(); return; }
       return;
     }
-    if (this.view === 'settings') {
+    if (this.view === 'settings' || this.view === 'assist') {
       const it = this.items[this.sel], L = Controls.isLeft(code), R = Controls.isRight(code);
       if (it && it.row && (L || R)) { this.adjustSetting(it.row, L ? -1 : 1); return; }
     }
-    if (Controls.isUp(code)) { if (n) { this.sel = (this.sel + n - 1) % n; this.msg = ''; Sfx.play('select'); this.render(); } return; }
-    if (Controls.isDownKey(code)) { if (n) { this.sel = (this.sel + 1) % n; this.msg = ''; Sfx.play('select'); this.render(); } return; }
+    if (this.view === 'map' && Controls.isConfirm(code)) { this.pinAt(this.cursor.x, this.cursor.y); return; }
+    if (this.view === 'map' && (Controls.isUp(code) || Controls.isDownKey(code))) return;
+    if (Controls.isUp(code)) { if (n) { this.sel = (this.sel + n - 1) % n; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); } return; }
+    if (Controls.isDownKey(code)) { if (n) { this.sel = (this.sel + 1) % n; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); } return; }
     if (this.view === 'controls') return;
     if (Controls.isConfirm(code) || code === 'Space') {
       const it = this.items && this.items[this.sel];

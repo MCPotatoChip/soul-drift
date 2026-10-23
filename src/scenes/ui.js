@@ -7,6 +7,13 @@
 // ---------------------------------------------------------------------------
 
 const INK = '#e9e4d8', MUTED = '#9a94a8', CRIMSON = '#d8343f', GOLD = '#d9b35a';
+// h:mm:ss, or m:ss.t when tenths are wanted and the time is under an hour
+function fmtClock(t, tenths = false) {
+  t = Math.max(0, t || 0);
+  const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = Math.floor(t % 60);
+  if (tenths && !h) return `${m}:${String(s).padStart(2, '0')}.${Math.floor((t * 10) % 10)}`;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 // The kanji shown faintly behind each release banner
 const BANNER_KANJI = { BANKAI: '卍解', 'RESURRECCIÓN': '帰刃', UNLEASHED: '剣八' };
 
@@ -44,6 +51,11 @@ class UIScene extends Phaser.Scene {
     this.locKanji = this.add.text(GAME_W - 26, 18, '', { fontFamily: FONT_DISPLAY, fontSize: '22px', fontStyle: '800', color: CRIMSON }).setOrigin(1, 0).setDepth(10).setAlpha(0.85);
     this.locName = this.add.text(GAME_W - 26, 48, '', { fontFamily: FONT_BODY, fontSize: '15px', color: MUTED }).setOrigin(1, 0).setDepth(10).setAlpha(0.85);
     this.locInk = this.add.image(GAME_W + 20, 40, 'ui_ink').setOrigin(1, 0.5).setTint(0x05050a).setAlpha(0.45).setScale(0.75, 0.6).setDepth(9).setFlipX(true);
+    // The speedrun timer (a setting) and the split shown when a boss falls; in a trial, the trial's own clock
+    this.timerText = this.add.text(GAME_W - 26, 74, '', { fontFamily: FONT_BODY, fontSize: '20px', fontStyle: '700', color: INK }).setOrigin(1, 0).setDepth(10).setVisible(false);
+    this.splitText = this.add.text(GAME_W - 26, 100, '', { fontFamily: FONT_BODY, fontSize: '16px', fontStyle: '700', color: INK }).setOrigin(1, 0).setDepth(10).setAlpha(0);
+    // The bindings of a trial, as four small kanji under the location
+    this.bindText = this.add.text(GAME_W - 26, 126, '', { fontFamily: FONT_DISPLAY, fontSize: '18px', fontStyle: '800', color: GOLD }).setOrigin(1, 0).setDepth(10);
 
     // Area title: the name, a crimson stroke under it, the kanji large and faint behind
     this.areaKanji = this.add.text(GAME_W / 2, 230, '', { fontFamily: FONT_DISPLAY, fontSize: '170px', fontStyle: '800', color: CRIMSON }).setOrigin(0.5).setAlpha(0).setDepth(19);
@@ -116,6 +128,8 @@ class UIScene extends Phaser.Scene {
       banner: (b) => this.showBanner(b),
       saved: () => this.showSaved(),
       died: () => this.showDeath(),
+      split: (s) => this.showSplit(s),
+      'boss-phase': () => { this.bossShake = 1.6; this.bossCaps.forEach(c => { c.setTintFill(0xffffff); this.time.delayedCall(160, () => c.setTint(0xd8343f)); }); },
     };
     Object.entries(this.handlers).forEach(([k, fn]) => ev.on(k, fn));
     const offKey = Controls.on((code) => this.onKey(code));
@@ -207,6 +221,15 @@ class UIScene extends Phaser.Scene {
 
     if (this.bossBar.visible) this.drawBossBar(dt);
 
+    const showTimer = Settings.get('timer') || !!GS.rush;
+    this.timerText.setVisible(showTimer);
+    if (showTimer) this.timerText.setText((GS.rush ? '試  ' : '') + fmtClock(GS.rush ? GS.rush.t : d.time, true));
+    const bindKey = GS.rush ? Object.keys(BINDINGS).filter(k => GS.rush.bind[k]).join() : '';
+    if (this.cache.bind !== bindKey) {
+      this.cache.bind = bindKey;
+      this.bindText.setText(bindKey ? bindKey.split(',').map(k => BINDINGS[k].jp).join(' ') : '');
+    }
+
     if (this.promptTarget) {
       if (!this.promptTarget.active) this.setPrompt(null);
       else {
@@ -230,6 +253,17 @@ class UIScene extends Phaser.Scene {
       if (t.life <= 0) { t.box.destroy(); this.toasts.splice(i, 1); }
     }
     this.updateDialog(dt);
+  }
+
+  // A boss fell: its split against the best ever recorded (green when faster)
+  showSplit(s) {
+    if (!Settings.get('timer')) return;
+    const diff = s.best == null ? '' : `   ${s.t <= s.best ? '−' : '+'}${fmtClock(Math.abs(s.t - s.best), true)}`;
+    this.splitText.setText(`${s.name}  ${fmtClock(s.t, true)}${diff}`).setColor(s.best == null ? INK : s.t <= s.best ? '#8af0a0' : '#ff8a92');
+    this.tweens.killTweensOf(this.splitText);
+    this.splitText.setAlpha(0).setX(GAME_W - 10);
+    this.tweens.add({ targets: this.splitText, alpha: 1, x: GAME_W - 26, duration: 300, ease: 'Cubic.out' });
+    this.tweens.add({ targets: this.splitText, alpha: 0, delay: 5000, duration: 800 });
   }
 
   drawBossBar(dt) {
@@ -306,6 +340,15 @@ class UIScene extends Phaser.Scene {
         if (x === -hw) g.moveTo(cx + x, yy); else g.lineTo(cx + x, yy);
       }
       g.strokePath();
+    }
+    // a trial's binding: the vessel above a third is closed off
+    const cap = GS.reiCap();
+    if (cap < COMBAT.maxReiatsu) {
+      const cy2 = cy + r - (cap / COMBAT.maxReiatsu) * 2 * r;
+      g.fillStyle(0x07070b, 0.55);
+      for (let y = cy - r; y < cy2; y += 2) { const dd = y - cy, w2 = Math.sqrt(Math.max(0, r * r - dd * dd)); g.fillRect(cx - w2, y, w2 * 2, 1); }
+      const dy = cy2 - cy, hw = Math.sqrt(Math.max(0, r * r - dy * dy));
+      g.lineStyle(2, 0xd9b35a, 0.9).lineBetween(cx - hw, cy2, cx + hw, cy2);
     }
     g.lineStyle(2, bank ? 0xd8343f : 0xe9e4d8, 0.9).strokeCircle(cx, cy, r + 1);
     // where a heal (and Bankai) become possible
@@ -587,6 +630,17 @@ class UIScene extends Phaser.Scene {
       this.popName.setText(a.name);
       this.popKey.setText(Controls.fmt(a.key)).setVisible(true);
       this.popDesc.setText(Controls.fmt(a.desc));
+    } else if (p.kind === 'form') {
+      const f = FORMS[p.id];
+      this.popEyebrow.setText('ZANPAKUTŌ FORM');
+      this.popName.setText(f.name);
+      this.popKey.setText('Change forms at any rest gate').setVisible(true);
+      this.popDesc.setText(f.desc);
+    } else if (p.kind === 'perk') {   // a gift that is always on (Orihime's Sōten Kisshun)
+      this.popEyebrow.setText('A GIFT');
+      this.popName.setText('Sōten Kisshun');
+      this.popKey.setText('Always with you').setVisible(true);
+      this.popDesc.setText('Orihime\'s flowers taught your Reiatsu to mend: every heal takes a quarter less time.');
     } else {
       const s = SEALS[p.id];
       this.popEyebrow.setText('ZANPAKUTŌ SEAL');
@@ -596,7 +650,7 @@ class UIScene extends Phaser.Scene {
     }
     this.popName.setFontSize(this.popName.text.length > 22 ? 42 : 54);
     this.popKanji.setText(ICON_GLYPH[p.id] || '');
-    const col = p.kind === 'ability' ? (PICKUP_COLORS[p.id] || 0xffffff) : 0xffd75e;
+    const col = p.kind === 'seal' ? 0xffd75e : (PICKUP_COLORS[p.id] || 0xffffff);
     this.popIcon.setTexture('icon_' + p.id).setScale(1.2);
     this.popGlow.setTint(col);
     this.pop.setVisible(true).setAlpha(0).setScale(0.95);

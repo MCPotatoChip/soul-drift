@@ -152,10 +152,11 @@ document.addEventListener('visibilitychange', () => {
 // ---------------------------------------------------------------------------
 // Music: generated live, so the game still needs no audio files. Each region has
 // a theme (a root, a chord held as a slow pad, a scale for sparse echoing notes);
-// a boss adds a pulse and tension on top and opens the pad up.
+// a boss adds a pulse and tension on top and opens the pad up. Each new phase of
+// the fight raises the tempo and adds a layer: a bass line, then a trembling high string.
 // ---------------------------------------------------------------------------
 const Music = {
-  name: null, theme: null, boss: false, ready: false, out: null, echo: null, pad: null, bossNodes: null,
+  name: null, theme: null, boss: false, phase: 1, ready: false, out: null, echo: null, pad: null, bossNodes: null, hiNodes: null,
   nextNote: 0, nextBeat: 0, beatNo: 0, deg: 2,
 
   THEMES: {
@@ -191,7 +192,26 @@ const Music = {
   applyVolume() { if (this.out) this.out.gain.setTargetAtTime(0.5 * Settings.get('music'), Sfx.ctx.currentTime, 0.1); },
 
   setRegion(name) { this.name = name; if (this.ready) this.buildPad(); },
-  setBoss(on) { if (this.boss === on) return; this.boss = on; if (this.ready) this.applyBoss(); },
+  setBoss(on) { if (this.boss === on) return; this.boss = on; if (!on) this.setPhase(1); if (this.ready) this.applyBoss(); },
+  setPhase(n) {
+    if (this.phase === n) return;
+    this.phase = n;
+    if (!this.ready || !this.theme) return;
+    const ctx = Sfx.ctx, now = ctx.currentTime;
+    if (n >= 3 && this.boss && !this.hiNodes && this.pad) {
+      // a high string trembling over the top
+      const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+      o.type = 'sawtooth'; o.frequency.value = this.theme.root * Math.pow(2, (24 + 7) / 12);
+      lfo.frequency.value = 7; lg.gain.value = 0.012;
+      g.gain.value = 0; g.gain.setTargetAtTime(0.022, now, 1.2);
+      lfo.connect(lg); lg.connect(g.gain); o.connect(g); g.connect(this.pad.filter); o.start(); lfo.start();
+      this.hiNodes = { o, g, lfo };
+    } else if (n < 3 && this.hiNodes) {
+      const h = this.hiNodes; this.hiNodes = null;
+      h.g.gain.setTargetAtTime(0, now, 0.4);
+      setTimeout(() => { try { h.o.stop(); h.lfo.stop(); } catch (e) { /* already stopped */ } }, 2500);
+    }
+  },
 
   buildPad() {
     const ctx = Sfx.ctx, th = this.THEMES[this.name] || this.THEMES.kar, now = ctx.currentTime;
@@ -234,6 +254,7 @@ const Music = {
       this.bossNodes = { o, g };
       this.nextBeat = now + 0.3; this.beatNo = 0;
     } else if (!this.boss && this.bossNodes) {
+      this.setPhase(1);
       const n = this.bossNodes; this.bossNodes = null;
       n.g.gain.setTargetAtTime(0, now, 0.5);
       setTimeout(() => { try { n.o.stop(); } catch (e) { /* already stopped */ } }, 3000);
@@ -243,7 +264,7 @@ const Music = {
   tick() {
     const ctx = Sfx.ctx;
     if (!ctx || ctx.state !== 'running' || !this.theme) return;
-    const now = ctx.currentTime, th = this.theme, beat = 60 / (this.boss ? 112 : th.bpm);
+    const now = ctx.currentTime, th = this.theme, beat = 60 / (this.boss ? 112 + (this.phase - 1) * 14 : th.bpm);
     if (this.nextNote < now) this.nextNote = now + 0.3;   // after a suspend
     while (this.nextNote < now + 0.4) {
       if (Math.random() < th.density * (this.boss ? 0.6 : 1)) this.note(this.nextNote, th, beat);
@@ -275,6 +296,13 @@ const Music = {
       o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.2);
       g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
       o.connect(g); g.connect(this.out); o.start(t); o.stop(t + 0.3);
+    }
+    if (this.phase >= 2) {   // a bass line walking the root and fifth under the pulse
+      const th = this.theme, step = [0, 0, 7, 10][i], o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+      o.type = 'sawtooth'; o.frequency.value = th.root * Math.pow(2, step / 12);
+      f.type = 'lowpass'; f.frequency.value = 420;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      o.connect(f); f.connect(g); g.connect(this.out); o.start(t); o.stop(t + 0.35);
     }
     if (Sfx.noiseBuf) {   // a dry tick on the off beats, a heavier hit on 4
       const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();

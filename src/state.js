@@ -5,12 +5,20 @@
 // "reset" on a room transition.
 // ---------------------------------------------------------------------------
 
+// Three save slots. The first keeps the original key so saves from before slots existed load as slot 1.
 const SAVE_KEY = 'soul-drift-save-v1';
+const SLOT_COUNT = 3;
+const SLOT_KEY = 'soul-drift-slot';
+const slotKey = (i) => i ? `${SAVE_KEY}-${i + 1}` : SAVE_KEY;
 
 const GS = {
   data: null,
   // Transient per-life state carried across rooms but never saved.
   run: null,
+  // The slot being played (remembered between visits, so Continue picks it up)
+  slot: (() => { try { return Phaser.Math.Clamp(parseInt(localStorage.getItem(SLOT_KEY), 10) || 0, 0, SLOT_COUNT - 1); } catch (e) { return 0; } })(),
+  // A Soul King Palace trial in progress (see startRush): never saved, the real save waits in rush.backup
+  rush: null,
 
   fresh() {
     return {
@@ -45,16 +53,29 @@ const GS = {
       kills: {},             // enemy kind -> how many fell (the Journal)
       gifts: {},             // NPC name -> true once they have handed over their gift
       world: 2,              // layout version of the save (2: the expanded world)
+      forms: { zangetsu: true },   // Zanpakutō forms owned
+      form: 'zangetsu',      // the form in hand
+      pins: [],              // map pins: { room, x, y, kind } (x, y in tiles inside the room)
+      splits: {},            // boss id -> play time when it first fell (the speedrun splits)
+      items: {},             // quest items carried: id -> true
+      palace: 0,             // 0 sealed, 1 the Royal Guard's message heard, 2 the palace visited
+      rush: { best: null, bound: {}, wins: 0, single: {} },   // the Soul King Palace trials
+      trueEnding: false,
     };
   },
 
   freshRun() {
-    return { bankaiT: 0, maskOn: false, hollow: 0, maskLock: 0, region: null };
+    return { bankaiT: 0, maskOn: false, hollow: 0, maskLock: 0, region: null, debt: 0 };
+  },
+  useSlot(i) {
+    this.slot = i;
+    try { localStorage.setItem(SLOT_KEY, String(i)); } catch (e) { /* storage unavailable */ }
   },
 
   newGame() {
     this.data = this.fresh();
     this.run = this.freshRun();
+    this.rush = null;
   },
 
   has(ability) { return !!(this.data && this.data.abilities[ability]); },
@@ -85,19 +106,41 @@ const GS = {
       abilities: Object.assign({}, old.abilities), seals: old.seals.slice(), equipped: old.equipped.slice(),
       sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, maxHp: old.maxHp, hp: old.maxHp,
       fragmentsTotal: old.fragmentsTotal, ore: old.ore || 0, reishi: old.reishi || 0, plus: (old.plus || 0) + 1,
-      gifts: Object.assign({}, old.gifts),
+      gifts: Object.assign({}, old.gifts), forms: Object.assign({}, old.forms), form: old.form,
+      rush: old.rush, trueEnding: old.trueEnding, palace: old.palace,
     });
     this.data = d;
     this.run = this.freshRun();
   },
-  // The saved game without making it the current one (for the title screen)
-  peek() {
-    try { const raw = localStorage.getItem(SAVE_KEY); return raw ? this.migrate(Object.assign(this.fresh(), JSON.parse(raw))) : null; } catch (e) { return null; }
+  // A saved game without making it the current one (for the title screen and the slot list)
+  peek(slot = this.slot) {
+    try { const raw = localStorage.getItem(slotKey(slot)); return raw ? this.migrate(Object.assign(this.fresh(), JSON.parse(raw))) : null; } catch (e) { return null; }
   },
 
-  slashDamage() { return COMBAT.slashDamage + (this.data.swordLevel || 0) * COMBAT.swordBonus; },
+  form() { return FORMS[this.data.form] || FORMS.zangetsu; },
+  // The edge of the blade: forge levels (unless a trial binds it back to the plain edge) and the form's weight
+  slashDamage() {
+    const lvl = this.rush && this.rush.bind.blade ? 0 : (this.data.swordLevel || 0);
+    return (COMBAT.slashDamage + lvl * COMBAT.swordBonus) * this.form().dmg;
+  },
+  swordLevel() { return this.rush && this.rush.bind.blade ? 0 : (this.data.swordLevel || 0); },
 
-  addReiatsu(n) { this.data.reiatsu = Phaser.Math.Clamp(this.data.reiatsu + n, 0, COMBAT.maxReiatsu); },
+  // How full the Reiatsu vessel can get (a bound trial holds only a third)
+  reiCap() { return this.rush && this.rush.bind.reiatsu ? COMBAT.spellCost : COMBAT.maxReiatsu; },
+  addReiatsu(n, strike = false) {
+    if (strike) n *= Settings.get('reiatsuGain');
+    this.data.reiatsu = Phaser.Math.Clamp(this.data.reiatsu + n, 0, this.reiCap());
+  },
+  // Masks a blow of `n` really takes, after the assist setting: half damage carries the remainder
+  // to the next blow, so every second hit costs a mask
+  lose(n) {
+    const k = Settings.get('damage');
+    if (!k) return 0;
+    this.run.debt = (this.run.debt || 0) + n * k;
+    const lost = Math.floor(this.run.debt + 1e-6);
+    this.run.debt -= lost;
+    return lost;
+  },
 
   addFragment() {
     const d = this.data;
@@ -119,19 +162,22 @@ const GS = {
     return !!b && b.includes(x + ',' + y);
   },
 
+  // During a trial only the real save (put aside when it began, plus the trial's records) is written
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(this.data));
+      localStorage.setItem(slotKey(this.slot), JSON.stringify(this.rush ? this.rush.backup : this.data));
       if (typeof window !== 'undefined' && window.SD && SD.game) SD.game.events.emit('saved');
       return true;
     } catch (e) { return false; }
   },
-  load() {
+  load(slot = this.slot) {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = localStorage.getItem(slotKey(slot));
       if (!raw) return false;
       this.data = this.migrate(Object.assign(this.fresh(), JSON.parse(raw)));
       this.run = this.freshRun();
+      this.rush = null;
+      this.useSlot(slot);
       return true;
     } catch (e) { return false; }
   },
@@ -151,11 +197,68 @@ const GS = {
     if (!ROOMS[d.room]) d.room = d.restRoom || 'kar_hub';
     return d;
   },
-  hasSave() {
-    try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+  hasSave(slot = this.slot) {
+    try { return !!localStorage.getItem(slotKey(slot)); } catch (e) { return false; }
   },
-  wipe() {
-    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* storage unavailable */ }
+  wipe(slot = this.slot) {
+    try { localStorage.removeItem(slotKey(slot)); } catch (e) { /* storage unavailable */ }
+  },
+  // ------------------------------------------------------------------ the trials of the palace
+  // The real save is put aside; the trial plays on a copy with the bindings applied, and whatever
+  // happens in it (bosses felled again, seal slots, deaths) is thrown away when it ends.
+  startRush(mode, list, bind = {}) {
+    const d = this.data;
+    const b = Object.fromEntries(BINDING_ORDER.map(k => [k, !!bind[k]]));
+    this.rush = { mode, list: list.slice(), i: 0, bind: b, t: 0, backup: JSON.parse(JSON.stringify(d)) };
+    if (b.seals) { if (d.equipped.includes('will')) d.maxHp -= 1; d.equipped = []; }
+    if (b.shell) d.maxHp = Math.min(d.maxHp, 4);
+    d.hp = d.maxHp;
+    d.reiatsu = 0;
+    this.run = this.freshRun();
+  },
+  // Back to the real save, with the trial's records written into it. Returns { newBest, firstWin }.
+  endRush(won) {
+    const r = this.rush;
+    if (!r) return {};
+    const real = r.backup, rec = real.rush || (real.rush = { best: null, bound: {}, wins: 0, single: {} });
+    this.rush = null;
+    this.data = real;
+    this.run = this.freshRun();
+    const n = BINDING_ORDER.filter(k => r.bind[k]).length, res = { newBest: false, firstWin: false };
+    if (won && r.mode === 'gauntlet') {
+      res.firstWin = !rec.wins;
+      rec.wins = (rec.wins || 0) + 1;
+      if (rec.best == null || r.t < rec.best) { rec.best = r.t; res.newBest = true; }
+      BINDING_ORDER.forEach(k => { if (r.bind[k]) rec.bound[k] = true; });
+      if (n === BINDING_ORDER.length) rec.bound.all = true;
+    } else if (won) {
+      const id = r.list[0], s = rec.single[id] || (rec.single[id] = { best: null, bound: 0 });
+      if (s.best == null || r.t < s.best) { s.best = r.t; res.newBest = true; }
+      s.bound = Math.max(s.bound || 0, n);
+    }
+    real.hp = real.maxHp;
+    this.save();
+    return res;
+  },
+
+  // ------------------------------------------------------------------ speedrun splits
+  // The best time each boss has ever first fallen at, over every journey and every slot
+  bestSplits() {
+    try { return JSON.parse(localStorage.getItem('soul-drift-splits') || '{}') || {}; } catch (e) { return {}; }
+  },
+  recordSplit(id, t) {
+    const best = this.bestSplits();
+    if (best[id] != null && best[id] <= t) return;
+    best[id] = t;
+    try { localStorage.setItem('soul-drift-splits', JSON.stringify(best)); } catch (e) { /* storage unavailable */ }
+  },
+
+  // What the slot list shows for each save
+  summary(slot) {
+    const d = this.peek(slot);
+    if (!d) return null;
+    const room = ROOMS[d.room] || ROOMS.kar_hub;
+    return { d, room: room.name, region: room.region, pct: this.completion(d), time: d.time, deaths: d.deaths, plus: d.plus, cleared: d.cleared, trueEnding: d.trueEnding };
   },
 
   // How many of each collectible the world holds, counted from the rooms themselves
@@ -174,8 +277,8 @@ const GS = {
     return (this._totals = t);
   },
 
-  completion() {
-    const d = this.data, T = this.totals();
+  completion(d = this.data) {
+    const T = this.totals();
     let have = 0, total = 0;
     ABILITY_ORDER.forEach(a => { total++; if (d.abilities[a]) have++; });
     total += Object.keys(SEALS).length; have += d.seals.filter(id => SEALS[id]).length;
@@ -183,6 +286,8 @@ const GS = {
     total += T.pluses; have += Math.min(T.pluses, d.pluses);
     total += T.bosses; have += Object.keys(d.bosses).filter(b => BOSSES[b]).length;
     total += FORGE.length; have += d.swordLevel || 0;
-    return Math.round(have / total * 100);
+    total += FORM_ORDER.length; have += FORM_ORDER.filter(f => d.forms && d.forms[f]).length;
+    total += QUEST_ORDER.length; have += QUEST_ORDER.filter(q => d.quests[q] === 2).length;
+    return Math.floor(have / total * 100);
   },
 };

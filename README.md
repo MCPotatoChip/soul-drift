@@ -39,15 +39,29 @@ The game detects a touch screen and shows an on-screen stick and buttons. Turn y
 - **Remap everything**: the ⚙ button (or Pause, then Controls, then Edit touch layout) opens the layout editor. Drag any button to move it, tap it to change what it does or how big it is, add or remove buttons, mirror the layout for left-handed play, and change size and opacity. The layout is saved on the device. Touch buttons press whatever key their action is bound to, so keyboard remapping and touch remapping work together.
 - Force the overlay on a desktop with `?touch=1`, or off with `?touch=0`.
 
-## Settings
+## Saves
 
-Pause menu or title screen, **Settings**: sound effects and music volume, screen shake, screen flashes, particle density, damage numbers and controller rumble. They save in your browser. Touch devices start with particles on low.
+There are three save slots (**Journeys** on the title screen). Each shows where you are, how complete it is, the time played and deaths, with 討 once the story is finished and 真 once the true ending has been seen. From a slot you can continue, start New Game+, start over or erase it (both ask twice). **Continue** on the title screen picks up the slot played last. A save from before slots existed loads as slot 1.
+
+## Settings and assist
+
+Pause menu or title screen, **Settings**: sound effects and music volume, screen shake (a slider), screen flashes, particle density, damage numbers, controller rumble and a **speedrun timer**. They save in your browser. Touch devices start with particles on low.
+
+**Assist and accessibility** (from Settings) makes the game gentler or harder, and nothing is locked away for using it:
+
+- Damage taken: normal, half (every second blow costs a mask), none (blows still knock you back) or double
+- Recovery after a hit: how long you stay untouchable
+- Reiatsu from strikes: 1×, 1.5× or 2×
+- Game speed: 100% down to 70% (the whole world slows; menus do not)
+- Attack warnings: bold puts a red mark over every foe while it winds up an attack
+
+With the timer on, a clock sits under the location in the top right, and each boss's split appears when it first falls, green when it beats the best ever recorded. **Records** in the pause menu lists this journey's splits against the best ones (over every journey and slot), every favour asked, and the trials of the Soul King Palace.
 
 ## What's in the game
 
 Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, the Sōkyoku, Hueco Mundo and Las Noches, and at the end the world inside your own soul.
 
-- **31 rooms in 8 regions**: Karakura Town (空座町), Rukongai (流魂街), the Seireitei (瀞霊廷), Sōkyoku Hill (双殛の丘), Hueco Mundo (虚圏), the Inner World (精神世界), and two optional regions, the Dangai (断界) and the Forest of Menos (大虚の森).
+- **36 rooms in 10 regions**: Karakura Town (空座町), Rukongai (流魂街), the Seireitei (瀞霊廷), Sōkyoku Hill (双殛の丘), Hueco Mundo (虚圏), the Inner World (精神世界), the optional Dangai (断界) and Forest of Menos (大虚の森), Urahara's Study Room (勉強部屋) under the shop, and the Soul King Palace (霊王宮), which opens at 100%.
 - **The powers, in the order you earn them** (each one a few rooms and usually a boss after the last):
 
   | Power | Where | Opens |
@@ -63,7 +77,17 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
   | Getsuga Tenshō | Zangetsu, at the end of the Dangai (optional) | |
   | Hollow Mask | Shinji Hirako's shrine (optional) | |
 
-- **People**: Rukia Kuchiki, Kon, Kisuke Urahara (the shop), Ururu, Yasutora Sado, the old man of Junrinan (a quest), a swordsmith, Ganju Shiba, Uryū Ishida, Jidanbō at the West Gate, Hanatarō Yamada (gives Kaidō), Yoruichi (gives Shunkō), Nel Tu, Orihime Inoue (heals you, in Las Noches), Shinji Hirako, Zangetsu and Ashido Kanō.
+- **People**: Rukia Kuchiki, Kon, Kisuke Urahara (the shop, and the Study Room), Ururu, Yasutora Sado, the old man of Junrinan, a swordsmith, Ganju Shiba, Uryū Ishida, Jidanbō at the West Gate, Hanatarō Yamada (gives Kaidō), Yoruichi (gives Shunkō), Nel Tu, Orihime Inoue (heals you, in Las Noches), Shinji Hirako, Zangetsu, Ashido Kanō and Ichibē Hyōsube of the Royal Guard.
+- **Favours** (five quests, listed under Records once asked):
+  - *Names of the Dead*: the old man of Junrinan wants to hear the memories of a ruffian, a corrupted Shinigami and a Hollow (Konsō them). Reward: 200 reishi, the Soul Recall seal.
+  - *A Body for Kon*: once you can grip walls, Kon asks for his spare Gikongan, locked in the Hall of Lanterns under the Fourth Division. Reward: the Lion's Pride seal.
+  - *The Study Room*: after Bakudō, the shop has a trapdoor. Urahara's "light exercise" is three waves of foes. Reward: the Kodachi form and 200 reishi.
+  - *Ganju's Rematch*: after Shakkahō, Ganju fights you for real in Inuzuri (club combos, lobbed fireworks, a leaping slam). Reward: the Shiba Crest seal.
+  - *The Six Flowers*: five spirits of Orihime's hairpin are scattered across the worlds (the dunes above Hueco Mundo, the Pressure Shrine, the Forest of Menos, the Las Noches corridor, the Precipice Shrine). Reward: Sōten Kisshun, every heal a quarter quicker.
+- **Region puzzles** (three optional side rooms, each with a fragment and something for a favour):
+  - *Hall of Lanterns* (Seireitei, down a broken grate in the Fourth Division Sewers): strike a lantern and for 6.5 seconds the gold barriers open and a blue wall of light rises that you can grip. A barrier never closes on you.
+  - *Sinking Dunes* (Hueco Mundo, up the bone steps from the first room): quicksand slows you, weakens your jump and swallows you if you stand still. Hop between the bone pillars.
+  - *Pressure Shrine* (Sōkyoku Hill, a gap high in the west wall of the Ascent): air heavy with a captain's spirit pressure drags you down, shortens your jumps, lets no wall be held and drains Reiatsu; with the vessel empty it crushes. Jump and Shunpo across.
 - **Enemies**: Lesser Hollows, Acidwire crawlers that spit acid, Rukongai ruffians, corrupted Shinigami, Kidō renegades, Onmitsukidō agents who vanish and strike from behind, Eleventh Division brawlers who charge (sometimes off a ledge), Pale Hollows on the ceilings, Adjuchas, Numeros Arrancar, Exequias executioners, and Gillian. Flying enemies follow the shortest open path to you around walls instead of pressing into them.
 - **10 bosses** (three optional), each with its own weapon and phases:
   - Grand Fisher: burrows under you, lashes with its lure, then sends the bait itself
@@ -77,13 +101,27 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
   - Aaroniero Arruruerie (optional): unseen until struck with the Konsō hilt, Nejibana's water, then Glotonería
   - Hollow Ichigo (final): Getsuga, a blade thrown on its cloth like a boomerang, and he punishes a heal in front of him
   - Every boss weighs its attacks by distance rather than choosing by it, rarely repeats itself, picks the attacks that reach you if you stand still, and comes to you when you keep away
+  - The music climbs with each phase: a faster pulse, then a bass line, then a trembling high string
+- **Elite enemies**: some foes carry a trait, marked by a kanji over the head: Armoured (鋼, takes a third less damage), Hasty (速, winds up and recovers faster), Volatile (爆, bursts when it falls) and Undying (再, mends when left alone). They have more health and drop twice the reishi. A first journey meets them only in Hueco Mundo and the Forest of Menos; New Game+ meets them everywhere, more each cycle. The same placement is always the same elite.
 - **Progression and economy**:
-  - 17 Zanpakutō seals with slot costs, equipped at rest gates (new: Kaidō, Bell of the Eleventh, Shunkō, Hierro, Gentei Kaijo)
-  - 12 soul fragments (every four add one mask of health), 9 Lost Pluses (they reward seal slots, two seals and reishi)
+  - 19 Zanpakutō seals with slot costs, equipped at rest gates (Lion's Pride and the Shiba Crest come from favours)
+  - 16 soul fragments (every four add one mask of health), 9 Lost Pluses (they reward seal slots, two seals and reishi)
   - The swordsmith in Rukongai sharpens your Zanpakutō through three levels with reishi and reishi ore
+  - **Zanpakutō forms**, switched at rest gates: Zangetsu (balanced), Ōdachi (slow, long, heavy; the swordsmith forges it after the first sharpening for 400 reishi and an ore) and Kodachi (quick, short, lighter; Urahara's reward)
   - Urahara's shop, the Pin Compass, Lingering Reiatsu where you die, the old man's quest for memories
   - **New Game+** after the ending
 - **Rest gates** save, heal and fast travel. None sits inside a boss arena: the gate is always in the room before.
+- **Map pins**: on the map, move the cursor with the arrows or stick (or click a spot) and press confirm to drop a pin: ★, then !, ?, ✕, and a fifth press clears it.
+
+### The Soul King Palace and the true ending
+
+At 100% completion (every power, seal, fragment, Lost Plus, boss, forge level, form and favour), a Hell Butterfly brings word from Ichibē Hyōsube of the Royal Guard, and every rest gate can carry you to the Soul King Palace. Its altar holds the trials:
+
+- **The Trial of the Ten**: every boss in order, from Grand Fisher to Hollow Ichigo. Healing works as normal and your health carries between fights; after the third, sixth and eighth a respite heals you. Win it, however many tries it takes, and the true ending plays.
+- **Single duels** with any boss you have beaten.
+- **Bindings**, like Godhome's, chosen alone or together: Blade (刃, the sword at its first edge, no forge levels), Shell (殻, four masks at most), Seals (封, none may be worn) and Spirit (霊, the vessel holds a third of its Reiatsu and Bankai will not answer).
+
+A trial plays on a copy of your save: falling, leaving it from the pause menu or quitting sends you back to the palace with nothing lost. The altar remembers the best time of the Trial of the Ten, each binding it was won with (lit kanji), and each duel's best time and bindings.
 - **Journal**: every enemy you have met, how many you have sent on, and the memory Konsō let you hear.
 
 ### The optional regions
@@ -100,6 +138,8 @@ python3 scripts/build_rooms.py && node scripts/check_world.js
 ```
 
 `check_world.js` simulates the player's movement (jump arcs, Shunpo, the second jump, the wall grip, Burst) with the game's own constants, works out what each room lets you reach from each door, then plays the whole journey from a new game. It prints the order you earn every power, the route between them and a rough number of minutes for each gap, and anything that can never be reached. `node scripts/check_world.js sei_ward` shows one room with every set of powers.
+
+The model treats quicksand as deadly (a route must jump or dash over it), models spirit pressure (heavier fall, shorter jumps, slower running, no wall grip) and checks lantern rooms as if the lantern were lit. It does not check whether the lantern run fits in its 6.5 seconds. The older room grids live in `scripts/rooms_base.json` and the generator edits them from there.
 
 ## Deploying
 
@@ -128,10 +168,11 @@ src/enemies.js        enemy types
 src/bosses.js         the boss director and every boss, scripted with generator coroutines
 src/scenes/game.js    room building, collisions, combat, transitions, boss arenas, death
 src/scenes/ui.js      HUD, titles, dialog with portraits, popups, boss bar
-src/scenes/menu.js    pause, rest gate (seals and travel), shop, map, inventory, Journal, controls
-src/scenes/title.js   boot, title and ending scenes
+src/scenes/menu.js    pause, rest gate (seals, forms, travel), shop, forge, map and pins, inventory, Journal, Records,
+                      controls, settings and assist, save slots, the altar of trials
+src/scenes/title.js   boot, title, the endings (the story's and the true one)
 src/main.js           Phaser config + console test helpers
-scripts/build_rooms.py  builds src/rooms.js
+scripts/build_rooms.py  builds src/rooms.js (the older grids come from scripts/rooms_base.json)
 scripts/check_world.js  reachability and pacing check for the whole world
 ```
 
@@ -149,6 +190,7 @@ SD.goto('hm_boss')    // jump to any room (ids are the keys in ROOMS)
 SD.heal(); SD.rich()  // full health and Reiatsu / +1000 reishi
 SD.step(60)           // advance the game 60 frames by hand (a background tab stalls its own frames)
 SD.bossTest('sok_boss')  // fight a room's boss as a player who stands still and cannot be hurt; reports phases and moves
+SD.scene.startTrial('single', ['renji'], { blade: true })  // start a palace trial from anywhere
 ```
 
 ## Art and animation
