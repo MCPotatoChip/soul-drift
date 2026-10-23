@@ -180,8 +180,17 @@ class MenuScene extends Phaser.Scene {
           label: ROOMS[id].name, right: id === d.room ? 'here' : REGIONS[ROOMS[id].region].name, disabled: id === d.room,
           act: () => { if (id !== d.room) this.travel(id); },
         }));
-        this.list(this.items, GAME_W / 2 - 260, 190, 46, 520);
-        this.footer(Controls.fmt('{jump} travel · {attack} back'));
+        // two columns, filled top to bottom, so every gate fits on one screen
+        const colN = Math.max(9, Math.ceil(this.items.length / 2)), gap = 42, colW = 560;
+        this.items.forEach((it, i) => {
+          const col = i >= colN ? 1 : 0, row = i % colN, x = 56 + col * (colW + 40), y = 186 + row * gap, on = i === this.sel;
+          if (on) this.selectStroke(x - 8, y - 6, colW - 16, gap - 4);
+          this.txt(x, y, it.label, 22, it.disabled ? '#5c5868' : on ? INK : '#b8b2c4', { bold: on });
+          this.txt(x + colW - 40, y + 2, it.right, 17, MUTED, { origin: [1, 0] });
+          this.hit(x - 16, y - 6, colW, gap - 4, () => this.tapItem(i));
+        });
+        this.sealColN = colN;
+        this.footer(Controls.fmt('Arrows choose (left and right change column) · {jump} travel · {attack} back'));
         break;
       }
       case 'shop': {
@@ -649,7 +658,7 @@ class MenuScene extends Phaser.Scene {
       this.txt(bx + 16, by + 16, ch, 20, INK, { origin: 0.5 });
     });
     // legend
-    const legend = [['gate', 'rest gate'], ['shop', 'shop'], ['forge', 'swordsmith'], ['boss', 'boss']];
+    const legend = [['gate', 'rest gate'], ['shop', 'shop'], ['forge', 'swordsmith'], ['boss', 'boss'], ['door', 'unexplored exit']];
     if (d.bought.compass) legend.push(['power', 'power'], ['seal', 'seal'], ['upgrade', 'upgrade'], ['frag', 'fragment'], ['plus', 'lost plus'], ['ore', 'ore']);
     const lg = this.add.graphics(); this.layer.add(lg);
     let lx = GAME_W / 2 - legend.reduce((a, [, l]) => a + 44 + l.length * 8.4, 0) / 2;
@@ -661,9 +670,11 @@ class MenuScene extends Phaser.Scene {
   // Every landmark in the rooms walked through: [room, kind, tile x, tile y]
   mapMarks() {
     const d = GS.data, out = [];
+    const known = this.mapM ? this.mapM.known : new Set();
     Object.keys(ROOMS).forEach(id => {
-      if (!d.visited[id]) return;
-      const r = ROOMS[id], cnt = { k: 0, c: 0, f: 0, l: 0, o: 0, w: 0 };
+      const seen = !!d.visited[id];
+      if (!seen && !known.has(id)) return;   // rooms you have only heard of show what is left in them, once you hold the compass
+      const r = ROOMS[id], cnt = { k: 0, c: 0, f: 0, l: 0, o: 0, w: 0 }, doorDone = new Set();
       r.tiles.forEach((row, ty) => {
         for (let tx = 0; tx < row.length; tx++) {
           const ch = row[tx];
@@ -680,6 +691,9 @@ class MenuScene extends Phaser.Scene {
             case 'l': { const i = cnt.l++; if (!GS.isTaken(`${id}:l${i}`)) kind = 'plus'; break; }
             case 'o': { const i = cnt.o++; if (!GS.isTaken(`${id}:o${i}`)) kind = 'ore'; break; }
           }
+          if (kind && !seen && !['power', 'seal', 'upgrade', 'frag', 'plus', 'ore'].includes(kind)) kind = null;
+          // a way out of a room you know into one you have never entered
+          if (!kind && seen && /[1-9]/.test(ch) && !doorDone.has(ch) && ROOMS[id].doors[ch] && !d.visited[ROOMS[id].doors[ch][0]]) { kind = 'door'; doorDone.add(ch); }
           if (!kind) continue;
           if (['power', 'seal', 'upgrade', 'frag', 'plus', 'ore'].includes(kind) && !d.bought.compass) continue;
           out.push([id, kind, tx, ty]);
@@ -730,7 +744,12 @@ class MenuScene extends Phaser.Scene {
       if (d.visited[id]) {
         g.fillStyle(REGIONS[ROOMS[id].region].color, id === d.room ? 0.6 : 0.3).fillRect(r.x, r.y, r.width, r.height);
         g.lineStyle(2, id === d.room ? 0xffffff : 0xe9e4d8, id === d.room ? 1 : 0.65).strokeRect(r.x, r.y, r.width, r.height);
-      } else g.lineStyle(1, 0xe9e4d8, 0.3).strokeRect(r.x, r.y, r.width, r.height);
+      } else {
+        // somewhere you know of but have not been: a gold outline and a question mark
+        g.fillStyle(0xd9b35a, 0.07).fillRect(r.x, r.y, r.width, r.height);
+        g.lineStyle(2, 0xd9b35a, 0.6).strokeRect(r.x, r.y, r.width, r.height);
+        this.mapText('?', Phaser.Math.Clamp(Math.round(r.height * 0.5), 14, 44), '#d9b35a', 0.5, r.x + r.width / 2, r.y + r.height / 2);
+      }
     });
     // landmarks, grown with the zoom
     const k = Phaser.Math.Clamp(z / 16, 0.8, 2.6);
@@ -738,6 +757,7 @@ class MenuScene extends Phaser.Scene {
       const b = box(id), p = this.mapP(b.x + tx / 10, b.y + ty / 10);
       if (p.x < VX - 12 || p.x > VX + VW + 12 || p.y < VY - 12 || p.y > VY + VH + 12) return;
       this.pin(g, kind, p.x, p.y, k);
+      if (kind === 'door') this.mapText('?', Math.round(12 + k * 4), '#ffe8b0', 0.5, p.x, p.y + 1);
     });
     // your own pins
     (d.pins || []).forEach(pin => {
@@ -908,6 +928,7 @@ class MenuScene extends Phaser.Scene {
       case 'frag': g.fillStyle(0x7fe8ff, 1).fillCircle(x, y, s(3)); break;
       case 'plus': g.fillStyle(0xe8f4ff, 1).fillCircle(x, y, s(3)); g.lineStyle(1.5, 0x7fe8ff, 1).strokeCircle(x, y, s(5)); break;
       case 'ore': g.fillStyle(0xb89aff, 1).fillCircle(x, y, s(3)); break;
+      case 'door': g.fillStyle(0x07070b, 0.9).fillCircle(x, y, s(7)); g.lineStyle(2, 0xffe8b0, 1).strokeCircle(x, y, s(7)); break;
     }
   }
 
@@ -1056,7 +1077,7 @@ class MenuScene extends Phaser.Scene {
       const it = this.items[this.sel], L = Controls.isLeft(code), R = Controls.isRight(code);
       if (it && it.row && (L || R)) { this.adjustSetting(it.row, L ? -1 : 1); return; }
     }
-    if (this.view === 'seals' && (Controls.isLeft(code) || Controls.isRight(code)) && this.sealColN) {
+    if ((this.view === 'seals' || this.view === 'travel') && (Controls.isLeft(code) || Controls.isRight(code)) && this.sealColN) {
       const to = this.sel + (Controls.isRight(code) ? this.sealColN : -this.sealColN);
       if (to >= 0 && to < n) { this.sel = to; this.msg = ''; Sfx.play('select'); this.render(); }
       else if (Controls.isRight(code) && n && this.sel < this.sealColN) { this.sel = n - 1; Sfx.play('select'); this.render(); }
