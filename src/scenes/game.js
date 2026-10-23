@@ -53,6 +53,9 @@ class GameScene extends Phaser.Scene {
     this.buildBackground();
     this.buildMap();
     this.spawnPlayer();
+    // Flyers find their way to the player through this field (see nav.js)
+    this.flow = new FlowField(this, () => ({ x: this.player.x, y: this.player.body.center.y }), 0.2);
+    this.flow.build();
     this.setupColliders();
     this.setupCamera();
     this.setupInput();
@@ -269,6 +272,8 @@ class GameScene extends Phaser.Scene {
 
   readInput() {
     const P = Controls.takePresses(), C = Controls, i = this.inp;
+    // The press that closed a dialog or popup is not also a jump or a slash
+    if (this.swallowP) { P.clear(); this.swallowP = false; }
     // Presses made during a hit-stop were never seen by the player: carry them to the first live frame
     if (this.carryP) { this.carryP.forEach(c => P.add(c)); this.carryP = null; }
     this.lastP = P;
@@ -305,6 +310,7 @@ class GameScene extends Phaser.Scene {
     const p = this.player;
     p.update(dt);
     this.updateSwing(dt);
+    this.flow.update(dt);
     for (const e of this.enemies.slice()) if (e.active) e.tick(dt);
     this.enemies = this.enemies.filter(e => e.active);
     for (const s of this.pShots.slice()) if (s.active) s.tick(dt);
@@ -393,7 +399,7 @@ class GameScene extends Phaser.Scene {
 
   freeze(on) {
     this.frozen = on;
-    if (on) this.physics.world.pause(); else this.physics.world.resume();
+    if (on) this.physics.world.pause(); else { this.physics.world.resume(); this.swallowP = true; }
   }
 
   // ------------------------------------------------------------------ queries

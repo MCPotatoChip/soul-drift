@@ -445,7 +445,7 @@ class Gillian extends Enemy {
     if (this.mode === 'cool' && this.mt <= 0) this.mode = null;
     if (b.blocked.down && (this.wallAhead(this.facing) || !this.groundAhead(this.facing))) this.facing *= -1;
     b.setVelocityX(this.facing * 18);
-    const sees = Math.abs(dy) < 50 && Math.abs(dx) < 280;
+    const sees = Math.abs(dy) < 50 && Math.abs(dx) < 280 && this.sees();
     if (sees && this.mt <= 0 && this.mode !== 'cool') {
       if (Math.sign(dx) !== this.facing) { this.facing = Math.sign(dx) || this.facing; this.mt = 0.5; return; }
       this.mode = 'aim'; this.mt = 0.9; b.setVelocityX(0);
