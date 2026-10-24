@@ -17,7 +17,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, (fy - cfg.bh / 2) / this.height);
     this.body.setSize(cfg.bw, cfg.bh).setOffset((this.width - cfg.bw) / 2, fy - cfg.bh);
     this.body.reset(x, feetY - cfg.bh * sc / 2);
-    this.hp = this.maxHp = Math.max(1, Math.round(cfg.hp * GS.hpMul() * GS.foeHpMul(cfg.kind)));
+    this.hp = this.maxHp = Math.max(1, Math.round(cfg.hp * GS.foeHpMul(cfg.kind)));
     this.dmg = cfg.dmg ?? 1;
     this.drop = Math.round((cfg.drop ?? 2) * GS.dropMul());
     this.kbRes = cfg.kb ?? 1;
@@ -40,11 +40,11 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   // Some placements are elite: decided by the placement itself, so the same spot stays elite
   makeElite() {
     if (!this.uid || BOSS_KINDS.includes(this.kind) || GS.rush) return;
-    const plus = Math.min(3, GS.data.plus || 0);
-    const chance = plus ? 0.15 + 0.1 * plus : ELITE_REGIONS.includes(this.scene.region) ? 0.16 : 0;
+    const home = ELITE_REGIONS.includes(this.scene.region), D = GS.diff();
+    const chance = home ? D.eliteHome : D.eliteAway;
     if (!chance) return;
     let h = 2166136261;
-    for (const ch of this.uid + ':' + plus) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    for (const ch of this.uid + ':' + (home ? 'h' : 'a')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
     if ((h % 1000) / 1000 >= chance) return;
     const traits = Object.keys(ELITE_TRAITS);
     this.elite = traits[(h >>> 10) % traits.length];

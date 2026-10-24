@@ -60,7 +60,7 @@ class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: stroke, scaleX: 1.62, duration: 700, delay: 500, ease: 'Cubic.out' });
     this.add.text(146, 326, 'A Bleach metroidvania: Karakura, Soul Society, Hueco Mundo and the world within', { fontFamily: FONT_BODY, fontSize: '19px', color: '#b8b2c4' });
 
-    // menu: Continue picks up the journey played last; every save, new game and New Game+ lives under Journeys
+    // menu: Continue picks up the journey played last; every save and new game lives under Journeys
     this.hasSave = GS.hasSave();
     this.items = [];
     if (this.hasSave) this.items.push({ label: 'Continue', act: () => this.cont() });
@@ -170,21 +170,12 @@ class TitleScene extends Phaser.Scene {
 
   toggleControls() { Sfx.play('confirm'); this.scene.launch('menu', { type: 'controls' }); }
 
-  // Play a slot: continue it, begin it anew, or walk it again as New Game+ (the Journeys screen confirms first).
-  // o.difficulty: the one chosen for a new journey; o.from: the finished save New Game+ grows from (this slot's own,
-  // or another's when the slot is empty)
+  // Play a slot: continue it or begin it anew (the Journeys screen confirms first).
+  // o.difficulty: the one chosen for a new journey
   startSlot(i, mode, o = {}) {
     if (this.leaving) return;
     GS.useSlot(i);
     if (mode === 'continue') { this.cont(); return; }
-    if (mode === 'plus') {
-      const old = o.from || GS.peek(i);
-      if (!old) return;
-      GS.newGamePlus(old, o.difficulty);
-      GS.save();
-      this.begin({ room: 'kar_hub', spawn: 'start' });
-      return;
-    }
     GS.wipe(i);
     GS.newGame();
     if (o.difficulty) GS.data.difficulty = o.difficulty;
@@ -193,6 +184,7 @@ class TitleScene extends Phaser.Scene {
   }
   cont() {
     if (!GS.load()) { this.note.setText('The save could not be read. Start a new game.'); return; }
+    if (GS.data.fallen) { this.note.setText('This journey fell on Absolute Bankai and is locked. Erase it under Journeys to begin again.'); Sfx.play('deny'); return; }
     GS.data.hp = GS.data.maxHp;
     this.begin({ room: GS.data.restRoom || 'kar_hub', spawn: 'rest' });
   }

@@ -10,7 +10,6 @@ const SAVE_KEY = 'soul-drift-save-v1';
 const SLOT_COUNT = 3;
 const SLOT_KEY = 'soul-drift-slot';
 const slotKey = (i) => i ? `${SAVE_KEY}-${i + 1}` : SAVE_KEY;
-const LEGACY_KEY = 'soul-drift-cleared';   // the last journey that reached the story's end (see GS.rememberClear)
 
 // Where each room sat on the map before it was spread out (world version 3), so pins placed on the old map move with their rooms
 const LEGACY_POS = {"kar_hub":[18,10],"kar_alley":[14,10],"kar_roof":[20,7.7],"kar_river":[24,10],"kar_grave":[31,7.6],"ruk_1":[31,10],"ruk_2":[38,10],"ruk_3":[44,10],"ruk_boss":[50.4,10],"sei_gate":[44,7.2],"sei_ward":[49.2,7.4],"sei_1":[55.6,6.4],"sei_11":[50.8,4.8],"sei_2":[59.6,1.8],"sei_4":[64.4,2.1],"sei_renji":[70,2.1],"sok_1":[64.4,-2],"sok_boss":[69.2,-3.1],"hm_1":[73.2,-4.6],"hm_2":[79.6,-5.4],"hm_3":[85.2,-5.4],"hm_grimm":[91.2,-4.6],"hm_side":[79.6,-7.7],"hm_boss":[85.2,-2.4],"hm_dome":[85.6,-8.2],"forest_1":[76.7,-2.3],"forest_2":[81.1,0.1],"dangai_1":[-1.5,5.6],"dangai_2":[-5.5,5.6],"end_1":[12,12.4],"end_boss":[7.2,12.4],"sei_lantern":[64.4,4.7],"hm_sand":[73.4,-6.9],"sok_shrine":[59.4,-2],"kar_study":[18.2,12.6],"palace":[18,4.5]};
@@ -57,10 +56,10 @@ const GS = {
       konsoed: {},           // enemy placements whose memory already yielded Reiatsu
       memories: {},          // kinds of enemy whose memories Konso has read
       quests: {},            // quest id -> 0 not started, 1 accepted, 2 done
-      plus: 0,               // New Game+ cycles completed
       kills: {},             // enemy kind -> how many fell (the Journal)
       gifts: {},             // NPC name -> true once they have handed over their gift
       world: 5,              // layout version of the save (2: the expanded world, 3: upgrades, new rooms, new places for old rewards, 4: wider rooms, 5: difficulty, seal costs, Aizen)
+      fallen: false,         // lost on a difficulty that allows one death: the save can no longer be continued
       difficulty: 'normal',  // see DIFFICULTY: chosen when the journey begins, changed only at a rest gate
       upgrades: {},          // power upgrades found: track id -> level (see UPGRADES)
       notes: [],             // things the game tells the player once on loading (what a migration changed)
@@ -119,13 +118,11 @@ const GS = {
     return true;
   },
 
-  // New Game+: enemies are tougher and pay more
   // Damage bonus against a kind of foe you have studied: slain STUDY_KILLS of them, and heard its memory with the Konsō hilt
   studyMul(kind) {
     const d = this.data;
     return 1 + 0.05 * ((d.kills[kind] || 0) >= STUDY_KILLS ? 1 : 0) + 0.05 * (d.memories[kind] ? 1 : 0);
   },
-  hpMul() { return 1 + 0.6 * Math.min(3, this.data.plus || 0); },
   // Health of a non-boss foe on this difficulty (bosses use bossHpMul and the difficulty's bossHp)
   foeHpMul(kind) { return BOSS_KINDS.includes(kind) ? 1 : this.diff().foeHp; },
   // Bosses are tougher the sharper the Zanpakutō (a trial's blade binding counts as the plain edge)
@@ -133,23 +130,9 @@ const GS = {
   // Levels of a power upgrade held (a trial that binds the seals leaves them be: upgrades are not seals)
   upgrade(id) { return (this.data.upgrades && this.data.upgrades[id]) || 0; },
   // The Pin Compass is not on the shelf until the story is over (a second journey keeps it for sale)
-  shopOpen(it) { const d = this.data; return !(it.type === 'tool' && TOOLS[it.id] && TOOLS[it.id].needsClear) || !!d.cleared || (d.plus || 0) > 0; },
-  dropMul() { return (1 + 0.5 * Math.min(3, this.data.plus || 0)) * (this.data.equipped && this.data.equipped.includes('magnet') ? 1.25 : 1); },
+  shopOpen(it) { const d = this.data; return !(it.type === 'tool' && TOOLS[it.id] && TOOLS[it.id].needsClear) || !!d.cleared; },
+  dropMul() { return this.data.equipped && this.data.equipped.includes('magnet') ? 1.25 : 1; },
 
-  // A fresh journey that keeps what you earned: powers, seals, the edge of the blade and health
-  newGamePlus(old, difficulty) {
-    const d = this.fresh();
-    d.difficulty = difficulty || old.difficulty || 'normal';
-    Object.assign(d, {
-      abilities: Object.assign({}, old.abilities), seals: old.seals.slice(), equipped: old.equipped.slice(),
-      sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, temper: Object.assign({}, old.temper), maxHp: old.maxHp, hp: old.maxHp,
-      fragmentsTotal: old.fragmentsTotal, ore: old.ore || 0, reishi: old.reishi || 0, plus: (old.plus || 0) + 1,
-      gifts: Object.assign({}, old.gifts), forms: Object.assign({}, old.forms), form: old.form,
-      rush: old.rush, trueEnding: old.trueEnding, palace: old.palace, upgrades: Object.assign({}, old.upgrades),
-    });
-    this.data = d;
-    this.run = this.freshRun();
-  },
   // A saved game without making it the current one (for the title screen and the slot list)
   peek(slot = this.slot) {
     try { const raw = localStorage.getItem(slotKey(slot)); return raw ? this.migrate(Object.assign(this.fresh(), JSON.parse(raw))) : null; } catch (e) { return null; }
@@ -255,7 +238,7 @@ const GS = {
       d.upgrades = d.upgrades || {};
       d.notes = d.notes || [];
       // The compass is a reward for the end of the story: one bought early goes back on the shelf, refunded
-      if (d.bought.compass && !d.cleared && !(d.plus > 0)) {
+      if (d.bought.compass && !d.cleared) {
         delete d.bought.compass;
         d.reishi = (d.reishi || 0) + 180;
         d.notes.push('Urahara took the Pin Compass back and refunded 180 reishi. It goes on sale again once the Hollow within has fallen.');
@@ -303,20 +286,6 @@ const GS = {
     Object.keys(d.gates).forEach(id => { if (!restOK(id)) delete d.gates[id]; });
     if (!ROOMS[d.room]) d.room = d.restRoom || 'kar_hub';
     return d;
-  },
-  // The last journey to reach the story's end, kept apart from the slots, so New Game+ can begin on an empty slot
-  // even after that journey's own slot was erased
-  rememberClear(d = this.data) {
-    try { localStorage.setItem(LEGACY_KEY, JSON.stringify(d)); } catch (e) { /* storage unavailable */ }
-  },
-  // Where an empty slot's New Game+ can come from: every finished journey in the slots, else the last one remembered
-  plusSources() {
-    const out = [];
-    for (let i = 0; i < SLOT_COUNT; i++) { const d = this.peek(i); if (d && d.cleared) out.push({ slot: i, d }); }
-    if (!out.length) {
-      try { const raw = localStorage.getItem(LEGACY_KEY); if (raw) out.push({ slot: -1, d: this.migrate(Object.assign(this.fresh(), JSON.parse(raw))) }); } catch (e) { /* unreadable */ }
-    }
-    return out;
   },
   hasSave(slot = this.slot) {
     try { return !!localStorage.getItem(slotKey(slot)); } catch (e) { return false; }
@@ -379,7 +348,7 @@ const GS = {
     const d = this.peek(slot);
     if (!d) return null;
     const room = ROOMS[d.room] || ROOMS.kar_hub;
-    return { d, room: room.name, region: room.region, pct: this.completion(d), time: d.time, deaths: d.deaths, plus: d.plus, cleared: d.cleared, trueEnding: d.trueEnding, difficulty: d.difficulty };
+    return { d, room: room.name, region: room.region, pct: this.completion(d), time: d.time, deaths: d.deaths, fallen: !!d.fallen, cleared: d.cleared, trueEnding: d.trueEnding, difficulty: d.difficulty };
   },
 
   // How many of each collectible the world holds, counted from the rooms themselves
