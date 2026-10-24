@@ -92,6 +92,7 @@ function startGame() {
       this.game.scene.render = () => {};
       try {
         this.give('all'); GS.god = true; this.errors.length = 0;
+        if (ROOMS[room].boss) { GS.data.bosses[ROOMS[room].boss] = false; GS.data.cleared = false; }   // fight him again
         const s0 = this.scene; s0.transitioning = false; s0.goTo(room, { spawn: 'rest' });
         this.step(40);
         let g = this.scene, p = g.player; const boss = g.boss;
