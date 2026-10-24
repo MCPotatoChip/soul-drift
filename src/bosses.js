@@ -84,8 +84,18 @@ class Boss extends Enemy {
     // Never leave the room: a boss that ends up below the floor (or inside it) is set back on it
     if (this.fighting && !this.cfg.fly && this.body.bottom > this.arena.floor + 6) { this.body.reset(Phaser.Math.Clamp(this.x, this.arena.left + 8, this.arena.right - 8), this.arena.floor - this.body.height / 2); this.body.setVelocity(0, 0); }
     if (!this.fighting) { this.body.setVelocityX(0); return; }
-    if (this.ai) this.ai.tick(dt * GS.diff().bossSpeed * (this.tempo || 1));
+    if (this.ai) {
+      try { this.ai.tick(dt * GS.diff().bossSpeed * (this.tempo || 1)); } catch (err) { this.scriptFailed(err); return; }
+    }
     this.checkPhase && this.checkPhase();
+  }
+  // A fault in one attack must never freeze the game (Phaser stops its frame loop for good on an uncaught error): it is
+  // noted, the boss is put right and chooses again. One whose scripts keep failing stands still rather than fail every frame.
+  scriptFailed(err) {
+    reportFault(this.id + ' script', err);
+    this.faults = (this.faults || 0) + 1;
+    if (this.faults > 12) { this.ai = null; this.cleanup(); this.setAlpha(1); this.invulnerable = false; return; }
+    this.setScript(this.brain());
   }
   // The player has barely moved for a while (hiding on a ledge, waiting by a wall)
   camping() {
@@ -2640,7 +2650,8 @@ class Aizen extends Duelist {
     this.setAlpha(0.1); this.invulnerable = true;
     Sfx.play('dash');
     yield 0.42 / this.spd;
-    ill.anim('dash'); ill.dashV = ill.facing * 420;
+    // a bolt or a blade may already have broken the image during its wind-up: a broken one has no animation left to play
+    if (ill.alive) { ill.anim('dash'); ill.dashV = ill.facing * 420; }
     let t = 0.32;
     while (t > 0 && ill.alive) { t -= this.dt; if (Math.random() < 0.6) s.fx.afterimage(ill, 0xe0d0ff, 0.35, 160); yield 0; }
     if (ill.alive) ill.die();
