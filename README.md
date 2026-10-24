@@ -86,8 +86,8 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
   | Power | Where | Opens |
   |---|---|---|
   | Konsō | Rukia, at the start | Reads memories, sends Lost Pluses on, reveals what hides |
-  | Shunpo | Grand Fisher | 8-tile ravines |
-  | Hadō #31 Shakkahō | Menos Grande | Violet Kidō seals |
+  | Shunpo | Menos Grande | 8-tile ravines |
+  | Hadō #31 Shakkahō | Grand Fisher | Violet Kidō seals, among them the one across the Ravine Edge that stands between you and the Menos |
   | Hadō #63 Raikōhō | The Kidō Corps Shrine, behind a violet seal off Junrinan, West District 3 | Bursts that hurt everything around them |
   | Reiatsu Grip | Seireitei Courtyard | Tall shafts |
   | Bakudō #61 Rikujōkōrō | Renji Abarai | The fast platform over the spikes; binds enemies |

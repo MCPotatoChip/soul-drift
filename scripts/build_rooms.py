@@ -94,7 +94,7 @@ R['kar_alley'] = dict(name='Back Alley', region='kar', pos=[14, 10],
     doors={'1': ['kar_hub', '1'], '2': ['dangai_1', '1']},
     npcs=[{'name': 'Ururu Tsumugiya', 'lines': [
         'Um. That violet glow back there is a Kido seal. Mr. Urahara says something precious is locked behind it.',
-        'Seals like that only break to Kido. The Menos haunting the far end of Rukongai is said to guard an incantation.',
+        'Seals like that only break to Kido. Grand Fisher, in the hillside cemetery, is said to guard an incantation.',
         'And the gate floating over the rooftops is a Senkaimon to the Dangai. Only someone who can walk on air could reach it.']}],
     tiles=g.rows())
 
@@ -126,26 +126,28 @@ R['kar_river'] = dict(name='Onose Riverbank', region='kar', pos=[24, 10],
     npcs=[{'name': 'Yasutora Sado', 'lines': [
         '...Ichigo.', 'Something hunts along this river at night. The spirits that drift here say it wears a little girl as bait.',
         'Up the stairs and over the bridge is the hillside cemetery. Your mother is buried there, isn\'t she.',
-        'Under the bridge, the old road runs east into Rukongai. It is a long way across. You will need to be faster than you are now.']}],
+        'Under the bridge, the old road runs east into Rukongai. It is a long way across.']}],
     tiles=g.rows())
 
 # The hillside cemetery: Grand Fisher's hunting ground
 g = arena(48, planks=[(6, 10, 14), (37, 41, 14)])
 g.put(30, 18, 'B')
 R['kar_grave'] = dict(name='Hillside Cemetery', region='kar', pos=[31, 7.6],
-    doors={'1': ['kar_river', '3']}, boss='fisher', reward='dash', tiles=g.rows())
+    doors={'1': ['kar_river', '3']}, boss='fisher', reward='hado', tiles=g.rows())
 
 # =========================================================================== Rukongai
 g = old('ruk_1')
-g.put(47, 18, '.')   # Shunpo now comes from Grand Fisher
+g.put(47, 18, '.')   # Shunpo now comes from the Menos
+g.rect(55, 19, 62, 22, '#')   # the ravine here is filled in: nothing before the Menos needs Shunpo
 R['ruk_1'] = dict(name='Junrinan, West District 1', region='ruk', pos=[31, 10],
     doors={'1': ['kar_river', '2'], '2': ['ruk_2', '1']},
     npcs=[{'name': 'Old Man of Junrinan', 'lines': [
         'Careful, the ruffians here will beat a soul for a crust of bread. This is the first district, and still it is like this.',
-        'The ravine past the shrine is too wide to jump. Only Shunpo, the flash step, gets you across.']}],
+        'Past the orchard the road climbs to the Kido Corps\' old shrine. The seal across it only breaks to Kido.']}],
     tiles=g.rows())
 
 g = old('ruk_2')
+g.rect(18, 19, 25, 22, '#')   # no ravine here any more: Shunpo comes after the Menos
 R['ruk_2'] = dict(name='Rukongai Outskirts', region='ruk', pos=[38, 10],
     doors={'1': ['ruk_1', '2'], '2': ['ruk_3', '1'], '3': ['sei_gate', '1']}, seals=['harvest'], tiles=g.rows())
 
@@ -167,13 +169,13 @@ R['ruk_3'] = dict(name='Inuzuri, District 78', region='ruk', pos=[44, 10],
     npcs=[{'name': 'Ganju Shiba', 'lines': [
         'Who are you calling a thug? I am Ganju Shiba, the number one delinquent of West Rukongai!',
         'You want into the Seireitei? Then you will need to blast through that violet seal in the Outskirts. No Kido, no entry.',
-        'A Menos has been howling in the ravine east of here. They say whoever brings it down will learn a real incantation from what is left.',
+        'A Menos has been howling in the ravine east of here. A Kido seal bars the way, and whoever brings the Menos down will learn the flash step from what is left.',
         'If you get in, find my sister Kukaku. On second thought, do not. She will put you in a cannon.']}],
     tiles=g.rows())
 
 g = old('ruk_boss')
 R['ruk_boss'] = dict(name='Hollow Ravine', region='ruk', pos=[50.4, 10],
-    doors={'1': ['ruk_3', '2']}, boss='menos', reward='hado', tiles=g.rows())
+    doors={'1': ['ruk_3', '2']}, boss='menos', reward='dash', tiles=g.rows())
 
 # =========================================================================== Seireitei
 # Hakutomon, the West Gate, held open by Jidanbo
