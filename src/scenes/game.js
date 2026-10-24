@@ -935,6 +935,13 @@ class GameScene extends Phaser.Scene {
 
     }
     this.hurtBoxes = this.hurtBoxes.filter(hb => hb.t > 0);
+    // High-contrast attacks: the live damage boxes are outlined
+    if (Settings.get('contrast')) {
+      const g = this.hcGfx || (this.hcGfx = this.add.graphics().setDepth(33));
+      g.clear();
+      g.lineStyle(2, inkOn(this) ? 0x000000 : 0xffffff, 0.95);
+      this.hurtBoxes.forEach(hb => g.strokeRect(hb.x, hb.y, hb.w, hb.h));
+    } else if (this.hcGfx) { this.hcGfx.destroy(); this.hcGfx = null; }
   }
   // One enemy's attack landing on another. Bosses are never hurt this way, and each victim is hurt once per `seen`.
   friendlyHit(rect, owner, dmg, dir, seen) {
@@ -1169,7 +1176,7 @@ class GameScene extends Phaser.Scene {
     const info = BOSSES[this.boss.id];
     this.game.events.emit('boss-start', { name: info.name, title: info.title, jp: info.jp, notches: info.notches });
     Controls.rumble(500, 0.5, 0.5);
-    this.time.delayedCall(1000, () => { if (this.boss && this.boss.alive) this.boss.activate(); });
+    this.time.delayedCall((this.boss.introTime || 1) * 1000, () => { if (this.boss && this.boss.alive) this.boss.activate(); });
   }
   onBossDefeated(boss) {
     const d = GS.data;

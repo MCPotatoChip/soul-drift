@@ -1464,20 +1464,41 @@ function creatureSheet(scene, key, fw, fh, clips, outline) {
   Object.entries(clips).forEach(([name, [n, rate, repeat]]) => makeAnim(scene, key + ':' + name, key, Array.from({ length: n }, (_, i) => name + i), rate, repeat));
 }
 
+function buildHumanoid(scene, skey, st) {
+  const anims = humanoidAnims(st);
+  const frames = [];
+  Object.entries(anims).forEach(([name, [poses]]) => {
+    poses.forEach((p, i) => frames.push({ name: name + i, draw: (pen) => drawHumanoid(pen, st, Object.assign({}, BASE_POSE, p)) }));
+  });
+  buildSheet(scene, skey, HF.W, HF.H, frames, '#08070c', st.alpha || 1);
+  Object.entries(anims).forEach(([name, [poses, rate, repeat]]) => {
+    makeAnim(scene, skey + ':' + name, skey, poses.map((_, i) => name + i), rate, repeat);
+  });
+}
+
+// Ichigo's outfits, drawn the first time one is worn (four sheets each: plain, masked, Bankai, Bankai masked)
+const OUTFIT_COLORS = {
+  crimson: { robe: '#2a0e14', robeHi: '#5a1a24', robeShade: '#14060a', inner: '#d8c0b8', sash: '#c8202c', hakama: '#1e0a0e', hakamaShade: '#10050a', hakamaHi: '#3a1218', lining: '#c8202c' },
+  moonlit: { robe: '#e8e8f0', robeHi: '#ffffff', robeShade: '#b0b0c4', inner: '#7a7a98', sash: '#2a2a3a', hakama: '#d8d8e6', hakamaShade: '#a0a0b8', hakamaHi: '#f4f4fa', lining: '#8ab4e8', coatCol: '#ecebf2', coatHi: '#ffffff' },
+  gilded: { robe: '#1a1626', robeHi: '#4a3a66', robeShade: '#0a0812', inner: '#f2d68a', sash: '#d9b35a', hakama: '#16121f', hakamaShade: '#0a0810', hakamaHi: '#3a2e55', tabi: '#f2d68a', lining: '#d9b35a' },
+  quincy: { robe: '#eef4fa', robeHi: '#ffffff', robeShade: '#a8c0d8', inner: '#8ac8ff', sash: '#2c7ac8', hakama: '#dde8f4', hakamaShade: '#9ab4d0', hakamaHi: '#f8fcff', lining: '#2c7ac8', coatCol: '#e6f0fa', coatHi: '#ffffff' },
+};
+function ensureOutfitArt(scene, id) {
+  const c = OUTFIT_COLORS[id];
+  if (!c || scene.textures.exists('ichigo@' + id)) return;
+  ['ichigo', 'ichigo_m', 'ichigo_b', 'ichigo_bm'].forEach(base => {
+    const st = STYLES[base], over = { robe: c.robe, robeHi: c.robeHi, robeShade: c.robeShade, inner: c.inner, sash: c.sash, hakama: c.hakama, hakamaShade: c.hakamaShade, hakamaHi: c.hakamaHi };
+    if (c.tabi) over.tabi = c.tabi;
+    if (st.coat) over.coat = { col: c.coatCol || st.coat.col, hi: c.coatHi || st.coat.hi, lining: c.lining };
+    const key = base + '@' + id;
+    STYLES[key] = variant(st, over);
+    buildHumanoid(scene, key, STYLES[key]);
+  });
+}
+
 function makeCharacterArt(scene) {
   // Humanoids
-  Object.keys(STYLES).forEach(skey => {
-    const st = STYLES[skey];
-    const anims = humanoidAnims(st);
-    const frames = [];
-    Object.entries(anims).forEach(([name, [poses]]) => {
-      poses.forEach((p, i) => frames.push({ name: name + i, draw: (pen) => drawHumanoid(pen, st, Object.assign({}, BASE_POSE, p)) }));
-    });
-    buildSheet(scene, skey, HF.W, HF.H, frames, '#08070c', st.alpha || 1);
-    Object.entries(anims).forEach(([name, [poses, rate, repeat]]) => {
-      makeAnim(scene, skey + ':' + name, skey, poses.map((_, i) => name + i), rate, repeat);
-    });
-  });
+  Object.keys(STYLES).forEach(skey => buildHumanoid(scene, skey, STYLES[skey]));
 
   // Lesser hollow (28x22, flying): eight frames of wingbeat
   creatureSheet(scene, 'hollow', 28, 22, { fly: [8, 16, -1, (pen, i) => drawHollowFlyer(pen, i, 8)] });

@@ -208,7 +208,12 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (!inp.healH) this.healLock = false;
   }
 
-  sheetKey() { return (this.bankai ? 'ichigo_b' : 'ichigo') + (GS.run.maskOn ? (this.bankai ? 'm' : '_m') : ''); }
+  sheetKey() {
+    const outfit = GS.outfit(), base = (this.bankai ? 'ichigo_b' : 'ichigo') + (GS.run.maskOn ? (this.bankai ? 'm' : '_m') : '');
+    if (outfit === 'shihakusho') return base;
+    ensureOutfitArt(this.scene, outfit);
+    return base + '@' + outfit;
+  }
   doJump(v, air) {
     const body = this.body;
     body.velocity.y = -v * (this.env.sand ? 0.62 : this.env.pressure ? 0.82 : 1);
@@ -341,8 +346,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.startSwing(this, kind);
     this.atkAnim = kind === 'side' ? (this.swingAlt ? 'slashB' : 'slashA') : kind;
     this.atkAnimT = 0.2;
-    const sheet = (this.bankai ? 'ichigo_b' : 'ichigo') + (GS.run.maskOn ? (this.bankai ? 'm' : '_m') : '');
-    this.play(sheet + ':' + this.atkAnim);
+    this.play(this.sheetKey() + ':' + this.atkAnim);
   }
 
   // ---------------- Getsuga Tensho ----------------

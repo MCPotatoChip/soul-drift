@@ -2886,9 +2886,27 @@ class Yhwach extends Duelist {
   constructor(scene, x, feet) {
     super(scene, x, feet, { id: 'yhwach', key: 'yhwach', hp: 1900, drop: 0, kind: 'yhwach', bh: 28, scale: 1.08, auraTint: 0x8ac8ff });
     this.walkSpeed = 66; this.prefer = 90; this.patience = 2.4; this.pause = 0.3; this.spd = 1.3;
-    this.introLine = '"I have seen how this ends, my son. Kneel."';
+    this.introLine = '"I have seen every future. Each one ends with you kneeling."';
     this.lineColor = '#cfe4ff';
     this.vene = 0;
+  }
+  // The doors lock and the dark opens its eyes: every one of them on him, then his first words
+  intro() {
+    super.intro();
+    const s = this.scene;
+    this.introTime = 3.8;
+    s.fx.flash(0x000000, 500, 0.7);
+    s.fx.shake(1200, 0.005);
+    s.fx.eyes(18, 2200);
+    s.time.delayedCall(2300, () => { if (this.alive) s.fx.floatText(this.x, this.y - 40, '"Come, my son."', '#ff8a96'); });
+  }
+  // What he says as every eye closes at once
+  onDie() {
+    super.onDie();
+    const s = this.scene;
+    s.fx.eyes(16, 1100, true);
+    s.time.delayedCall(250, () => s.fx.floatText(this.x, this.y - 40, '"A future I did not see..."', '#cfe4ff'));
+    s.time.delayedCall(1500, () => s.fx.floatText(this.x, this.y - 40, '"...so you are the one who outgrew me."', '#8ac8ff'));
   }
   moveList() {
     return [

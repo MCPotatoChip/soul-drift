@@ -19,10 +19,13 @@ function ink(scene, c) {
   const k = 0.32;
   return (Math.round(r * k) << 16) | (Math.round(g * k) << 8) | Math.round(b * k);
 }
+// Line and fill styles of a boss's telegraph graphics. On a white backdrop pale colours turn to ink; with the
+// High-contrast setting every telegraph is thicker and firmer, on any backdrop.
 function inkGraphics(scene, g) {
-  if (!inkOn(scene)) return g;
+  const hc = typeof Settings !== 'undefined' && Settings.get('contrast');
+  if (!inkOn(scene) && !hc) return g;
   const ls = g.lineStyle.bind(g), fs = g.fillStyle.bind(g), boost = a => (a === undefined ? 1 : Math.min(1, a * 1.5 + 0.12));
-  g.lineStyle = (w, c, a) => ls(w, ink(scene, c), boost(a));
+  g.lineStyle = (w, c, a) => ls(hc ? w + 2 : w, ink(scene, c), boost(a));
   g.fillStyle = (c, a) => fs(ink(scene, c), boost(a));
   return g;
 }
@@ -166,6 +169,18 @@ class Fx {
     this.s.tweens.add({ targets: o, a: 0, duration: 380, onUpdate: () => draw(o.a), onComplete: () => g.destroy() });
   }
 
+  // Eyes open at random places across the screen, stay for `hold` ms, then close. closing: they begin open and only close.
+  eyes(n = 14, hold = 1200, closing = false) {
+    const s = this.s;
+    for (let i = 0; i < n; i++) {
+      const sc = Phaser.Math.FloatBetween(1, 3), x = Phaser.Math.Between(30, VIEW_W - 30), y = Phaser.Math.Between(24, VIEW_H - 24);
+      const e = s.add.image(x, y, 'void_eye').setScrollFactor(0).setDepth(45).setScale(sc, closing ? sc : 0).setAlpha(0.92);
+      if (Math.random() < 0.3) e.setTint(0xff7080);
+      const close = () => s.tweens.add({ targets: e, scaleY: 0, duration: 260, delay: closing ? i * 60 : 0, ease: 'Sine.in', onComplete: () => e.destroy() });
+      if (closing) s.time.delayedCall(hold, close);
+      else s.tweens.add({ targets: e, scaleY: sc, duration: 280, delay: i * 70, ease: 'Back.out', onComplete: () => s.time.delayedCall(hold, close) });
+    }
+  }
   floatText(x, y, text, color = '#cfe8ff') { this.s.game.events.emit('float', { x, y, text, color }); }
 
   shake(ms = 120, intensity = 0.006) {
@@ -539,6 +554,8 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
     if (o.flipX) this.setFlipX(true);
     if (o.scale) this.setScale(o.scale);
     if (o.tint || inkOn(scene)) this.setTint(ink(scene, o.tint || 0xffffff));
+    // High-contrast attacks: an outline against the backdrop, dark on the white halls and light everywhere else
+    if (Settings.get('contrast') && this.postFX) this.postFX.addGlow(inkOn(scene) ? 0x000000 : 0xffffff, 3, 0, false, 0.1, 6);
     scene.eShots.push(this);
   }
   tick(dt) {

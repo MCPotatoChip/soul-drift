@@ -366,5 +366,14 @@ const BINDING_ORDER = ['blade', 'shell', 'seals', 'reiatsu'];
 // (a boss added without a `rush` number still joins, after the numbered ones, in the order BOSSES lists it)
 const RUSH_ORDER = STORY_BOSSES.map((b, i) => [b, BOSSES[b].rush ?? 1000 + i]).sort((x, y) => x[1] - y[1]).map(([b]) => b);
 const RUSH_SECRET = 'yhwach';
+// Outfits for Ichigo, earned at the altar of trials (GS.outfitOwned says how); the colours are OUTFIT_COLORS in art.js
+const OUTFIT_ORDER = ['shihakusho', 'crimson', 'moonlit', 'gilded', 'quincy'];
+const OUTFITS = {
+  shihakusho: { name: 'Shihakushō', jp: '死覇装', desc: 'The black robes Rukia\'s power came wrapped in.', how: '' },
+  crimson:    { name: 'Crimson Vow', jp: '紅', desc: 'Black robes lined with the red of a promise kept the hard way.', how: 'Win any single duel at the altar with at least one binding worn.' },
+  moonlit:    { name: 'Moonlit', jp: '月白', desc: 'Pale robes that catch every light. Whoever wears them has nothing to hide behind.', how: 'Win a single duel with three or more bindings worn.' },
+  gilded:     { name: 'Gilded Guard', jp: '金', desc: 'Violet and gold, cut for the Royal Guard. It was never meant for an ordinary Shinigami.', how: 'Win the Grand Trial with all four bindings worn.' },
+  quincy:     { name: 'Quincy Blood', jp: '滅却', desc: 'A white coat with a blue seam. The blood your mother gave you, worn on the outside.', how: 'Defeat Yhwach.' },
+};
 // after every third fight the trial grants a respite: health restored (indices into RUSH_ORDER)
 const RUSH_RESTS = RUSH_ORDER.map((_, i) => i).filter(i => (i + 1) % 3 === 0 && i < RUSH_ORDER.length - 1);
