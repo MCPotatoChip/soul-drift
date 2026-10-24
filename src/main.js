@@ -156,7 +156,9 @@ function startGame() {
             if ((e.spawn === 'rest' && !g.restGate) || (e.spawn === 'start' && !g.startPos)) continue;
             n++;
             this.step(frames);
-            const b = p.body, inWall = [[b.left + 1, b.top + 1], [b.right - 1, b.top + 1], [b.left + 1, b.bottom - 1], [b.right - 1, b.bottom - 1]].some(([x, y]) => g.isSolidAt(x, y));
+            const g2 = this.scene, p2 = g2.player;   // (a room can send you on at once if the way out is right there)
+            if (!p2 || !p2.body || g2.roomId !== room) { bad.push(`${room} ${JSON.stringify(e)}: left the room within ${frames} frames`); continue; }
+            const b = p2.body, inWall = [[b.left + 1, b.top + 1], [b.right - 1, b.top + 1], [b.left + 1, b.bottom - 1], [b.right - 1, b.bottom - 1]].some(([x, y]) => g2.isSolidAt(x, y));
             if (inWall) bad.push(`${room} ${JSON.stringify(e)}: inside a wall`);
           }
         }
