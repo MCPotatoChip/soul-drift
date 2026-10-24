@@ -247,6 +247,8 @@ SD.step(60)           // advance the game 60 frames by hand (a background tab st
 SD.bossTest('sok_boss')  // fight a room's boss as a player who stands still and cannot be hurt; reports phases and moves
 SD.duelTest('hm_boss', { sword: 0, bot: 'reactive' })  // fight it with a scripted player (swings, or swings and steps back from wind-ups); reports time to kill and blows taken. Set SD.game.scene.render = () => {} first to run it ~9x faster
 SD.scene.startTrial('single', ['renji'], { blade: true })  // start a palace trial from anywhere
+SD.chaosTest('hm_dome', 60)  // a player pressing keys at random (every power, forced Bankai) who cannot be hurt, in a room or against its boss, whose health is cut 30% every 15 s so every phase is played; reports phases, rooms left and any errors (it gives every power: use a spare slot)
+SD.sweepRooms()       // enter every room by each door, rest gate and start; reports a missing player, a player inside a wall, and errors
 ```
 
 ## Art and animation
