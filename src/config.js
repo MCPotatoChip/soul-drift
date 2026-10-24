@@ -77,22 +77,24 @@ const COMBAT = {
   bankaiCooldown: 35,     // seconds after Bankai ends before it can be called again (scaled by the difficulty)
 };
 
-// Three ways to walk the journey, chosen when it begins and changed only at a rest gate.
+// Four ways to walk the journey, chosen when it begins and changed only at a rest gate.
 // damage: masks a blow costs (half: every second blow costs one, the remainder carried); invuln: how long a blow
 // leaves you untouchable; reiatsu: Reiatsu drawn by each landed strike; foeHp / bossHp: health of enemies and
 // bosses; bossSpeed: how quickly bosses act; warn: a red mark over every foe winding up; bankaiCd: Bankai's cooldown.
 const DIFFICULTY = {
-  easy:   { name: 'Easy', jp: '易', damage: 0.5, invuln: 1.5, reiatsu: 1.5, foeHp: 0.8, bossHp: 0.8, bossSpeed: 0.92, warn: true, bankaiCd: 0.7,
+  easy:   { name: 'Easy', jp: '易', damage: 0.5, invuln: 1.5, reiatsu: 1.5, foeHp: 0.8, bossHp: 0.8, bossSpeed: 0.92, warn: true, bankaiCd: 0.7, eliteHome: 0.16, eliteAway: 0,
     desc: 'Every second blow costs a mask, you stay untouchable longer after one, strikes draw half again as much Reiatsu, and foes and bosses are weaker and slower. A red mark warns of every attack.' },
-  normal: { name: 'Normal', jp: '常', damage: 1, invuln: 1, reiatsu: 1, foeHp: 1, bossHp: 1, bossSpeed: 1, warn: false, bankaiCd: 1,
+  normal: { name: 'Normal', jp: '常', damage: 1, invuln: 1, reiatsu: 1, foeHp: 1, bossHp: 1, bossSpeed: 1, warn: false, bankaiCd: 1, eliteHome: 0.16, eliteAway: 0,
     desc: 'The journey as it was meant to be walked.' },
-  hard:   { name: 'Hard', jp: '難', damage: 1, invuln: 0.8, reiatsu: 0.85, foeHp: 1.3, bossHp: 1.35, bossSpeed: 1.12, warn: false, bankaiCd: 1.3,
-    desc: 'Foes have 30% more health and bosses 35% more, and bosses act 12% faster. Strikes draw less Reiatsu, you recover from a blow sooner, and Bankai takes longer to come back.' },
+  hard:   { name: 'Hard', jp: '難', damage: 1, invuln: 0.8, reiatsu: 0.85, foeHp: 1.3, bossHp: 1.35, bossSpeed: 1.12, warn: false, bankaiCd: 1.3, eliteHome: 0.3, eliteAway: 0.12,
+    desc: 'Foes have 30% more health and bosses 35% more, and bosses act 12% faster. Strikes draw less Reiatsu, you recover from a blow sooner, and Bankai takes longer to come back. Elite foes are far more common, and turn up everywhere.' },
+  absolute: { name: 'Absolute Bankai', jp: '絶', damage: 2, invuln: 0.7, reiatsu: 0.8, foeHp: 1.4, bossHp: 1.5, bossSpeed: 1.2, warn: false, bankaiCd: 1.4, eliteHome: 0.45, eliteAway: 0.25, permadeath: true,
+    desc: 'Every blow costs two masks. Foes have 40% more health and bosses 50% more, and bosses act 20% faster. Elite foes are everywhere. One death ends the journey: the save is locked and can only be erased.' },
 };
-const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
+const DIFFICULTY_ORDER = ['easy', 'normal', 'hard', 'absolute'];
 
 // Elite enemies: tougher than their kind, with one trait each, marked by a kanji over the head.
-// New Game+ meets them everywhere (more each cycle); a first journey only in Hueco Mundo and the Forest.
+// Easy and Normal meet them only in Hueco Mundo and the Forest; Hard and Absolute Bankai meet more of them, everywhere.
 const ELITE_TRAITS = {
   armored:  { name: 'Armoured', jp: '鋼', color: 0xc8d4e8, desc: 'takes a third less damage' },
   hasty:    { name: 'Hasty', jp: '速', color: 0x7fe8ff, desc: 'winds up and recovers faster' },

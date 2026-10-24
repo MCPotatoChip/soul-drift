@@ -1168,7 +1168,6 @@ class GameScene extends Phaser.Scene {
     }
     if (boss.id === 'aizen') {
       d.cleared = true;
-      GS.rememberClear(d);
       GS.save();
       this.time.delayedCall(2600, () => this.finishGame());
       return;
@@ -1794,6 +1793,18 @@ class GameScene extends Phaser.Scene {
     }
     d.reiatsu = 0;
     GS.run = GS.freshRun();
+    // Absolute Bankai: the first death ends the journey for good
+    if (GS.diff().permadeath) {
+      d.fallen = true;
+      GS.save();
+      this.transitioning = true;
+      this.time.delayedCall(1600, () => this.game.events.emit('toast', 'Absolute Bankai: the journey ends here.'));
+      this.time.delayedCall(2800, () => {
+        this.cameras.main.fadeOut(900, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => { this.scene.stop('ui'); this.scene.start('title'); });
+      });
+      return;
+    }
     GS.save();
     this.transitioning = true;
     this.time.delayedCall(1300, () => {

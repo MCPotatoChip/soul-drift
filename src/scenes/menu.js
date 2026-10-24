@@ -249,8 +249,8 @@ class MenuScene extends Phaser.Scene {
   // Easy, Normal or Hard. Chosen when a journey begins; after that only at a rest gate.
   renderDifficulty() {
     const starting = !!this.newGame, cur = GS.data && !starting ? GS.data.difficulty : null;
-    this.title('Difficulty', starting ? (this.newGame.mode === 'plus' ? 'How hard should New Game+ be? It can be changed at any rest gate.' : 'How hard should this journey be? It can be changed later at any rest gate.')
-      : 'Changed here, at a rest gate, and nowhere else. Nothing is locked away by any choice.');
+    this.title('Difficulty', starting ? 'How hard should this journey be? It can be changed later at any rest gate.'
+      : 'Changed here, at a rest gate, and nowhere else. Only Absolute Bankai has a price: one death locks the journey.');
     this.items = DIFFICULTY_ORDER.map(id => ({ id, label: `${DIFFICULTY[id].jp}    ${DIFFICULTY[id].name}`, right: cur === id ? 'current' : '', rightColor: GOLD, act: () => this.chooseDifficulty(id) }));
     this.items.push({ label: 'Back', act: () => this.back() });
     this.list(this.items, 150, 214, 64, 420);
@@ -263,9 +263,9 @@ class MenuScene extends Phaser.Scene {
       this.txt(px + 90, 228, D.name, 36, INK, { display: true });
       this.txt(px, 300, D.desc, 19, INK, { wrap: 510 });
       const pct = (v) => `${Math.round(v * 100)}%`;
-      const rows = [['Blows cost', D.damage < 1 ? 'every second one, a mask' : 'a mask each'], ['Foe health', pct(D.foeHp)], ['Boss health', pct(D.bossHp)], ['Boss speed', pct(D.bossSpeed)],
+      const rows = [['Blows cost', D.damage < 1 ? 'every second one, a mask' : D.damage > 1 ? `${D.damage} masks each` : 'a mask each'], ['Elite foes', D.permadeath ? 'everywhere, many' : D.eliteAway ? 'everywhere, more' : 'Hueco Mundo and the Forest'], ['Foe health', pct(D.foeHp)], ['Boss health', pct(D.bossHp)], ['Boss speed', pct(D.bossSpeed)],
         ['Reiatsu from strikes', pct(D.reiatsu)], ['Bankai cooldown', `${Math.round(COMBAT.bankaiCooldown * D.bankaiCd)} s`]];
-      rows.forEach(([k, v], i) => { this.txt(px, 410 + i * 24, k, 16, '#b8b2c4'); this.txt(px + 520, 410 + i * 24, v, 16, GOLD, { bold: true, origin: [1, 0] }); });
+      rows.forEach(([k, v], i) => { this.txt(px, 392 + i * 22, k, 16, '#b8b2c4'); this.txt(px + 520, 392 + i * 22, v, 16, GOLD, { bold: true, origin: [1, 0] }); });
     }
     this.footer(Controls.fmt('{up} {down} choose · {jump} take it · {attack} back'));
   }
@@ -274,7 +274,7 @@ class MenuScene extends Phaser.Scene {
       const ng = this.newGame, title = this.scene.get('title');
       this.newGame = null;
       this.scene.stop();
-      title.startSlot(ng.slot, ng.mode, { difficulty: id, from: ng.from });
+      title.startSlot(ng.slot, ng.mode, { difficulty: id });
       return;
     }
     if (GS.data.difficulty === id) { this.back(); return; }
@@ -307,7 +307,7 @@ class MenuScene extends Phaser.Scene {
         const reg = REGIONS[sum.region];
         this.txt(x + 120, y + 18, sum.room, 28, on ? INK : '#cfc9d8', { display: true });
         this.txt(x + 120, y + 60, `${reg.kanji}  ${reg.name}`, 17, '#' + reg.color.toString(16).padStart(6, '0'), { bold: true });
-        this.txt(x + 120, y + 86, `${DIFFICULTY[sum.difficulty || 'normal'].name}  ·  ${this.fmtTime(sum.time)}  ·  ${sum.deaths} death${sum.deaths === 1 ? '' : 's'}${sum.plus ? `  ·  New Game+ ${sum.plus}` : ''}`, 16, MUTED);
+        this.txt(x + 120, y + 86, `${DIFFICULTY[sum.difficulty || 'normal'].name}  ·  ${this.fmtTime(sum.time)}  ·  ${sum.deaths} death${sum.deaths === 1 ? '' : 's'}${sum.fallen ? '  ·  LOCKED' : ''}`, 16, sum.fallen ? CRIMSON : MUTED);
         this.txt(x + w - 30, y + 22, `${sum.pct}%`, 40, sum.pct >= 100 ? GOLD : INK, { display: true, origin: [1, 0] });
         const marks = (sum.cleared ? '討' : '') + (sum.trueEnding ? '　真' : '');
         if (marks) this.txt(x + w - 30, y + 76, marks, 22, sum.trueEnding ? GOLD : CRIMSON, { display: true, origin: [1, 0] });
@@ -326,18 +326,14 @@ class MenuScene extends Phaser.Scene {
     const ask = (key, label, fn) => ({ label: this.confirm === key ? `${label}: press again to confirm` : label, danger: true,
       act: () => { if (this.confirm === key) fn(); else { this.confirm = key; Sfx.play('deny'); this.render(); } } });
     const start = (mode) => { this.scene.stop(); title.startSlot(i, mode); };
-    // a new journey (or New Game+) first asks how hard it should be
-    const begin = (mode, from) => { this.newGame = { slot: i, mode, from }; this.go('difficulty'); this.sel = DIFFICULTY_ORDER.indexOf((from && from.difficulty) || 'normal'); this.render(); };
+    // a new journey first asks how hard it should be
+    const begin = (mode) => { this.newGame = { slot: i, mode }; this.go('difficulty'); this.sel = DIFFICULTY_ORDER.indexOf('normal'); this.render(); };
     if (sum) {
-      this.items = [{ label: 'Continue', act: () => start('continue') }];
-      if (sum.cleared) this.items.push({ label: `New Game+${sum.plus ? ' ' + (sum.plus + 1) : ''}`, right: 'keep your powers, face tougher foes', act: () => begin('plus', sum.d) });
+      this.items = [sum.fallen ? { label: 'Continue', right: 'locked: this journey fell', disabled: true, act: () => {} } : { label: 'Continue', act: () => start('continue') }];
       this.items.push(ask('over', 'Start over', () => begin('new')));
       this.items.push(ask('erase', 'Erase this journey', () => { GS.wipe(i); Sfx.play('break'); this.confirm = null; this.view = 'slots'; this.sel = i; this.render(); }));
     } else {
       this.items = [{ label: 'Begin a new journey', act: () => begin('new') }];
-      // once any journey has reached the story's end, an empty slot can start New Game+ from it
-      GS.plusSources().forEach(src => this.items.push({ label: `New Game+${src.d.plus ? ' ' + (src.d.plus + 1) : ''} from ${src.slot >= 0 ? `Journey ${SLOT_KANJI[src.slot]}` : 'your last finished journey'}`,
-        right: 'keep its powers, face tougher foes', act: () => begin('plus', src.d) }));
     }
     this.items.push({ label: 'Back', act: () => this.back() });
     this.items.forEach(it => { if (it.danger && this.confirm && it.label.includes('confirm')) it.rightColor = CRIMSON; });
@@ -659,7 +655,7 @@ class MenuScene extends Phaser.Scene {
   // Splits for this journey against the best ever, every favour asked, and the trials
   renderRecords() {
     const d = GS.data, best = GS.bestSplits();
-    this.title('Records', `${fmtClock(d.time)} on this journey · ${d.deaths} death${d.deaths === 1 ? '' : 's'}${d.plus ? ` · New Game+ ${d.plus}` : ''}`);
+    this.title('Records', `${fmtClock(d.time)} on this journey · ${d.deaths} death${d.deaths === 1 ? '' : 's'}`);
     const x = 110;
     this.txt(x, 178, 'SPLITS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     this.txt(x + 300, 178, 'THIS JOURNEY', 13, MUTED, { bold: true, origin: [1, 0] });
@@ -1081,7 +1077,7 @@ class MenuScene extends Phaser.Scene {
 
   renderInventory() {
     const d = GS.data;
-    this.title('Inventory', `${GS.completion()}% complete · ${this.fmtTime(d.time)}${d.plus ? ` · New Game+ ${d.plus}` : ''}`);
+    this.title('Inventory', `${GS.completion()}% complete · ${this.fmtTime(d.time)}`);
     this.txt(150, 172, 'POWERS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     ABILITY_ORDER.forEach((id, i) => {
       const a = ABILITIES[id], has = !!d.abilities[id];
