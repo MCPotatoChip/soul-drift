@@ -88,8 +88,8 @@ const DIFFICULTY = {
     desc: 'The journey as it was meant to be walked.' },
   hard:   { name: 'Hard', jp: '難', damage: 1, invuln: 0.8, reiatsu: 0.85, foeHp: 1.3, bossHp: 1.35, bossSpeed: 1.12, warn: false, bankaiCd: 1.3, eliteHome: 0.3, eliteAway: 0.12,
     desc: 'Foes have 30% more health and bosses 35% more, and bosses act 12% faster. Strikes draw less Reiatsu, you recover from a blow sooner, and Bankai takes longer to come back. Elite foes are far more common, and turn up everywhere.' },
-  absolute: { name: 'Absolute Bankai', jp: '絶', damage: 2, invuln: 0.7, reiatsu: 0.8, foeHp: 1.4, bossHp: 1.5, bossSpeed: 1.2, warn: false, bankaiCd: 1.4, eliteHome: 0.45, eliteAway: 0.25, permadeath: true,
-    desc: 'Every blow costs two masks. Foes have 40% more health and bosses 50% more, and bosses act 20% faster. Elite foes are everywhere. One death ends the journey: the save is locked and can only be erased.' },
+  absolute: { name: 'Absolute Bankai', jp: '絶', damage: 1, heavyBosses: ['final', 'yhwach', 'aizen'], invuln: 0.7, reiatsu: 0.8, foeHp: 1.4, bossHp: 1.5, bossSpeed: 1.2, warn: false, bankaiCd: 1.4, eliteHome: 0.45, eliteAway: 0.25, permadeath: true,
+    desc: 'Against the Hollow within, Yhwach and Aizen, every blow costs two masks. Foes have 40% more health and bosses 50% more, and bosses act 20% faster. Elite foes are everywhere. One death ends the journey: the save is locked and can only be erased, and the difficulty can never be changed.' },
 };
 const DIFFICULTY_ORDER = ['easy', 'normal', 'hard', 'absolute'];
 
@@ -207,13 +207,14 @@ const TOOLS = {
     needsClear: true },
 };
 
+// needs: an ability the seal is about; it is not on the shelf until you have it
 const SHOP_STOCK = [
   { type: 'seal', id: 'magnet', price: 80 },
-  { type: 'seal', id: 'swift', price: 150 },
+  { type: 'seal', id: 'swift', price: 150, needs: 'dash' },
   { type: 'tool', id: 'compass', price: 180 },   // only on the shelf once the Hollow within has fallen (see GS.shopOpen)
   { type: 'seal', id: 'quick', price: 220 },
   { type: 'fragment', id: 'shop', price: 300 },
-  { type: 'seal', id: 'gentei', price: 650 },
+  { type: 'seal', id: 'gentei', price: 650, needs: 'bankai' },
 ];
 
 // kanji: the region's name in Japanese, shown on its title card and on the map

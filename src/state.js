@@ -130,7 +130,7 @@ const GS = {
   // Levels of a power upgrade held (a trial that binds the seals leaves them be: upgrades are not seals)
   upgrade(id) { return (this.data.upgrades && this.data.upgrades[id]) || 0; },
   // The Pin Compass is not on the shelf until the story is over (a second journey keeps it for sale)
-  shopOpen(it) { const d = this.data; return !(it.type === 'tool' && TOOLS[it.id] && TOOLS[it.id].needsClear) || !!d.cleared; },
+  shopOpen(it) { const d = this.data; return (!(it.type === 'tool' && TOOLS[it.id] && TOOLS[it.id].needsClear) || !!d.cleared) && (!it.needs || !!d.abilities[it.needs]); },
   dropMul() { return this.data.equipped && this.data.equipped.includes('magnet') ? 1.25 : 1; },
 
   // A saved game without making it the current one (for the title screen and the slot list)
@@ -156,8 +156,9 @@ const GS = {
   },
   // Masks a blow of `n` really takes on this difficulty: half damage carries the remainder
   // to the next blow, so every second hit costs a mask. (GS.god, for testing, takes nothing.)
-  lose(n) {
-    const k = this.god ? 0 : this.diff().damage;
+  // heavy: the blow comes from a boss the difficulty hits twice as hard in (Absolute Bankai's last three)
+  lose(n, heavy = false) {
+    const k = this.god ? 0 : this.diff().damage * (heavy ? 2 : 1);
     this.comboBreak();
     if (!k) return 0;
     this.run.debt = (this.run.debt || 0) + n * k;

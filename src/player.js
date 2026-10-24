@@ -630,7 +630,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     Controls.rumble(200, 0.8, 0.5);
     if (['cling', 'dash', 'charge', 'burst'].includes(this.state)) body.setAllowGravity(true);
     GS.comboBreak();
-    GS.data.hp -= o.force ? amount : GS.lose(amount);
+    GS.data.hp -= o.force ? amount : GS.lose(amount, !!(s.boss && s.boss.fighting && s.boss.alive && (GS.diff().heavyBosses || []).includes(s.boss.id)));
     this.t.invuln = 1.1 * (o.force ? 1 : GS.diff().invuln) * (GS.sealOn('tesla') ? 1.4 : 1);
     Sfx.play('hurt');
     s.hitStop(0.1);
