@@ -17,6 +17,7 @@ const Settings = {
     ['shake', 'Screen shake', 'slider'],
     ['flash', 'Screen flashes', 'steps', [[0, 'off'], [0.5, 'soft'], [1, 'full']]],
     ['particles', 'Particles', 'steps', [[0.4, 'low'], [1, 'normal'], [1.6, 'high']]],
+    ['contrast', 'High-contrast attacks', 'steps', [[false, 'off'], [true, 'on']]],
     ['damageNumbers', 'Damage numbers', 'steps', [[false, 'off'], [true, 'on']]],
     ['rumble', 'Controller rumble', 'steps', [[false, 'off'], [true, 'on']]],
     ['timer', 'Speedrun timer', 'steps', [[false, 'off'], [true, 'on']]],
@@ -25,7 +26,7 @@ const Settings = {
   defaults() {
     const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
     return {
-      sfx: 0.8, music: 0.55, shake: 1, flash: 1, particles: coarse ? 0.4 : 1, damageNumbers: false, rumble: true, timer: false,
+      sfx: 0.8, music: 0.55, shake: 1, flash: 1, particles: coarse ? 0.4 : 1, contrast: false, damageNumbers: false, rumble: true, timer: false,
     };
   },
 

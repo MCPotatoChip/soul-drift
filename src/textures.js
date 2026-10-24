@@ -1110,6 +1110,16 @@ function makeAllTextures(scene) {
     }
   });
 
+  // An eye, for the ones that open across the screen when Yhwach arrives and close when he falls
+  canvasTex(scene, 'void_eye', 48, 24, c => {
+    const w = 44, h = 8, x = 24, y = 12;
+    c.fillStyle = '#dcd4e0';
+    c.beginPath(); c.moveTo(x - w / 2, y); c.quadraticCurveTo(x, y - h * 1.7, x + w / 2, y); c.quadraticCurveTo(x, y + h * 1.7, x - w / 2, y); c.fill();
+    c.fillStyle = '#c81830'; c.beginPath(); c.arc(x, y, h * 0.95, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#05030a'; c.fillRect(x - 1.5, y - h * 0.9, 3, h * 1.8);
+    c.strokeStyle = '#05030a'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(x - w / 2, y); c.quadraticCurveTo(x, y - h * 1.7, x + w / 2, y); c.quadraticCurveTo(x, y + h * 1.7, x - w / 2, y); c.stroke();
+  });
   Object.keys(TILE_PAL).forEach(r => { makeTileset(scene, r); makeBackgrounds(scene, r); });
 }
 

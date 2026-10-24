@@ -140,6 +140,7 @@ class MenuScene extends Phaser.Scene {
         const forms = FORM_ORDER.filter(f => d.forms[f]).length, palace = d.palace >= 1 && !d.gates.palace;
         this.items = [{ label: 'Equip seals', right: `${GS.usedSlots()}/${d.sealSlots} slots`, act: () => this.go('seals') }];
         if (forms > 1) this.items.push({ label: 'Zanpakutō form', right: GS.form().name, act: () => this.go('forms') });
+        this.items.push({ label: 'Outfit', right: OUTFITS[GS.outfit()].name, act: () => this.go('outfits') });
         this.items.push({ label: 'Difficulty', right: GS.diff().permadeath ? `${GS.diff().jp}  ${GS.diff().name}  (locked)` : `${GS.diff().jp}  ${GS.diff().name}`, disabled: !!GS.diff().permadeath, act: () => { this.newGame = null; this.go('difficulty'); this.sel = DIFFICULTY_ORDER.indexOf(d.difficulty); this.render(); } });
         this.items.push({ label: 'Travel', right: gates > 1 || palace ? `${gates + (palace ? 1 : 0)} gates` : 'find more gates', disabled: gates < 2 && !palace, act: () => (gates > 1 || palace) && this.go('travel') });
         this.items.push({ label: 'Rise', act: () => this.close() });
@@ -180,6 +181,7 @@ class MenuScene extends Phaser.Scene {
         break;
       }
       case 'forms': this.renderForms(); break;
+      case 'outfits': this.renderOutfits(); break;
       case 'trial': this.renderTrial(); break;
       case 'records': this.renderRecords(); break;
       case 'duels': this.renderDuels(); break;
@@ -582,6 +584,32 @@ class MenuScene extends Phaser.Scene {
       });
     } else if (cur) this.txt(px, 282, FORMS[cur.id].how || '', 20, MUTED, { wrap: 480 });
     this.footer(Controls.fmt('{jump} take this form · {attack} back'));
+  }
+
+  // Outfits: earned at the altar of trials, worn at any rest gate
+  renderOutfits() {
+    const d = GS.data;
+    this.title('Outfit', 'What Ichigo wears. Earn more at the altar of trials. Changing costs nothing.');
+    this.items = OUTFIT_ORDER.map(id => {
+      const o = OUTFITS[id], have = GS.outfitOwned(id), on = GS.outfit() === id;
+      return { id, label: have ? (on ? '● ' : '○ ') + o.name : '? ? ?', disabled: !have, right: have ? o.jp : '', rightColor: on ? GOLD : MUTED,
+        act: () => { d.outfit = id; GS.save(); Sfx.play('clang'); this.render(); } };
+    });
+    this.list(this.items, 170, 200, 54, 440);
+    const cur = this.items[this.sel], o = cur ? OUTFITS[cur.id] : null, px = 700;
+    if (o) {
+      const have = GS.outfitOwned(cur.id);
+      if (have) {
+        ensureOutfitArt(this, cur.id);
+        const key = cur.id === 'shihakusho' ? 'ichigo' : 'ichigo@' + cur.id;
+        const sp = this.add.sprite(px + 420, 330, key, 'idle0').setOrigin(0.5, HF.FEET / HF.H).setScale(7);
+        this.layer.add(sp);
+        this.txt(px, 192, o.name, 34, INK, { display: true });
+        this.txt(px, 236, o.jp, 18, CRIMSON, { display: true });
+        this.txt(px, 282, o.desc, 20, INK, { wrap: 290 });
+      } else this.txt(px, 282, o.how, 20, MUTED, { wrap: 480 });
+    }
+    this.footer(Controls.fmt('{jump} wear it · {attack} back'));
   }
 
   // ------------------------------------------------------------------ the trials
@@ -1125,7 +1153,9 @@ class MenuScene extends Phaser.Scene {
   // Konso let you hear them remember
   renderJournal() {
     const d = GS.data;
-    const seen = (k) => (d.kills[k] || 0) > 0 || d.memories[k] || d.bosses[k];
+    const rec = d.rush || { single: {} };
+    const won = (k) => !!(d.bosses[k] || (BOSS_KINDS.includes(k) && (rec.single && rec.single[k] || (rec.wins && !BOSSES[k].secret) || (k === RUSH_SECRET && rec.wins))));
+    const seen = (k) => (d.kills[k] || 0) > 0 || d.memories[k] || won(k);
     const met = BESTIARY.filter(([k]) => seen(k)).length;
     this.title('Journal', `Hollows, Shinigami and Arrancar you have faced · ${met} of ${BESTIARY.length}`);
     this.items = BESTIARY.map(([k, name]) => ({ k, label: seen(k) ? name : '? ? ?', disabled: false, act: () => {} }));
@@ -1136,7 +1166,7 @@ class MenuScene extends Phaser.Scene {
       if (on) this.selectStroke(x - 8, y + j * gap - 6, 400, gap - 6);
       const boss = BOSS_KINDS.includes(it.k);
       this.txt(x, y + j * gap, it.label, 20, !known ? '#4c4858' : on ? INK : '#b8b2c4', { bold: on });
-      if (boss && known) this.txt(x + 380, y + j * gap + 2, d.bosses[it.k] ? '討' : '', 18, CRIMSON, { display: true, origin: [1, 0] });
+      if (boss && known) this.txt(x + 380, y + j * gap + 2, won(it.k) ? '討' : '', 18, CRIMSON, { display: true, origin: [1, 0] });
       this.hit(x - 16, y + j * gap - 6, 400, gap - 6, () => { this.sel = i; this.render(); });
     });
     if (first > 0) this.txt(x + 180, y - 30, '▲', 14, MUTED, { origin: 0.5 });
@@ -1157,14 +1187,23 @@ class MenuScene extends Phaser.Scene {
         this.txt(px, 246, boss ? BOSSES[k].title : '', 17, GOLD, { bold: true });
         this.txt(px, 282, about, 19, INK, { wrap: 510 });
         const kills = d.kills[k] || 0;
-        this.txt(px, 392, boss ? (d.bosses[k] ? 'Defeated' : 'Not yet defeated') : `Sent on: ${kills} / ${STUDY_KILLS}`, 18, '#7fe8ff', { bold: true });
+        this.txt(px, 392, boss ? (won(k) ? `Defeated${kills > 1 ? ` · felled ${kills} times` : ''}` : 'Not yet defeated') : `Sent on: ${kills} / ${STUDY_KILLS}`, 18, '#7fe8ff', { bold: true });
+        if (boss) {
+          const sd = rec.single && rec.single[k];
+          this.txt(px, 414, sd ? `Best duel ${fmtClock(sd.best, true)}  ${'●'.repeat(sd.bound || 0)}${'○'.repeat(BINDING_ORDER.length - (sd.bound || 0))}` : 'Not yet fought alone at the altar of trials.', 15, sd ? GOLD : '#5c5868');
+        }
         if (!boss) {
           const a = kills >= STUDY_KILLS, b = !!d.memories[k];
           this.txt(px, 414, `Studied: ${a ? '◆' : '◇'} ${STUDY_KILLS} sent on · ${b ? '◆' : '◇'} memory heard  =  +${(a ? 5 : 0) + (b ? 5 : 0)}% damage against it`, 15, a || b ? GOLD : '#5c5868');
         }
         this.txt(px, 440, 'MEMORY', 14, MUTED, { bold: true, style: { letterSpacing: 3 } });
-        const mem = d.memories[k] && MEMORIES[k] ? MEMORIES[k][0] : Controls.fmt('Strike it with the Konso hilt ({konso}) to hear what it remembers.');
-        this.txt(px, 466, mem, 19, d.memories[k] ? '#cfe8ff' : '#5c5868', { wrap: 510, style: { fontStyle: d.memories[k] ? 'italic' : 'normal' } });
+        const heard = d.memories[k] || (boss && won(k));
+        const mem = heard && MEMORIES[k] ? MEMORIES[k][0] : Controls.fmt(boss ? 'It tells you nothing until it has fallen.' : 'Strike it with the Konso hilt ({konso}) to hear what it remembers.');
+        this.txt(px, 466, mem, 19, heard ? '#cfe8ff' : '#5c5868', { wrap: 510, style: { fontStyle: heard ? 'italic' : 'normal' } });
+        if (boss && won(k) && MEMORIES[k] && MEMORIES[k][1]) {
+          this.txt(px, 530, 'AFTER THE FIGHT', 14, MUTED, { bold: true, style: { letterSpacing: 3 } });
+          this.txt(px, 554, MEMORIES[k][1], 19, '#cfe8ff', { wrap: 510, style: { fontStyle: 'italic' } });
+        }
       }
     }
     this.footer(Controls.fmt('{up} {down} choose · {attack} back'));
@@ -1175,7 +1214,7 @@ class MenuScene extends Phaser.Scene {
   // ------------------------------------------------------------------ actions
   go(view) { if (view === 'map') { this.mapCam = null; this.mapPulse = null; } this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); this.popIn(); }
   back() {
-    const parent = { seals: 'rest', travel: 'rest', forms: 'rest', difficulty: this.newGame ? 'slot' : 'rest', controls: 'pause', settings: 'pause', slot: 'slots', records: 'pause', duels: 'trial' }[this.view];
+    const parent = { seals: 'rest', travel: 'rest', forms: 'rest', outfits: 'rest', difficulty: this.newGame ? 'slot' : 'rest', controls: 'pause', settings: 'pause', slot: 'slots', records: 'pause', duels: 'trial' }[this.view];
     if (parent && this.type !== this.view) { this.view = parent; this.sel = parent === 'slots' ? this.slotSel || 0 : 0; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); this.popIn(); }
     else if (['map', 'inventory', 'journal', 'records'].includes(this.view) && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); this.popIn(); }
     else this.close();

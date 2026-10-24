@@ -65,6 +65,7 @@ const GS = {
       notes: [],             // things the game tells the player once on loading (what a migration changed)
       forms: { zangetsu: true },   // Zanpakutō forms owned
       form: 'zangetsu',      // the form in hand
+      outfit: 'shihakusho',  // Ichigo's outfit (see OUTFITS)
       pins: [],              // map pins: { room, x, y, kind } (x, y in tiles inside the room)
       splits: {},            // boss id -> play time when it first fell (the speedrun splits)
       items: {},             // quest items carried: id -> true
@@ -368,6 +369,19 @@ const GS = {
     return (this._totals = t);
   },
 
+  // Outfits are earned at the altar of trials
+  outfitOwned(id, d = this.data) {
+    const rec = d.rush || {}, single = rec.single || {};
+    switch (id) {
+      case 'shihakusho': return true;
+      case 'crimson': return Object.values(single).some(x => (x.bound || 0) >= 1) || !!(rec.bound && Object.keys(rec.bound).length);
+      case 'moonlit': return Object.values(single).some(x => (x.bound || 0) >= 3) || !!(rec.bound && rec.bound.all);
+      case 'gilded': return !!(rec.bound && rec.bound.all);
+      case 'quincy': return !!rec.wins || !!single[RUSH_SECRET];
+    }
+    return false;
+  },
+  outfit() { const id = this.data.outfit; return OUTFITS[id] && this.outfitOwned(id) ? id : 'shihakusho'; },
   // The completion percentage stays hidden until the journey has been cleared (Aizen beaten)
   showPct(d = this.data) { return !!(d && (d.cleared || d.trueEnding)); },
   completion(d = this.data) {
