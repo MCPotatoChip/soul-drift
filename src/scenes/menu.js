@@ -1089,7 +1089,7 @@ class MenuScene extends Phaser.Scene {
       ['Health', `${d.maxHp} masks`], ['Soul fragments', `${d.fragments} / 4  (${d.fragmentsTotal} of ${T.fragments} found)`],
       ['Zanpakutō edge', `level ${d.swordLevel || 0} of ${FORGE.length}`], ['Reishi ore', String(d.ore || 0)],
       ['Lost pluses sent on', `${d.pluses} / ${T.pluses}`], ['Seal slots', `${GS.usedSlots()} / ${d.sealSlots} used`],
-      ['Reishi', String(d.reishi)], ['Bosses felled', `${Object.keys(d.bosses).filter(b => BOSSES[b]).length} / ${T.bosses}`],
+      ['Reishi', String(d.reishi)], ['Bosses felled', `${STORY_BOSSES.filter(b => d.bosses[b]).length} / ${T.bosses}`],
     ];
     rows.forEach(([k, v], i) => {
       this.txt(x, 210 + i * 31, k, 19, '#b8b2c4');

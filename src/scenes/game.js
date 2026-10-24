@@ -274,7 +274,18 @@ class GameScene extends Phaser.Scene {
         case 'left': x = (door.x + 2) * TILE; feet = (door.y + 1) * TILE; facing = 1; break;
         case 'right': x = (door.x - 1) * TILE; feet = (door.y + 1) * TILE; facing = -1; break;
         case 'top': x = door.x * TILE + 8; feet = (door.y + 2) * TILE + 4; break;
-        case 'bottom': x = door.x * TILE + 8; feet = (door.y + 1) * TILE - 2; vy = -PHYS.popUp; break;
+        case 'bottom': {
+          x = door.x * TILE + 8; feet = (door.y + 1) * TILE - 2;
+          // up out of the shaft to three and a half tiles over the floor around its mouth, however deep the shaft is, or
+          // just over the ledge above the shaft if one sits higher (the ledge over every floor doorway catches you)
+          let row = door.y;
+          while (row > 0 && (this.isSolidAt(x - 2 * TILE, row * TILE + 8) || this.isSolidAt(x + 2 * TILE, row * TILE + 8))) row--;
+          const floorTop = (row + 1) * TILE;
+          let top = floorTop - 3.5 * TILE;
+          for (let r = row; r >= Math.max(0, row - 6); r--) if (this.isGroundAt(x, r * TILE + 8)) { top = Math.min(top, r * TILE - 8); break; }
+          vy = -Math.max(PHYS.popUp, Math.sqrt(2 * PHYS.gravity * Math.max(0, feet - top)));
+          break;
+        }
       }
     } else if (e.spawn === 'rest' && this.restGate) {
       x = this.restGate.x; feet = this.restGate.feet;

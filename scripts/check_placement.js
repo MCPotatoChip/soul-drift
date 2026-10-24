@@ -23,7 +23,7 @@
 // scripts/build_rooms.py, which puts the foes where this checker wants them.
 // ---------------------------------------------------------------------------
 'use strict';
-const { ROOMS, TILE, ABIL, explore, journey } = require('./check_world.js');
+const { ROOMS, TILE, ABIL, explore, journey, relevant } = require('./check_world.js');
 
 const GROUND = 'eganiqmxbj';     // foes that walk the floor (the Adjuchas charges along it)
 const FLYING = 'h';              // Lesser Hollow swarms
@@ -35,6 +35,21 @@ const APART_GROUND = 6;          // tiles between two foes on the same floor
 const APART_ANY = 5;             // tiles between any two foes
 const REACH_FLY = 9;             // a swarm this far from every place you can stand never wakes
 const ARENAS = ['kar_study'];    // rooms whose planks are for fighting on
+// Planks the movement model calls redundant that are kept on purpose: [room, x0, y, why]. The model counts moves, not
+// distance or danger, so it cannot see a staircase that shows the way, a bridge, or stepping stones over spikes.
+const KEEP = [
+  ['kar_alley', 20, 15, 'the first step of the stair to the floating Senkaimon'],
+  ['kar_canal', 17, 15, 'the stair up onto the high walk, from the west'], ['kar_canal', 24, 11, 'the stair up onto the high walk, from the west'],
+  ['sok_1', 14, 5, 'part of the bridge of planks to the Pressure Shrine'],
+  ['sei_barracks', 29, 14, 'the step up to the caster on the high plank'],
+  ['sok_stair', 25, 14, 'the stair toward the fragment pillar'], ['sok_stair', 35, 11, 'the stair toward the fragment pillar'], ['sok_stair', 55, 15, 'the step to the fragment pillar from the east'],
+  ['hm_1', 67, 10, 'a bone step on the way up to the Sinking Dunes'],
+  ['hm_2', 48, 18, 'the middle step of the stair to the upgrade'],
+  ['hm_dunes', 27, 17, 'the stair toward the mesa'], ['hm_dunes', 75, 22, 'the stair up to the Bone Vault'], ['hm_dunes', 79, 18, 'the stair up to the Bone Vault'],
+  ['hm_vault', 16, 11, 'the way across the top of the vault'],
+  ['dangai_1', 53, 15, 'stepping stones over the spikes, with the Kototsu behind you'], ['dangai_1', 57, 15, 'stepping stones over the spikes, with the Kototsu behind you'],
+  ['forest_depths', 19, 18, 'the first step of the stair to the upgrade'],
+];
 
 function cells(rows, set) {
   const out = [];
@@ -85,11 +100,14 @@ function reachMap(rid, A, tiles) {
 }
 // Taking something away hurts if anything becomes unreachable or takes more moves to reach
 const worse = (base, now) => Object.keys(base).some(k => now[k] === undefined || now[k] > base[k]);
-// Every place you can stand (tiles), from every way in, with every power
+// Every place you can stand (tiles), from every way in, with every power. A lantern room is walked both lit (the model's
+// usual view: gold barriers open, blue walls standing) and dark (gold barriers shut, no blue walls).
 function standCells(rid, A) {
-  const out = new Map();
-  for (const e of Object.keys(ROOMS[rid].doors).concat(['rest', 'start'])) {
-    const res = explore(rid, A, e, { full: true });
+  const out = new Map(), rows = ROOMS[rid].tiles;
+  const views = [undefined];
+  if (rows.some(r => /[KQ]/.test(r))) views.push(rows.map(r => r.replace(/K/g, '.').replace(/Q/g, '#')));
+  for (const tiles of views) for (const e of Object.keys(ROOMS[rid].doors).concat(['rest', 'start'])) {
+    const res = explore(rid, A, e, { full: true, tiles });
     if (!res) continue;
     for (const st of res.stands) {
       const x = Math.floor(st.x / TILE), y = Math.floor((st.y - 1) / TILE);
@@ -97,6 +115,18 @@ function standCells(rid, A) {
     }
   }
   return [...out.values()];
+}
+// Every set of powers the room is visited with over the journey: from the first visit, adding each power in the order
+// the journey hands them out (only the powers that change something in this room tell two sets apart)
+function visitSets(rid, first) {
+  const order = (journey.order || []).slice(), sets = [], seen = new Set();
+  const A = Object.assign({ konso: true }, first || {});
+  const add = () => { const k = Object.keys(relevant(rid, A)).sort().join(','); if (!seen.has(k)) { seen.add(k); sets.push(Object.assign({}, A)); } };
+  add();
+  for (const a of order) { A[a] = true; add(); }
+  ABIL.forEach(a => { A[a] = true; });
+  add();
+  return sets;
 }
 // Plank runs ('=' in a row) and moving platforms
 function planks(rows) {
@@ -119,7 +149,6 @@ function planks(rows) {
 function checkRoom(rid, first) {
   const r = ROOMS[rid], rows = r.tiles, W = rows[0].length, problems = [];
   const all = Object.fromEntries(ABIL.map(a => [a, true]));
-  const early = Object.assign({ konso: true }, first || {});
   const foes = cells(rows, FOES), ins = entries(rows);
   const stands = standCells(rid, all);
   const where = (f) => `${f.ch}@${f.x},${f.y}`;
@@ -163,8 +192,14 @@ function checkRoom(rid, first) {
   // ---- planks that do nothing (with --cuts, each one found is taken away before the next is tried)
   if (!r.boss && !ARENAS.includes(rid)) {
     let cur = rows.slice();
-    let base = { early: reachMap(rid, early), all: reachMap(rid, all) };
+    const sets = visitSets(rid, first);
+    let base = sets.map(A => reachMap(rid, A));
+    const H = rows.length, below = [];
+    rows[H - 1].split('').forEach((ch, x) => { if (ch >= '1' && ch <= '9') below.push(x); });
     for (const p of planks(rows)) {
+      // over a doorway in the floor: it catches you as you come up, instead of letting you drop straight back out
+      if (p.y >= H - 12 && below.some(x => x >= p.x0 && x <= p.x1)) continue;
+      if (KEEP.some(([kr, kx, ky]) => kr === rid && kx === p.x0 && ky === p.y)) continue;
       // something stands on it, or hangs just above it
       const onIt = [];
       for (let x = p.x0; x <= p.x1; x++) for (const dy of [1, 2]) {
@@ -175,8 +210,8 @@ function checkRoom(rid, first) {
       const t = cur.map(row => row.split(''));
       for (let x = p.x0; x <= p.x1; x++) t[p.y][x] = '.';
       const tiles = t.map(row => row.join(''));
-      const now = { early: reachMap(rid, early, tiles), all: reachMap(rid, all, tiles) };
-      if (!worse(base.early, now.early) && !worse(base.all, now.all)) {
+      const now = sets.map(A => reachMap(rid, A, tiles));
+      if (!now.some((m, i) => worse(base[i], m))) {
         problems.push(`plank ${p.ch} x${p.x0}-${p.x1} y${p.y} (${p.x1 - p.x0 + 1} wide) leads nowhere and shortens no way`);
         if (CUTS) { cut.push([rid, p.x0, p.x1, p.y]); cur = tiles; base = now; }
       }
@@ -186,11 +221,12 @@ function checkRoom(rid, first) {
 }
 
 const CUTS = process.argv.includes('--cuts'), cut = [];
-const only = process.argv.slice(2).find(a => !a.startsWith('--'));
-journey();
+const only = process.argv.slice(2).filter(a => !a.startsWith('--'));
+const J = journey();
+journey.order = J.got.filter(e => e.what.startsWith('ability ')).map(e => e.what.split(' ')[1]);
 const first = journey.first || {};
 let bad = 0;
-for (const rid of only ? [only] : Object.keys(ROOMS)) {
+for (const rid of only.length ? only : Object.keys(ROOMS)) {
   if (!ROOMS[rid]) { console.log('no room', rid); process.exit(1); }
   const p = checkRoom(rid, first[rid]);
   if (!p.length) continue;
