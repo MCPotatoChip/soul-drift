@@ -1230,20 +1230,33 @@ class GameScene extends Phaser.Scene {
     this.pickups.push(pk);
     this.fx.ring(x, this.arena.floor - 16, pk.color, 50, 700, 3);
   }
+  // The floor flashes red under a visible countdown (3, 2, 1) and "!" marks before the cells fall away
   collapseFloor() {
-    const g = this.add.graphics().setDepth(31);
-    let n = 0;
-    this.time.addEvent({
-      delay: 100, repeat: 11, callback: () => {
-        n++;
+    const g = this.add.graphics().setDepth(31), total = 2.8;
+    const cells = this.collapseCells, xs = cells.map(c => c.x * TILE + TILE / 2);
+    const cx = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : this.player.x, top = Math.min(...cells.map(c => c.y * TILE));
+    const num = this.add.text(cx, top - 26, '', { fontFamily: 'monospace', fontSize: '22px', fontStyle: 'bold', color: '#ff4050', stroke: '#000000', strokeThickness: 4 }).setOrigin(0.5).setDepth(32);
+    const marks = [];
+    for (let x = Math.min(...xs); x <= Math.max(...xs); x += TILE * 4) {
+      marks.push(this.add.text(x, top - 6, '!', { fontFamily: 'monospace', fontSize: '14px', fontStyle: 'bold', color: '#ffe040', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5).setDepth(32));
+    }
+    let e = 0;
+    Sfx.play('telegraph');
+    this.fx.shake(total * 1000, 0.004);
+    const ev = this.time.addEvent({
+      delay: 50, loop: true, callback: () => {
+        e += 0.05;
+        const left = Math.max(0, total - e), n = Math.ceil(left);
+        if (n !== num.getData('n')) { num.setData('n', n); num.setText('! ' + n + ' !'); if (n > 0) Sfx.play('telegraph'); }
         g.clear();
-        if (n % 2) { g.fillStyle(0xff3040, 0.4); this.collapseCells.forEach(c => g.fillRect(c.x * TILE, c.y * TILE, TILE, TILE)); }
+        const fast = left < 1 ? 0.07 : 0.12;
+        if (Math.floor(e / fast) % 2 === 0) { g.fillStyle(0xff3040, 0.55); cells.forEach(c => g.fillRect(c.x * TILE, c.y * TILE, TILE, TILE)); }
+        marks.forEach((m, i) => m.setY(top - 6 - Math.abs(Math.sin(e * 8 + i)) * 4));
       },
     });
-    this.fx.shake(1200, 0.004);
-    this.time.delayedCall(1250, () => {
-      g.destroy();
-      this.collapseCells.forEach(c => {
+    this.time.delayedCall(total * 1000, () => {
+      ev.remove(); g.destroy(); num.destroy(); marks.forEach(m => m.destroy());
+      cells.forEach(c => {
         this.solid.removeTileAt(c.x, c.y);
         if (Math.random() < 0.5) this.fx.debris(c.x * TILE + 8, c.y * TILE + 8, 0xaaa6b8, 3);
       });

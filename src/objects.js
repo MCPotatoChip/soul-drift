@@ -9,6 +9,24 @@ function approach(v, target, delta) {
   return v;
 }
 
+// The palace is white: pale light and ADD-blended glow vanish against it. There, pale colours are drawn as dark ink and
+// faint fills are firmed up, so every telegraph and projectile reads.
+function inkOn(scene) { return !!scene && scene.region === 'rei'; }
+function ink(scene, c) {
+  if (!inkOn(scene) || c === undefined || c === null) return c;
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  if (0.299 * r + 0.587 * g + 0.114 * b < 120) return c;
+  const k = 0.32;
+  return (Math.round(r * k) << 16) | (Math.round(g * k) << 8) | Math.round(b * k);
+}
+function inkGraphics(scene, g) {
+  if (!inkOn(scene)) return g;
+  const ls = g.lineStyle.bind(g), fs = g.fillStyle.bind(g), boost = a => (a === undefined ? 1 : Math.min(1, a * 1.5 + 0.12));
+  g.lineStyle = (w, c, a) => ls(w, ink(scene, c), boost(a));
+  g.fillStyle = (c, a) => fs(ink(scene, c), boost(a));
+  return g;
+}
+
 function bodyRect(b) { return new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height); }
 
 // Phaser requests the next frame only after the update returns, so one uncaught error freezes the game until it is
@@ -68,7 +86,7 @@ class Fx {
   }
 
   slashArc(x, y, dir, color = 0xffffff, scale = 1.4) {
-    const s = this.s.add.image(x, y, 'slash').setDepth(24).setFlipX(dir < 0).setTint(color).setScale(scale);
+    const s = this.s.add.image(x, y, 'slash').setDepth(24).setFlipX(dir < 0).setTint(ink(this.s, color)).setScale(scale);
     this.s.tweens.add({ targets: s, alpha: 0, duration: 160, onComplete: () => s.destroy() });
   }
 
@@ -519,7 +537,7 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
     if (o.rotate) this.setRotation(Math.atan2(vy, vx));
     if (o.flipX) this.setFlipX(true);
     if (o.scale) this.setScale(o.scale);
-    if (o.tint) this.setTint(o.tint);
+    if (o.tint || inkOn(scene)) this.setTint(ink(scene, o.tint || 0xffffff));
     scene.eShots.push(this);
   }
   tick(dt) {

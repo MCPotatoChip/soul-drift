@@ -24,8 +24,8 @@ class Boss extends Enemy {
     this.phase = 1;
     this.spd = 1;
     this.ai = null;
-    this.gfx = scene.add.graphics().setDepth(30);
-    this.under = scene.add.graphics().setDepth(14);   // whips, serpents: drawn behind the boss
+    this.gfx = inkGraphics(scene, scene.add.graphics().setDepth(30));
+    this.under = inkGraphics(scene, scene.add.graphics().setDepth(14));   // whips, serpents: drawn behind the boss
     this.poseName = null; this.poseT = 0;
     this.recent = []; this.used = {}; this.clock = 0;
     this.sinceNear = 0; this.history = []; this.histT = 0;
@@ -2350,7 +2350,7 @@ class Vasto extends Boss {
     Sfx.play('roar');
     this.scene.fx.floatText(this.x, this.y - 20, 'The sand throne cracks apart!', '#ffd0a0');
     this.scene.collapseFloor();
-    yield 1.8;
+    yield 3.0;
     this.invulnerable = false;
     yield* this.blink(this.x, this.hoverY());
     yield* this.brain();
@@ -2884,8 +2884,8 @@ class Aizen extends Duelist {
 // At 35%, the Almighty: he sees where you are going, and strikes there.
 class Yhwach extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'yhwach', key: 'yhwach', hp: 1650, drop: 0, kind: 'yhwach', bh: 28, scale: 1.08, auraTint: 0x8ac8ff });
-    this.walkSpeed = 66; this.prefer = 90; this.patience = 2.4; this.pause = 0.42; this.spd = 1.15;
+    super(scene, x, feet, { id: 'yhwach', key: 'yhwach', hp: 1900, drop: 0, kind: 'yhwach', bh: 28, scale: 1.08, auraTint: 0x8ac8ff });
+    this.walkSpeed = 66; this.prefer = 90; this.patience = 2.4; this.pause = 0.3; this.spd = 1.3;
     this.introLine = '"I have seen how this ends, my son. Kneel."';
     this.lineColor = '#cfe4ff';
     this.vene = 0;
@@ -2898,7 +2898,7 @@ class Yhwach extends Duelist {
       { name: 'schatten', w: 2, range: [120, 700], cd: 4.5 },
       { name: 'auswahlen', w: 2.8, phase: 2, cd: 7, punish: true },
       { name: 'bluteVene', w: 1.8, phase: 2, cd: 12, when() { return this.vene <= 0; } },
-      { name: 'almightyCut', w: 3, phase: 3, cd: 2.2 },
+      { name: 'almightyCut', w: 3, phase: 3, cd: 1.6 },
       { name: 'eyes', w: 2.6, phase: 3, cd: 6, punish: true },
     ];
   }
@@ -2919,11 +2919,11 @@ class Yhwach extends Duelist {
   // floor; then he stands a moment with the blade down, open
   *broadCuts() {
     yield* this.walkToward(56, 0.8, this.walkSpeed * 1.5);
-    const n = this.phase >= 2 ? 3 : 2;
+    const n = this.phase >= 2 ? 4 : 3;
     for (let i = 0; i < n; i++) {
       const at = this.future(0.25);
       this.faceTo(at.x);
-      yield* this.tele(i ? 0.32 : 0.48, 0x8ac8ff, 'windup');
+      yield* this.tele(i ? 0.24 : 0.38, 0x8ac8ff, 'windup');
       this.body.setVelocityX(this.facing * 60);
       this.slashBox(50, 36, 0.14, 0xbfe0ff, 1.9);
       if (i === n - 1 && this.phase >= 2) this.shock(this.x + this.facing * 30, this.facing, 0x8ac8ff, 280, 1.2);
@@ -2943,18 +2943,24 @@ class Yhwach extends Duelist {
     Sfx.play('charge');
     while (e < 0.45 / this.spd) { e += this.dt; g.clear(); g.lineStyle(2, 0x8ac8ff, 0.8).beginPath().arc(ox, oy, 12, -1.2 + (this.facing < 0 ? Math.PI : 0), 1.2 + (this.facing < 0 ? Math.PI : 0)).strokePath(); yield 0; }
     g.clear();
-    const at = this.future(0.3), base = Math.atan2(at.y - oy, at.x - ox), n = this.phase >= 2 ? 5 : 3;
+    const at = this.future(0.3), base = Math.atan2(at.y - oy, at.x - ox), n = this.phase >= 2 ? 7 : 5;
     for (let i = 0; i < n; i++) {
       const a = base + (i - (n - 1) / 2) * 0.1;
-      new EnemyShot(s, ox, oy, 'needle', Math.cos(a) * 400, Math.sin(a) * 400, { dmg: 1, life: 1.8, rotate: true, w: 5, h: 5, tint: 0x8ac8ff, scale: 1.6 });
+      new EnemyShot(s, ox, oy, 'needle', Math.cos(a) * 470, Math.sin(a) * 470, { dmg: 1, life: 1.8, rotate: true, w: 5, h: 5, tint: 0x8ac8ff, scale: 1.6 });
     }
     Sfx.play('zap');
-    yield 0.45;
+    if (this.phase >= 2) {   // a second fan follows, aimed at where you dodged to
+      yield 0.35 / this.spd;
+      const b2 = this.future(0.3), a2 = Math.atan2(b2.y - oy, b2.x - ox);
+      for (let i = 0; i < 5; i++) { const a = a2 + (i - 2) * 0.12; new EnemyShot(s, ox, oy, 'needle', Math.cos(a) * 470, Math.sin(a) * 470, { dmg: 1, life: 1.8, rotate: true, w: 5, h: 5, tint: 0x8ac8ff, scale: 1.6 }); }
+      Sfx.play('zap');
+    }
+    yield 0.4;
   }
   // A wall of arrows rises at the far end of the room and crosses all of it. Either it leaves the floor clear (stay
   // down) or it only covers the floor and the air just above it (jump it): the points of light show which.
   *arrowWall() {
-    const s = this.scene, a = this.arena, g = this.gfx, waves = this.phase >= 2 ? 2 : 1;
+    const s = this.scene, a = this.arena, g = this.gfx, waves = this.phase >= 2 ? 3 : 2;
     this.setPose('raise', 1.5);
     for (let wv = 0; wv < waves; wv++) {
       const fromLeft = this.player.x > (a.left + a.right) / 2, x0 = fromLeft ? a.left + 8 : a.right - 8, dir = fromLeft ? 1 : -1;
@@ -2962,11 +2968,11 @@ class Yhwach extends Duelist {
       const ys = [];
       for (let r = 0; r < 7; r++) if (low ? r >= 2 : r <= 3) ys.push(a.floor - 10 - r * step);
       let e = 0;
-      const T = 0.8 / this.spd;
+      const T = 0.65 / this.spd;
       Sfx.play('telegraph');
       while (e < T) { e += this.dt; g.clear(); ys.forEach(y => g.fillStyle(0x8ac8ff, 0.3 + 0.6 * (e / T)).fillRect(x0 - 4, y - 1, 8, 2)); yield 0; }
       g.clear();
-      ys.forEach(y => new EnemyShot(s, x0, y, 'needle', dir * 360, 0, { dmg: 1, life: 2.6, rotate: true, w: 8, h: 4, tint: 0xbfe0ff, scale: 1.6, passWalls: true }));
+      ys.forEach(y => new EnemyShot(s, x0, y, 'needle', dir * 430, 0, { dmg: 1, life: 2.6, rotate: true, w: 8, h: 4, tint: 0xbfe0ff, scale: 1.6, passWalls: true }));
       Sfx.play('zap');
       yield 0.55 / this.spd;
     }
@@ -2979,7 +2985,7 @@ class Yhwach extends Duelist {
     this.setAlpha(0); this.invulnerable = true;
     Sfx.play('dash');
     let px = this.player.x, e = 0;
-    const T = 0.65 / this.spd;
+    const T = 0.5 / this.spd;
     while (e < T) {
       e += this.dt;
       if (e < T * 0.6) px += (this.player.x - px) * Math.min(1, this.dt * 6);
@@ -3003,14 +3009,14 @@ class Yhwach extends Duelist {
     const s = this.scene, a = this.arena, g = this.gfx, p = this.player;
     this.setPose('raise', 2.4);
     if (!this.ausSaid) { this.ausSaid = true; s.fx.floatText(this.x, this.y - 34, '"Auswählen. I take back what I gave."', '#cfe4ff'); }
-    for (let wv = 0; wv < 2; wv++) {
+    for (let wv = 0; wv < 3; wv++) {
       const xs = [];
       const at = this.future(0.5).x;
       xs.push(at);
-      for (let i = 1; i <= 3; i++) for (const sg of [-1, 1]) xs.push(at + sg * i * (wv ? 58 : 76));
+      for (let i = 1; i <= 3; i++) for (const sg of [-1, 1]) xs.push(at + sg * i * (wv ? 50 : 66));
       const cols = xs.filter(x => x > a.left + 8 && x < a.right - 8);
       let e = 0;
-      const T = 0.85 / this.spd;
+      const T = 0.7 / this.spd;
       Sfx.play('charge');
       while (e < T) { e += this.dt; g.clear(); cols.forEach(x => { g.lineStyle(1, 0xcfe4ff, 0.25 + 0.5 * (e / T)).lineBetween(x, a.top, x, a.floor); }); yield 0; }
       g.clear();
@@ -3084,7 +3090,7 @@ class Yhwach extends Duelist {
     yield* this.changeForm(null, '"You carry my blood. All of it returns to me."', { text: 'AUSWÄHLEN', color: '#8ac8ff', small: 'the father takes back' }, 0x8ac8ff, '#cfe4ff');
     this.aura.emitting = true;
     this.scene.setDarkness(0.45);
-    this.spd = 1.25; this.pause = 0.34;
+    this.spd = 1.42; this.pause = 0.24;
     yield* this.brain();
   }
   *almighty() {
@@ -3099,7 +3105,7 @@ class Yhwach extends Duelist {
       this.scene.toast('He looked at your Bankai, and it broke.');
       Sfx.play('break');
     }
-    this.spd = 1.32; this.pause = 0.28;
+    this.spd = 1.58; this.pause = 0.18;
     yield* this.brain();
   }
 }
