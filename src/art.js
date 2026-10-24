@@ -1131,6 +1131,13 @@ function humanoidAnimsBase(st) {
       { lean: 4, crouch: 1, ff: [5, 2], bf: [-8, 2], fh: [-4, 7], bh: [-7, 6], sway: -3, coatSway: -5, weapon: hand ? W(168) : null },
     ], 2, true), 18, -1],
     cling: [tween([{ lean: -1, ff: [1, 3], bf: [-6, 4], fh: [3, 6], bh: [-7, 1], weapon: idleW }, { lean: -1, bob: 1, ff: [1, 3], bf: [-6, 4], fh: [3, 7], bh: [-7, 1], sway: 0.5, weapon: idleW }], 2, true), 5, -1],
+    // Climbing: hands reach up the wall one after the other while the feet scrabble, the body bobbing with each pull
+    climb: [tween([
+      { lean: -1, bob: 0, ff: [1, 4], bf: [-6, 1], fh: [3, -3], bh: [-7, 5], sway: 0.5, weapon: idleW },
+      { lean: -1, bob: 1, ff: [1, 2], bf: [-6, 4], fh: [3, 1], bh: [-7, -1], sway: 0, weapon: idleW },
+      { lean: -1, bob: 0, ff: [1, 1], bf: [-6, 5], fh: [3, 6], bh: [-7, -3], sway: 0.5, weapon: idleW },
+      { lean: -1, bob: 1, ff: [1, 4], bf: [-6, 2], fh: [3, 0], bh: [-7, 3], sway: 0, weapon: idleW },
+    ], 2, true), 12, -1],
     focus: [tween([{ crouch: 2, ff: [3, 0], bf: [-3, 0], fh: [4, 3], bh: [3, 4], weapon: hand ? W(80) : null }, { crouch: 2, bob: 1, ff: [3, 0], bf: [-3, 0], fh: [4, 4], bh: [3, 5], sway: 0.5, weapon: hand ? W(80) : null }], 3, true), 7, -1],
     cast: [tween([
       { lean: -1, ff: [3, 0], bf: [-4, 0], fh: [-2, 4], bh: [-4, 7], sway: 1, weapon: idleW },

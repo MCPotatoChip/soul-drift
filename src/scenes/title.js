@@ -98,7 +98,7 @@ class TitleScene extends Phaser.Scene {
   }
   refreshSummary() {
     const sum = this.hasSave && GS.summary(GS.slot);
-    this.sumText.setText(sum ? `${SLOT_KANJI[GS.slot]}  ${sum.room} · ${sum.pct}%` : '');
+    this.sumText.setText(sum ? `${SLOT_KANJI[GS.slot]}  ${sum.room}${sum.showPct ? ` · ${sum.pct}%` : ''}` : '');
   }
   // The Journeys screen may have erased the journey that Continue points at: the first entry follows the saves
   refreshSaves() {

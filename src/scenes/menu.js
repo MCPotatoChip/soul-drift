@@ -313,7 +313,7 @@ class MenuScene extends Phaser.Scene {
         this.txt(x + 120, y + 18, sum.room, 28, on ? INK : '#cfc9d8', { display: true });
         this.txt(x + 120, y + 60, `${reg.kanji}  ${reg.name}`, 17, '#' + reg.color.toString(16).padStart(6, '0'), { bold: true });
         this.txt(x + 120, y + 86, `${DIFFICULTY[sum.difficulty || 'normal'].name}  ·  ${this.fmtTime(sum.time)}  ·  ${sum.deaths} death${sum.deaths === 1 ? '' : 's'}${sum.fallen ? '  ·  LOCKED' : ''}`, 16, sum.fallen ? CRIMSON : MUTED);
-        this.txt(x + w - 30, y + 22, `${sum.pct}%`, 40, sum.pct >= 100 ? GOLD : INK, { display: true, origin: [1, 0] });
+        if (sum.showPct) this.txt(x + w - 30, y + 22, `${sum.pct}%`, 40, sum.pct >= 100 ? GOLD : INK, { display: true, origin: [1, 0] });
         const marks = (sum.cleared ? '討' : '') + (sum.trueEnding ? '　真' : '');
         if (marks) this.txt(x + w - 30, y + 76, marks, 22, sum.trueEnding ? GOLD : CRIMSON, { display: true, origin: [1, 0] });
       }
@@ -327,7 +327,7 @@ class MenuScene extends Phaser.Scene {
   }
   renderSlot() {
     const i = this.slotSel, sum = GS.summary(i), title = this.scene.get('title');
-    this.title(`Journey ${SLOT_KANJI[i]}`, sum ? `${sum.room}  ·  ${sum.pct}% complete  ·  ${this.fmtTime(sum.time)}` : 'An empty page');
+    this.title(`Journey ${SLOT_KANJI[i]}`, sum ? `${sum.room}  ·  ${sum.showPct ? `${sum.pct}% complete  ·  ` : ''}${this.fmtTime(sum.time)}` : 'An empty page');
     const ask = (key, label, fn) => ({ label: this.confirm === key ? `${label}: press again to confirm` : label, danger: true,
       act: () => { if (this.confirm === key) fn(); else { this.confirm = key; Sfx.play('deny'); this.render(); } } });
     const start = (mode) => { this.scene.stop(); title.startSlot(i, mode); };
@@ -1083,7 +1083,7 @@ class MenuScene extends Phaser.Scene {
 
   renderInventory() {
     const d = GS.data;
-    this.title('Inventory', `${GS.completion()}% complete · ${this.fmtTime(d.time)}`);
+    this.title('Inventory', `${GS.showPct() ? `${GS.completion()}% complete · ` : ''}${this.fmtTime(d.time)}`);
     this.txt(150, 172, 'POWERS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     ABILITY_ORDER.forEach((id, i) => {
       const a = ABILITIES[id], has = !!d.abilities[id];

@@ -349,7 +349,7 @@ const GS = {
     const d = this.peek(slot);
     if (!d) return null;
     const room = ROOMS[d.room] || ROOMS.kar_hub;
-    return { d, room: room.name, region: room.region, pct: this.completion(d), time: d.time, deaths: d.deaths, fallen: !!d.fallen, cleared: d.cleared, trueEnding: d.trueEnding, difficulty: d.difficulty };
+    return { d, room: room.name, region: room.region, pct: this.completion(d), showPct: this.showPct(d), time: d.time, deaths: d.deaths, fallen: !!d.fallen, cleared: d.cleared, trueEnding: d.trueEnding, difficulty: d.difficulty };
   },
 
   // How many of each collectible the world holds, counted from the rooms themselves
@@ -368,6 +368,8 @@ const GS = {
     return (this._totals = t);
   },
 
+  // The completion percentage stays hidden until the journey has been cleared (Aizen beaten)
+  showPct(d = this.data) { return !!(d && (d.cleared || d.trueEnding)); },
   completion(d = this.data) {
     const T = this.totals();
     let have = 0, total = 0;
