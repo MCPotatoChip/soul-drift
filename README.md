@@ -187,6 +187,8 @@ The thirteen rooms added with world version 3 are drawn in `scripts/new_rooms.py
 
 `check_world.js` simulates the player's movement (jump arcs, Shunpo, the second jump, the wall grip, Burst) with the game's own constants, works out what each room lets you reach from each door, then plays the whole journey from a new game. It prints the order you earn every power, the route between them and a rough number of minutes for each gap, and anything that can never be reached. `node scripts/check_world.js sei_ward` shows one room with every set of powers.
 
+`node scripts/check_chase.js` is the same model ordered by time: it finds the fastest possible crossing of the Dangai (the Kōtotsu room) and says how much slower than that a player may be before the Kōtotsu, whose speed and head start it reads from `src/scenes/game.js`, catches them (now 2.3 times as long; it exits with 1 below 1.5). The lantern run in the Hall of Lanterns was timed in the game itself: the quickest route past both gold barriers takes about 5 of the 6.5 seconds.
+
 The model treats quicksand as deadly (a route must jump or dash over it), models spirit pressure (heavier fall, shorter jumps, slower running, no wall grip) and checks lantern rooms as if the lantern were lit. It does not check whether the lantern run fits in its 6.5 seconds. The older room grids live in `scripts/rooms_base.json` and the generator edits them from there.
 
 ## Deploying
@@ -224,6 +226,7 @@ scripts/build_rooms.py  builds src/rooms.js (the older grids come from scripts/r
 scripts/new_rooms.py    the rooms added in world version 3, and the doors that lead to them
 scripts/check_world.js  reachability and pacing check for the whole world
 scripts/check_placement.js  where foes stand and what planks are for, room by room
+scripts/check_chase.js  the fastest way through the Dangai against the Kōtotsu's schedule
 BOSSES.md               every boss's attacks compared: originality, overlap, faithfulness to Bleach
 ```
 
