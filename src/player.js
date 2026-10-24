@@ -690,7 +690,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       case 'charge': return 'charge';
       case 'heal': return 'focus';
       case 'konso': return 'cast';
-      case 'cling': return 'cling';
+      case 'cling': return this.body.velocity.y < -20 ? 'climb' : 'cling';
     }
     if (this.castT > 0) return 'cast';
     if (!this.grounded) return this.body.velocity.y < -40 ? 'jump' : 'fall';
