@@ -236,20 +236,23 @@ function relevant(rid, A) {
     sealAll: ROOMS[rid].sealAll && ABIL.every(a => A[a]) };
   return Object.fromEntries(Object.entries(R).filter(([, v]) => v));
 }
-function explore(rid, Afull, entry) {
+// full: keep searching after every door and target is reached (to list every place you can stand).
+// tiles: a replacement grid for the room (to test what a change to it does).
+function explore(rid, Afull, entry, o = {}) {
   const A = relevant(rid, Afull);
   const names = Object.keys(A).sort();
   const key = rid + '|' + names.join(',') + '|' + entry;
-  if (roomCache.has(key)) return roomCache.get(key);
+  const cached = !o.full && !o.tiles;
+  if (cached && roomCache.has(key)) return roomCache.get(key);
   // A result that already reached everything with fewer powers cannot improve
-  for (const [k, v] of roomCache) {
+  if (cached) for (const [k, v] of roomCache) {
     const [r, set, e] = k.split('|');
     if (r === rid && e === entry && v && v.complete && set.split(',').filter(Boolean).every(n => A[n])) { roomCache.set(key, v); return v; }
   }
-  const room = ROOMS[rid], g = makeGrid(room, A);
+  const room = o.tiles ? Object.assign({}, ROOMS[rid], { tiles: o.tiles }) : ROOMS[rid], g = makeGrid(room, A);
   const seen = new Set(), queue = [], doors = new Set(), hits = new Set();
   const allDoors = g.doors.length, allTargets = g.targets.filter(t => t.kind !== 'start').length;
-  const done = () => doors.size >= allDoors && [...hits].filter(t => t.kind !== 'start').length >= allTargets;
+  const done = () => !o.full && doors.size >= allDoors && [...hits].filter(t => t.kind !== 'start').length >= allTargets;
   const push = (st) => {
     const k = st.cling ? `c${st.cling}:${Math.round(st.x)}:${Math.round(st.y / 6)}` : `g${Math.round(st.x / 12)}:${Math.round(st.y)}`;
     if (seen.has(k)) return;
@@ -259,20 +262,22 @@ function explore(rid, Afull, entry) {
   // where the player appears
   if (entry === 'start' || entry === 'rest') {
     const tg = g.targets.find(t => t.kind === (entry === 'start' ? 'start' : 'rest'));
-    if (!tg) { roomCache.set(key, null); return null; }
+    if (!tg) { if (cached) roomCache.set(key, null); return null; }
     take(run(g, A, { x: tg.x, y: tg.feet, grounded: true }, () => ({}), 0.1));
     push({ x: tg.x, y: tg.feet });
   } else {
     const d = g.doors.find(dd => dd.id === entry);
-    if (!d) { roomCache.set(key, null); return null; }
+    if (!d) { if (cached) roomCache.set(key, null); return null; }
     if (d.edge === 'left') take(run(g, A, { x: (d.x + 2) * TILE, y: (d.y + 1) * TILE }, () => ({}), 0.6));
     else if (d.edge === 'right') take(run(g, A, { x: (d.x - 1) * TILE, y: (d.y + 1) * TILE }, () => ({}), 0.6));
     else if (d.edge === 'top') take(run(g, A, { x: d.x * TILE + 8, y: (d.y + 2) * TILE + 4 }, () => ({}), 2));
     else for (const dir of [-1, 0, 1]) take(run(g, A, { x: d.x * TILE + 8, y: (d.y + 1) * TILE - 2, vy: -PHYS.popUp }, () => ({ dir }), 2));
   }
   let steps = 0;
-  while (queue.length && steps < 60000 && !done()) {
+  const stands = [];
+  while (queue.length && steps < (o.full ? 120000 : 60000) && !done()) {
     const st = queue.shift(); steps++;
+    stands.push(st);
     if (st.cling) {
       for (const sc of clingScripts(A, st.cling)) {
         const start = { x: st.x, y: st.y, vx: 0, vy: 0, canDash: true, airJumps: A.wings ? 1 : 0 };
@@ -286,8 +291,8 @@ function explore(rid, Afull, entry) {
     const onOneWay = !at(g, g.solid, tx, ty) && at(g, g.oneway, tx, ty);
     for (const sc of groundScripts(A, onOneWay)) take(run(g, A, { x: st.x, y: st.y, grounded: true }, sc.ctl, sc.maxT));
   }
-  const res = { doors, hits, states: seen.size, g, complete: done() };
-  roomCache.set(key, res);
+  const res = { doors, hits, states: seen.size, g, complete: done(), stands: stands.concat(queue) };
+  if (cached) roomCache.set(key, res);
   return res;
 }
 
@@ -323,6 +328,9 @@ function journey() {
         if (!vis.has(k)) { vis.add(k); q.push([to, toDoor, d + 1]); }
       }
     }
+    // the powers held when each room is first reached
+    journey.first = journey.first || {};
+    for (const rid of reach.keys()) if (!journey.first[rid]) journey.first[rid] = Object.assign({}, A);
     // collect: the first new thing in visiting order, so the order of the log is the order of play
     const order = [...reach.keys()].sort((a, b) => dist.get(a) - dist.get(b));
     outer:
@@ -403,7 +411,11 @@ function routeSeconds(route, endsAtBoss) {
   return t;
 }
 
+module.exports = { ROOMS, PHYS, TILE, ABIL, explore, journey, makeGrid };
+
 // ------------------------------------------------------------------ main
+if (require.main === module) main();
+function main() {
 const only = process.argv[2];
 if (only) {
   const r = ROOMS[only];
@@ -453,3 +465,4 @@ console.log(`Seals: ${J.seals.size}  upgrades: ${J.items.upgrade}  fragments: ${
 const unreached = Object.keys(ROOMS).filter(r => !journey.reach.has(r) && r !== 'palace');
 console.log(`Rooms never entered: ${unreached.join(', ') || 'none'} (the Soul King Palace opens at 100%)`);
 console.log(`(${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+}
