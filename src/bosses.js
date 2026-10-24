@@ -534,13 +534,13 @@ class BoneSnake {
 // second half sends the bait itself after you.
 class GrandFisher extends Boss {
   constructor(scene, x, feet) {
-    super(scene, x, feet, 'fisher', { id: 'fisher', hp: 240, dmg: 1, drop: 20, bw: 46, bh: 56, kind: 'fisher', frame: 'idle0', frameFeet: 84, burst: 0x2a1e18 });
+    super(scene, x, feet, 'fisher', { id: 'fisher', hp: 160, dmg: 1, drop: 20, bw: 46, bh: 56, kind: 'fisher', frame: 'idle0', frameFeet: 84, burst: 0x2a1e18 });
     this.telePose = 'windup';
     this.introPose = 'roar';
     this.introLine = '"You can see it, can\'t you? My pretty little lure."';
     this.lineColor = '#ffd0d0';
     this.walkSpeed = 60; this.prefer = 80; this.patience = 3.5;
-    this.tempo = 0.85;   // gentler for new players, on every difficulty
+    this.tempo = 0.8;   // the first boss: gentle on every difficulty
     this.anim('idle');
   }
   defaultPose() { return this.buried ? 'burrow' : Math.abs(this.body.velocity.x) > 15 ? 'walk' : 'idle'; }
@@ -712,7 +712,7 @@ class LureDecoy extends Enemy {
 // ---------------------------------------------------------------------------
 class Menos extends Boss {
   constructor(scene, x, feet) {
-    super(scene, x, feet, 'menos', { id: 'menos', hp: 250, dmg: 1, drop: 20, bw: 40, bh: 100, kind: 'menos', frame: 'idle0', frameFeet: 120 });
+    super(scene, x, feet, 'menos', { id: 'menos', hp: 260, dmg: 1, drop: 20, bw: 40, bh: 100, kind: 'menos', frame: 'idle0', frameFeet: 120 });
     this.telePose = 'crouch';
     this.introPose = 'cero';
     this.walkSpeed = 34; this.prefer = 70; this.patience = 4; this.pause = 0.6;
@@ -899,8 +899,9 @@ class Duelist extends Boss {
 // lashes and sweeps. In Bankai the blade becomes Hihio Zabimaru, a serpent of bone.
 class Renji extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'renji', key: 'renji', hp: 440, drop: 25, kind: 'renji', bh: 27, auraTint: 0xff5040 });
+    super(scene, x, feet, { id: 'renji', key: 'renji', hp: 620, drop: 25, kind: 'renji', bh: 27, auraTint: 0xff5040 });
     this.walkSpeed = 80; this.prefer = 120; this.patience = 3;
+    this.tempo = 1.08;
     this.introLine = '"You will not reach Rukia. Not while I still stand."';
     this.lineColor = '#ffc0b0';
   }
@@ -1368,8 +1369,9 @@ class Kenpachi extends Duelist {
 // Pantera, Desgarron tears five blades of light out of the air.
 class Grimmjow extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'grimmjow', key: 'grimmjow', hp: 600, drop: 30, kind: 'grimmjow', bh: 26, auraTint: 0x58b8e8 });
+    super(scene, x, feet, { id: 'grimmjow', key: 'grimmjow', hp: 840, drop: 30, kind: 'grimmjow', bh: 26, auraTint: 0x58b8e8 });
     this.walkSpeed = 95; this.prefer = 70; this.patience = 2.2; this.pause = 0.3;
+    this.tempo = 1.1;
     this.introLine = '"Come on, Shinigami! Show me that face again!"';
     this.lineColor = '#a8e4ff';
   }
