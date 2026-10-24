@@ -618,7 +618,8 @@ class MenuScene extends Phaser.Scene {
   renderDuels() {
     const d = GS.data, rec = d.rush;
     this.title('Single Duels', 'One battle, with the bindings you chose at the altar');
-    this.items = RUSH_ORDER.filter(b => d.bosses[b] || rec.wins || rec.single[b]).map(b => {
+    // Yhwach is no part of the Grand Trial's list, but once he has fallen (the trial won) he can be fought alone
+    this.items = [...RUSH_ORDER, ...(rec.wins || d.bosses[RUSH_SECRET] || rec.single[RUSH_SECRET] ? [RUSH_SECRET] : [])].filter(b => d.bosses[b] || rec.wins || rec.single[b]).map(b => {
       const s = rec.single[b];
       return { b, label: BOSSES[b].name, right: s ? `${fmtClock(s.best, true)}  ${'●'.repeat(s.bound)}${'○'.repeat(BINDING_ORDER.length - s.bound)}` : 'not yet', rightColor: s ? GOLD : MUTED,
         act: () => this.beginTrial('single', [b]) };
