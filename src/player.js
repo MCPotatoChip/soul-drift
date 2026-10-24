@@ -204,7 +204,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     else if (inp.kidoP) this.castKido(inp);
     else if (inp.konsoP && GS.has('konso')) this.startKonso();
     else if (inp.burstP && GS.has('burst') && grounded) this.startCharge(0);
-    else if (inp.healH && grounded && dir === 0 && this.canHeal()) this.startHeal();
+    else if (inp.healH && !this.healLock && grounded && dir === 0 && this.canHeal()) this.startHeal();
+    if (!inp.healH) this.healLock = false;
   }
 
   sheetKey() { return (this.bankai ? 'ichigo_b' : 'ichigo') + (GS.run.maskOn ? (this.bankai ? 'm' : '_m') : ''); }
@@ -433,7 +434,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.fx.ring(this.x, this.y, 0xe8f4ff, 26, 350);
       this.scene.fx.motes(this.x, this.y, 0xffffff, 14);
       this.healBase = d.reiatsu; this.healProg = 0;
-      if (!this.canHeal()) this.state = 'normal';
+      // One heal per press: the key must be released and pressed again, so holding it cannot drain Reiatsu
+      this.healLock = true;
+      this.state = 'normal';
     }
   }
 
