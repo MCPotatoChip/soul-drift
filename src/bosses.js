@@ -303,6 +303,8 @@ class Boss extends Enemy {
   }
   // A phase change cancels whatever attack was running, including its damage boxes and hazards
   setScript(gen) {
+    // a blink, a feint or a shadow cut short leaves him faded and untouchable: put that right first
+    this.setAlpha(1); this.invulnerable = false;
     this.ai = new Co(gen);
     this.scene.hurtBoxes.length = 0;
     this.cleanup();
@@ -1967,8 +1969,8 @@ class HollowIchigo extends Duelist {
         g.lineStyle(5, 0x16141c, 1).lineBetween(x1, y1, x2, y2);
         g.lineStyle(2, 0xff4050, 1).lineBetween(x1, y1, x2, y2);
         // the arms hurt, the crossing (where you can slip through) does not
-        s.beamHit(x1, y1, x + (x1 - x) * 0.35, cy + (y1 - cy) * 0.35, 5, 1);
-        s.beamHit(x2, y2, x + (x2 - x) * 0.35, cy + (y2 - cy) * 0.35, 5, 1);
+        s.beamHit(x1, y1, x + (x1 - x) * 0.42, cy + (y1 - cy) * 0.42, 5, 1);
+        s.beamHit(x2, y2, x + (x2 - x) * 0.42, cy + (y2 - cy) * 0.42, 5, 1);
       }
       yield 0;
     }
@@ -2545,6 +2547,8 @@ class AizenIllusion extends Enemy {
   }
   get contactDamage() { return 0; }
   think() { this.body.setVelocity(this.dashV || 0, 0); }
+  // glass breaks, and gives nothing back: no Reiatsu, no strike toward Bankai
+  hit() { if (this.alive) this.die(); return 'none'; }
   die() {
     if (!this.alive) return;
     this.alive = false;
@@ -2861,18 +2865,18 @@ class Aizen extends Duelist {
 // At 35%, the Almighty: he sees where you are going, and strikes there.
 class Yhwach extends Duelist {
   constructor(scene, x, feet) {
-    super(scene, x, feet, { id: 'yhwach', key: 'yhwach', hp: 1900, drop: 0, kind: 'yhwach', bh: 28, scale: 1.08, auraTint: 0x8ac8ff });
-    this.walkSpeed = 62; this.prefer = 110; this.patience = 2.4; this.pause = 0.36; this.spd = 1.2;
+    super(scene, x, feet, { id: 'yhwach', key: 'yhwach', hp: 1650, drop: 0, kind: 'yhwach', bh: 28, scale: 1.08, auraTint: 0x8ac8ff });
+    this.walkSpeed = 66; this.prefer = 90; this.patience = 2.4; this.pause = 0.42; this.spd = 1.15;
     this.introLine = '"I have seen how this ends, my son. Kneel."';
     this.lineColor = '#cfe4ff';
     this.vene = 0;
   }
   moveList() {
     return [
-      { name: 'broadCuts', w: 3, range: [0, 110] },
-      { name: 'heiligPfeil', w: 2.6, range: [100, 700], cd: 3 },
-      { name: 'arrowWall', w: 2.2, cd: 6, punish: true },
-      { name: 'schatten', w: 2, range: [120, 700], cd: 4 },
+      { name: 'broadCuts', w: 3.4, range: [0, 120] },
+      { name: 'heiligPfeil', w: 2.2, range: [120, 700], cd: 4 },
+      { name: 'arrowWall', w: 1.8, cd: 7, punish: true },
+      { name: 'schatten', w: 2, range: [120, 700], cd: 4.5 },
       { name: 'auswahlen', w: 2.8, phase: 2, cd: 7, punish: true },
       { name: 'bluteVene', w: 1.8, phase: 2, cd: 12, when() { return this.vene <= 0; } },
       { name: 'almightyCut', w: 3, phase: 3, cd: 2.2 },
@@ -2892,22 +2896,24 @@ class Yhwach extends Duelist {
       if (this.vene <= 0) { this.armor = 1; this.untelegraph(); }
     }
   }
-  // Three heavy cuts of the broad sword, each throwing a blue wave along the floor
+  // Heavy cuts of the broad sword (two, three once he starts taking back), the last throwing a blue wave along the
+  // floor; then he stands a moment with the blade down, open
   *broadCuts() {
     yield* this.walkToward(56, 0.8, this.walkSpeed * 1.5);
     const n = this.phase >= 2 ? 3 : 2;
     for (let i = 0; i < n; i++) {
       const at = this.future(0.25);
       this.faceTo(at.x);
-      yield* this.tele(i ? 0.24 : 0.4, 0x8ac8ff, 'windup');
-      this.body.setVelocityX(this.facing * 120);
-      this.slashBox(58, 40, 0.14, 0xbfe0ff, 2);
-      if (i === n - 1) this.shock(this.x + this.facing * 30, this.facing, 0x8ac8ff, 280, 1.2);
+      yield* this.tele(i ? 0.32 : 0.48, 0x8ac8ff, 'windup');
+      this.body.setVelocityX(this.facing * 60);
+      this.slashBox(50, 36, 0.14, 0xbfe0ff, 1.9);
+      if (i === n - 1 && this.phase >= 2) this.shock(this.x + this.facing * 30, this.facing, 0x8ac8ff, 280, 1.2);
       yield 0.16;
       this.body.setVelocityX(0);
-      yield 0.1 / this.spd;
+      yield 0.12 / this.spd;
     }
-    yield 0.35;
+    this.setPose('land', 0.6);
+    yield 0.6;
   }
   // Heilig Pfeil: a bow of light, and five arrows fanned at you (at where you are going, once he is the Almighty)
   *heiligPfeil() {
@@ -2918,23 +2924,24 @@ class Yhwach extends Duelist {
     Sfx.play('charge');
     while (e < 0.45 / this.spd) { e += this.dt; g.clear(); g.lineStyle(2, 0x8ac8ff, 0.8).beginPath().arc(ox, oy, 12, -1.2 + (this.facing < 0 ? Math.PI : 0), 1.2 + (this.facing < 0 ? Math.PI : 0)).strokePath(); yield 0; }
     g.clear();
-    const at = this.future(0.3), base = Math.atan2(at.y - oy, at.x - ox);
-    for (let i = 0; i < 5; i++) {
-      const a = base + (i - 2) * 0.09;
-      new EnemyShot(s, ox, oy, 'needle', Math.cos(a) * 470, Math.sin(a) * 470, { dmg: 1, life: 1.6, rotate: true, w: 5, h: 5, tint: 0x8ac8ff, scale: 1.6 });
+    const at = this.future(0.3), base = Math.atan2(at.y - oy, at.x - ox), n = this.phase >= 2 ? 5 : 3;
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * 0.1;
+      new EnemyShot(s, ox, oy, 'needle', Math.cos(a) * 400, Math.sin(a) * 400, { dmg: 1, life: 1.8, rotate: true, w: 5, h: 5, tint: 0x8ac8ff, scale: 1.6 });
     }
     Sfx.play('zap');
     yield 0.45;
   }
-  // A wall of arrows rises at the far end of the room and crosses all of it. There is one gap: be in it.
+  // A wall of arrows rises at the far end of the room and crosses all of it. Either it leaves the floor clear (stay
+  // down) or it only covers the floor and the air just above it (jump it): the points of light show which.
   *arrowWall() {
     const s = this.scene, a = this.arena, g = this.gfx, waves = this.phase >= 2 ? 2 : 1;
     this.setPose('raise', 1.5);
     for (let wv = 0; wv < waves; wv++) {
       const fromLeft = this.player.x > (a.left + a.right) / 2, x0 = fromLeft ? a.left + 8 : a.right - 8, dir = fromLeft ? 1 : -1;
-      const rows = 7, step = 18, gap = Phaser.Math.Between(0, 2) * 2;   // the gap is on the floor, at jump height, or high
+      const step = 18, low = Math.random() < 0.5;
       const ys = [];
-      for (let r = 0; r < rows; r++) if (r !== gap && r !== gap + 1) ys.push(a.floor - 10 - r * step);
+      for (let r = 0; r < 7; r++) if (low ? r >= 2 : r <= 3) ys.push(a.floor - 10 - r * step);
       let e = 0;
       const T = 0.8 / this.spd;
       Sfx.play('telegraph');
@@ -3058,7 +3065,7 @@ class Yhwach extends Duelist {
     yield* this.changeForm(null, '"You carry my blood. All of it returns to me."', { text: 'AUSWÄHLEN', color: '#8ac8ff', small: 'the father takes back' }, 0x8ac8ff, '#cfe4ff');
     this.aura.emitting = true;
     this.scene.setDarkness(0.45);
-    this.spd = 1.3; this.pause = 0.3;
+    this.spd = 1.25; this.pause = 0.34;
     yield* this.brain();
   }
   *almighty() {
@@ -3073,7 +3080,7 @@ class Yhwach extends Duelist {
       this.scene.toast('He looked at your Bankai, and it broke.');
       Sfx.play('break');
     }
-    this.spd = 1.4; this.pause = 0.24;
+    this.spd = 1.32; this.pause = 0.28;
     yield* this.brain();
   }
 }

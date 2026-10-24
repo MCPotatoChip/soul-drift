@@ -354,7 +354,8 @@ const BINDINGS = {
 };
 const BINDING_ORDER = ['blade', 'shell', 'seals', 'reiatsu'];
 // The Grand Trial: every boss of the journey, in the order of BOSSES[id].rush. Yhwach waits after the last.
-const RUSH_ORDER = STORY_BOSSES.slice().sort((a, b) => BOSSES[a].rush - BOSSES[b].rush);
+// (a boss added without a `rush` number still joins, after the numbered ones, in the order BOSSES lists it)
+const RUSH_ORDER = STORY_BOSSES.map((b, i) => [b, BOSSES[b].rush ?? 1000 + i]).sort((x, y) => x[1] - y[1]).map(([b]) => b);
 const RUSH_SECRET = 'yhwach';
 // after every third fight the trial grants a respite: health restored (indices into RUSH_ORDER)
 const RUSH_RESTS = RUSH_ORDER.map((_, i) => i).filter(i => (i + 1) % 3 === 0 && i < RUSH_ORDER.length - 1);

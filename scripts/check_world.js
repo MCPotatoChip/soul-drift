@@ -417,7 +417,7 @@ function routeSeconds(route, endsAtBoss) {
   return t;
 }
 
-module.exports = { ROOMS, PHYS, TILE, ABIL, explore, journey, makeGrid };
+module.exports = { ROOMS, PHYS, TILE, ABIL, explore, journey, makeGrid, relevant };
 
 // ------------------------------------------------------------------ main
 if (require.main === module) main();
@@ -463,9 +463,10 @@ for (const e of J.got) {
 }
 if (gaps.length) console.log(`\nShortest gap between two powers: about ${Math.round(Math.min(...gaps) / 6) / 10} min (a lower bound: straight routes, no detours, no deaths)`);
 const missing = ABIL.filter(a => !J.A[a]);
-const bossMissing = Object.keys(BOSSES).filter(b => !J.bosses.has(b) && !BOSSES[b].secret);
+// Urahara is fought by asking him in the Study Room (the model does not talk to people), Yhwach only in the Grand Trial
+const bossMissing = Object.keys(BOSSES).filter(b => !J.bosses.has(b) && !BOSSES[b].secret && b !== 'urahara');
 console.log(`\nPowers never reached: ${missing.join(', ') || 'none'}`);
-console.log(`Bosses never reached: ${bossMissing.join(', ') || 'none'}`);
+console.log(`Bosses never reached: ${bossMissing.join(', ') || 'none'} (Urahara is asked for in the Study Room, Yhwach waits at the end of the Grand Trial)`);
 console.log(`Seals: ${J.seals.size}  upgrades: ${J.items.upgrade}  fragments: ${J.items.fragment}  lost pluses: ${J.items.plus}  ore: ${J.items.ore}  petals: ${J.items.petal}  Kon's pill: ${J.items.gikongan}`);
 // the palace opens at 100% (by fast travel), so it is never walked into
 const unreached = Object.keys(ROOMS).filter(r => !journey.reach.has(r) && r !== 'palace' && r !== 'palace_throne');

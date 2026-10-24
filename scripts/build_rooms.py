@@ -694,6 +694,40 @@ def place_upgrades(R):
 
 place_upgrades(R)
 
+# World 5: planks that led nowhere and shortened no way, with any set of powers a room is visited with
+# (found by `node scripts/check_placement.js --cuts`, which takes them away one at a time). (room, x0, x1, y) in the
+# finished grids. Boss arenas and the Study Room keep theirs to fight on.
+PLANK_CUTS = [
+    ('kar_hub', 14, 18, 15), ('kar_hub', 20, 24, 12),      # a stair up to empty sky
+    ('ruk_1', 17, 21, 15), ('ruk_1', 48, 52, 13),          # beside huts you can jump onto anyway
+    ('sei_1', 33, 37, 19), ('sei_4', 17, 22, 15), ('sei_infirmary', 21, 25, 11),
+    ('ruk_kido_hall', 27, 31, 12), ('hm_side', 14, 18, 11), ('dangai_2', 42, 46, 10),
+    ('hm_1', 72, 80, 10),                                  # the run-up copied a bone step 9 tiles long: back to its 5
+    ('palace', 9, 14, 14), ('palace', 41, 46, 14), ('palace', 22, 33, 10),
+]
+# A ledge over every doorway in a floor: you come up through it and land, instead of dropping straight back out
+# (the older rooms had one; these did not)
+# (three rows above the floor: the game lifts you three and a half out of the shaft, see GameScene.spawnPlayer)
+CATCH_PLANKS = [('sei_4', 55, 60, 17), ('hm_sand', 50, 55, 16), ('hm_vault', 20, 25, 16), ('hm_dome', 23, 29, 19)]
+
+
+def cut_planks(R):
+    for rid, x0, x1, y in PLANK_CUTS:
+        rows = [list(t) for t in R[rid]['tiles']]
+        for x in range(x0, x1 + 1):
+            assert rows[y][x] in '=M', (rid, x, y, rows[y][x])
+            rows[y][x] = '.'
+        R[rid]['tiles'] = [''.join(t) for t in rows]
+    for rid, x0, x1, y in CATCH_PLANKS:
+        rows = [list(t) for t in R[rid]['tiles']]
+        for x in range(x0, x1 + 1):
+            assert rows[y][x] == '.', (rid, x, y, rows[y][x])
+            rows[y][x] = '='
+        R[rid]['tiles'] = [''.join(t) for t in rows]
+
+
+cut_planks(R)
+
 # Where each room sits on the map (top-left corner, in map units: a room's box is its size in tiles divided by ten).
 # Rooms stand beside the door that leads to them, with a gap between neighbours so names and marks never crowd.
 LAYOUT = {
