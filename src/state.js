@@ -405,11 +405,12 @@ const GS = {
     total += Object.keys(SEALS).length; have += d.seals.filter(id => SEALS[id]).length;
     total += T.fragments; have += Math.min(T.fragments, d.fragmentsTotal);
     total += T.pluses; have += Math.min(T.pluses, d.pluses);
-    total += T.bosses; have += STORY_BOSSES.filter(b => d.bosses[b]).length;
+    total += COMPLETION_BOSSES.length; have += COMPLETION_BOSSES.filter(b => d.bosses[b]).length;
     total += FORGE.length; have += d.swordLevel || 0;
     total += FORM_ORDER.length; have += FORM_ORDER.filter(f => d.forms && d.forms[f]).length;
     total += QUEST_ORDER.length; have += QUEST_ORDER.filter(q => d.quests[q] === 2).length;
     UPGRADE_ORDER.forEach(u => { total += UPGRADES[u].max; have += Math.min(UPGRADES[u].max, (d.upgrades && d.upgrades[u]) || 0); });
-    return Math.floor(have / total * 100);
+    const bonus = STORY_BOSSES.filter(b => BOSSES[b].bonus && d.bosses[b]).length;
+    return Math.floor(have / total * 100) + (have >= total ? bonus : 0);
   },
 };

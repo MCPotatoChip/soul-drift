@@ -252,11 +252,13 @@ const BOSSES = {
   nnoitra:   { name: 'Nnoitra Gilga', title: 'Quinta Espada', jp: 'ノイトラ', notches: [0.5], rush: 11 },
   vasto:     { name: 'Vasto Lorde', title: 'Sovereign of the Sand', jp: '最上級大虚', notches: [0.6, 0.25], rush: 12 },
   final:     { name: 'Hollow Ichigo', title: 'The White One Within', jp: '内なる虚', notches: [0.7, 0.45, 0.2], rush: 13 },
-  aizen:     { name: 'Sōsuke Aizen', title: 'The One Who Stands in the Heavens', jp: '藍染惣右介', notches: [0.6, 0.3], rush: 14 },
+  aizen:     { name: 'Sōsuke Aizen', title: 'The One Who Stands in the Heavens', jp: '藍染惣右介', notches: [0.6, 0.3], rush: 14, bonus: true },
   yhwach:    { name: 'Yhwach', title: 'Father of the Quincy, the Almighty', jp: 'ユーハバッハ', notches: [0.65, 0.35], secret: true },
 };
 // The bosses that count toward completion, the Grand Trial and the single duels
 const STORY_BOSSES = Object.keys(BOSSES).filter(b => !BOSSES[b].secret);
+// bonus bosses are not needed for 100%: beating one adds a point beyond it
+const COMPLETION_BOSSES = STORY_BOSSES.filter(b => !BOSSES[b].bonus);
 
 const MEMORIES = {
   thug: ['"Just one more meal. Just one more day."', '"Nobody remembers my name, so I took theirs."'],

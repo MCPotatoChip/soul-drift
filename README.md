@@ -160,7 +160,7 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
 
 ### The Soul King Palace and the true ending
 
-At 100% completion (every power, seal, fragment, Lost Plus, boss, forge level, form and favour), a Hell Butterfly brings word from Ichibē Hyōsube of the Royal Guard, and every rest gate can carry you to the Soul King Palace. Its altar holds the trials:
+At 100% completion (every power, seal, fragment, Lost Plus, boss, forge level, form and favour), (Aizen is a bonus: he is not needed, and beating him adds a point beyond 100%) a Hell Butterfly brings word from Ichibē Hyōsube of the Royal Guard, and every rest gate can carry you to the Soul King Palace. Its altar holds the trials:
 
 - **The Grand Trial**: every boss of the journey in order, from Grand Fisher to Aizen (14 now: Urahara, Yammy and Nnoitra included). The list is `RUSH_ORDER` in `src/config.js`, built from `BOSSES`: a boss added there with a `rush` number joins the trial by itself. Healing works as normal and your health carries between fights; after every third fight a respite heals you. When the last one falls, the lights go out and **Yhwach** comes for the Soul King: beat him too, however many tries it takes, and the true ending plays. He is never offered as a single duel and does not count toward completion.
 - **Single duels** with any boss you have beaten (Urahara fights in the Study Room).
