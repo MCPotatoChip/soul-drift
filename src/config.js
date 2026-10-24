@@ -30,6 +30,8 @@ const PHYS = {
   jumpCut: 0.42,          // velocity multiplier when jump is released early
   coyote: 0.1,
   jumpBuffer: 0.13,
+  attackBuffer: 0.12,     // a slash or Shunpo pressed this long before its cooldown ends still happens when it does
+  dashBuffer: 0.12,
   dashSpeed: 420,
   dashTime: 0.17,
   dashCooldown: 0.42,
