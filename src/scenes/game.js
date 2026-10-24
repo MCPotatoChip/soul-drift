@@ -1314,7 +1314,7 @@ class GameScene extends Phaser.Scene {
         if (q.ganju === 2) return { lines: ['Next time I am bringing Bonnie. She is a boar. She bites. Remember that.', 'Hey. Kukaku says hi. She said it with a cannon, but she meant it.'] };
         if (!GS.has('hado')) return null;
         q.ganju = 1;
-        return { lines: ['You again! I heard you brought down that Menos in the ravine. That makes you the number two delinquent of West Rukongai.',
+        return { lines: ['You again! I heard you brought down Grand Fisher in the cemetery. That makes you the number two delinquent of West Rukongai.',
           'And number two does not get to walk past number one. Fight me! Right here! Fists, clubs and fireworks!'], after: () => this.startDuel(npc) };
       }
       case 'Orihime Inoue': {

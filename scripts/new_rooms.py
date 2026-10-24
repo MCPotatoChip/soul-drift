@@ -55,7 +55,7 @@ def add_rooms(R, Grid):
     g = hall(70, 30, floor=26)
     door_l(g, '1', 25); door_r(g, '2', 25)
     g.put(8, 25, 'R')
-    g.rect(20, 22, 25, 25, '#').rect(36, 21, 40, 25, '#')            # huts
+    g.rect(20, 22, 25, 25, '#').rect(36, 22, 40, 25, '#')            # huts
     g.rect(46, 22, 49, 22, '=').rect(52, 18, 55, 18, '=').rect(46, 14, 49, 14, '=').rect(52, 10, 55, 10, '=')   # up to the upper road
     g.rect(56, 9, 68, 9, '#').rect(56, 3, 68, 6, '#')                # the upper road: a corridor under a roof
     g.rect(62, 7, 62, 8, 'X')                                        # a Kido seal across it
@@ -78,12 +78,12 @@ def add_rooms(R, Grid):
             'It takes two thirds of a vessel to cast. It is worth it.']}], tiles=g.rows())
     new.append('ruk_kido_hall')
 
-    # The edge of the ravine: a last gate before the Menos, a flash-step gap, and a cracked floor over ore
+    # The edge of the ravine: a Kido seal before the Menos, and a cracked floor over ore
     g = hall(60)
     door_l(g, '1'); door_r(g, '2')
     g.put(6, 18, 'R')
-    drop(g, 30, 37)                                  # eight wide: Shunpo
-    g.rect(24, 14, 28, 14, '=').rect(35, 12, 39, 12, '=').put(37, 11, 'w')   # a plank off the gap only a flash step reaches
+    g.rect(40, 2, 40, 18, 'X')                       # a Kido seal across the road to the Menos
+    g.rect(24, 14, 28, 14, '=').rect(35, 12, 39, 12, '=')
     g.rect(46, 19, 47, 19, 'O').rect(44, 20, 49, 21, '.').put(45, 21, 'o')
     g.put(14, 18, 'e').put(20, 18, 'e').put(42, 18, 'g').put(52, 18, 'j')
     R['ruk_ravine_edge'] = dict(name='Ravine Edge', region='ruk', pos=[0, 0], doors={}, upgrades=['flow'], tiles=g.rows())
