@@ -18,6 +18,10 @@ function startGame() {
     scene: [BootScene, TitleScene, IntroScene, GameScene, UIScene, MenuScene, EndingScene, TrueEndingScene],
   });
 
+  // Where a fault was not set aside closer to where it happened (see reportFault), drop that one frame and keep the loop going
+  const step = game.step;
+  game.step = function (time, delta) { try { step.call(this, time, delta); } catch (err) { reportFault('frame', err); } };
+
   Touch.attach(game);
 
   // Console helpers for testing:  SD.give('all'), SD.goto('hm_boss'), SD.heal()
