@@ -251,6 +251,8 @@ SD.chaosTest('hm_dome', 60)  // a player pressing keys at random (every power, f
 SD.sweepRooms()       // enter every room by each door, rest gate and start; reports a missing player, a player inside a wall, and errors
 ```
 
+Phaser asks for the next frame only after the update returns, so one uncaught error would freeze the game until the page is reloaded. Faults are therefore set aside where they happen (`reportFault` in `src/objects.js`): a foe whose tick fails is taken out of play, a boss whose attack fails is put right and picks another (`Boss.scriptFailed`), and a frame that fails is dropped (`game.step` in `src/main.js`). Each is written to the console and to `SD.errors`, so the test helpers above still see it.
+
 ## Art and animation
 
 All character art is drawn by code in `src/art.js`. A humanoid is a **style** (palette, hair, outfit, weapon) plus a list of **poses** (lean, crouch, foot and hand positions, sword angle). Key poses are written by hand and `tween()` eases the frames between them, so idle breathing, running, landing and every swing move in small even steps; fast swings get a translucent smear. The same rig draws Ichigo (Shikai, Bankai and both masked forms), every Shinigami, Arrancar and Espada, and every NPC; creatures (Hollows, Adjuchas, Menos, Grand Fisher, Kon, the cat) are drawn by hand on the same pen. To change how a character looks, edit its entry in `STYLES`. To change an animation, edit its poses in `humanoidAnimsBase`.
