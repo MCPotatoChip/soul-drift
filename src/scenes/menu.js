@@ -582,8 +582,10 @@ class MenuScene extends Phaser.Scene {
   renderTrial() {
     const d = GS.data, rec = d.rush, bind = rec.lastBind || (rec.lastBind = {});
     this.title('Altar of Trials', 'Every battle you have won, fought again as it was. Heal as you like; bind yourself if you dare.');
-    const all = RUSH_ORDER.every(b => d.bosses[b]);
-    this.items = [{ label: 'The Grand Trial', right: rec.best != null ? `best ${fmtClock(rec.best, true)}` : all ? 'unbeaten' : `defeat every boss first (${RUSH_ORDER.filter(b => d.bosses[b]).length}/${RUSH_ORDER.length})`, rightColor: GOLD, disabled: !all,
+    // a won trial proves every boss fell once, so New Game+ (which clears the flags) does not lock the altar
+    const seen = b => d.bosses[b] || !!rec.wins || !!rec.single[b];
+    const all = RUSH_ORDER.every(seen);
+    this.items = [{ label: 'The Grand Trial', right: rec.best != null ? `best ${fmtClock(rec.best, true)}` : all ? 'unbeaten' : `defeat every boss first (${RUSH_ORDER.filter(seen).length}/${RUSH_ORDER.length})`, rightColor: GOLD, disabled: !all,
       act: () => this.beginTrial('gauntlet', RUSH_ORDER) }];
     BINDING_ORDER.forEach(k => this.items.push({ bind: k, label: `${BINDINGS[k].jp}   ${BINDINGS[k].name}`, right: bind[k] ? 'bound' : 'free', rightColor: bind[k] ? CRIMSON : MUTED,
       act: () => { bind[k] = !bind[k]; Sfx.play(bind[k] ? 'bakudo' : 'select'); this.render(); } }));
@@ -610,7 +612,7 @@ class MenuScene extends Phaser.Scene {
   renderDuels() {
     const d = GS.data, rec = d.rush;
     this.title('Single Duels', 'One battle, with the bindings you chose at the altar');
-    this.items = RUSH_ORDER.filter(b => d.bosses[b]).map(b => {
+    this.items = RUSH_ORDER.filter(b => d.bosses[b] || rec.wins || rec.single[b]).map(b => {
       const s = rec.single[b];
       return { b, label: BOSSES[b].name, right: s ? `${fmtClock(s.best, true)}  ${'●'.repeat(s.bound)}${'○'.repeat(BINDING_ORDER.length - s.bound)}` : 'not yet', rightColor: s ? GOLD : MUTED,
         act: () => this.beginTrial('single', [b]) };
