@@ -138,7 +138,7 @@ class MenuScene extends Phaser.Scene {
         const forms = FORM_ORDER.filter(f => d.forms[f]).length, palace = d.palace >= 1 && !d.gates.palace;
         this.items = [{ label: 'Equip seals', right: `${GS.usedSlots()}/${d.sealSlots} slots`, act: () => this.go('seals') }];
         if (forms > 1) this.items.push({ label: 'Zanpakutō form', right: GS.form().name, act: () => this.go('forms') });
-        this.items.push({ label: 'Difficulty', right: `${GS.diff().jp}  ${GS.diff().name}`, act: () => { this.newGame = null; this.go('difficulty'); this.sel = DIFFICULTY_ORDER.indexOf(d.difficulty); this.render(); } });
+        this.items.push({ label: 'Difficulty', right: GS.diff().permadeath ? `${GS.diff().jp}  ${GS.diff().name}  (locked)` : `${GS.diff().jp}  ${GS.diff().name}`, disabled: !!GS.diff().permadeath, act: () => { this.newGame = null; this.go('difficulty'); this.sel = DIFFICULTY_ORDER.indexOf(d.difficulty); this.render(); } });
         this.items.push({ label: 'Travel', right: gates > 1 || palace ? `${gates + (palace ? 1 : 0)} gates` : 'find more gates', disabled: gates < 2 && !palace, act: () => (gates > 1 || palace) && this.go('travel') });
         this.items.push({ label: 'Rise', act: () => this.close() });
         this.list(this.items, GAME_W / 2 - 210, 220, 50, 440);
@@ -263,10 +263,11 @@ class MenuScene extends Phaser.Scene {
       this.txt(px + 90, 228, D.name, 36, INK, { display: true });
       this.txt(px, 300, D.desc, 19, INK, { wrap: 510 });
       const pct = (v) => `${Math.round(v * 100)}%`;
-      const rows = [['Blows cost', D.damage < 1 ? 'every second one, a mask' : D.damage > 1 ? `${D.damage} masks each` : 'a mask each'], ['Elite foes', D.permadeath ? 'everywhere, many' : D.eliteAway ? 'everywhere, more' : 'Hueco Mundo and the Forest'], ['Foe health', pct(D.foeHp)], ['Boss health', pct(D.bossHp)], ['Boss speed', pct(D.bossSpeed)],
+      const rows = [['Blows cost', D.damage < 1 ? 'every second one, a mask' : D.heavyBosses ? 'a mask; two from the last three bosses' : 'a mask each'], ['Elite foes', D.permadeath ? 'everywhere, many' : D.eliteAway ? 'everywhere, more' : 'Hueco Mundo and the Forest'], ['Foe health', pct(D.foeHp)], ['Boss health', pct(D.bossHp)], ['Boss speed', pct(D.bossSpeed)],
         ['Reiatsu from strikes', pct(D.reiatsu)], ['Bankai cooldown', `${Math.round(COMBAT.bankaiCooldown * D.bankaiCd)} s`]];
       rows.forEach(([k, v], i) => { this.txt(px, 392 + i * 22, k, 16, '#b8b2c4'); this.txt(px + 520, 392 + i * 22, v, 16, GOLD, { bold: true, origin: [1, 0] }); });
     }
+    if (this.msg) this.txt(GAME_W / 2, GAME_H - 80, this.msg, 18, CRIMSON, { origin: 0.5 });
     this.footer(Controls.fmt('{up} {down} choose · {jump} take it · {attack} back'));
   }
   chooseDifficulty(id) {
@@ -278,6 +279,8 @@ class MenuScene extends Phaser.Scene {
       return;
     }
     if (GS.data.difficulty === id) { this.back(); return; }
+    // Absolute Bankai is chosen when a journey begins, and can never be left or entered afterwards
+    if (DIFFICULTY[id].permadeath || GS.diff().permadeath) { Sfx.play('deny'); this.msg = 'Absolute Bankai is chosen when a journey begins, and cannot be changed.'; this.render(); return; }
     GS.data.difficulty = id;
     GS.save();
     Sfx.play('confirm');
