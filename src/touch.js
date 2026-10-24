@@ -11,7 +11,7 @@ const TOUCH_KEY = 'soul-drift-touch-v1';
 const TOUCH_ACTIONS = [
   ['jump', 'JUMP', 'Jump'], ['attack', 'SLASH', 'Slash'], ['dash', 'SHUNPO', 'Shunpo'], ['kido', 'KIDŌ', 'Kidō'],
   ['heal', 'HEAL', 'Heal (hold)'], ['konso', 'KONSŌ', 'Konsō (hold)'], ['burst', 'BURST', 'Senkaimon Burst (hold)'],
-  ['bankai', 'BANKAI', 'Bankai'], ['mask', 'MASK', 'Hollow Mask'], ['interact', 'USE', 'Interact'],
+  ['bankai', 'BANKAI', 'Bankai'], ['mask', 'MASK', 'Hollow Mask'], ['interact', 'USE', 'Interact'], ['more', '⋯', 'More powers (tray)'],
   ['map', 'MAP', 'Map'], ['inventory', 'BAG', 'Inventory'], ['pause', 'II', 'Pause'],
   ['up', '▲', 'Up'], ['down', '▼', 'Down'], ['left', '◀', 'Left'], ['right', '▶', 'Right'],
 ];
@@ -20,26 +20,31 @@ const TOUCH_NEEDS = {
   dash: ['dash'], kido: ['hado', 'bakudo', 'raiko'], konso: ['konso'], burst: ['burst'], bankai: ['bankai'], mask: ['hollow'],
 };
 // Hold buttons that can instead be tapped once to start and tapped again to stop (an option in the layout editor)
+// Rare powers live in a tray that the 'more' button opens, so the thumbs only see the few buttons a fight needs
+const TOUCH_TRAY = ['konso', 'burst', 'bankai', 'mask'];
 const TOUCH_LATCH = ['heal', 'konso', 'burst'];
 const TOUCH_LABEL = Object.fromEntries(TOUCH_ACTIONS.map(a => [a[0], a[1]]));
 
 // Positions are percentages of the screen; sizes are percentages of its short side
 const TOUCH_DEFAULT = {
-  v: 1, enabled: null, scale: 1, opacity: 0.6, latch: false,
-  stick: { x: 15, y: 68, s: 34 },
+  v: 2, enabled: null, scale: 1, opacity: 0.6, latch: false,
+  stick: { x: 14, y: 68, s: 34 },
   buttons: [
-    { id: 'b1', action: 'jump', x: 91, y: 60, s: 17 },
-    { id: 'b2', action: 'attack', x: 78, y: 74, s: 17 },
-    { id: 'b3', action: 'dash', x: 91, y: 84, s: 13 },
-    { id: 'b4', action: 'kido', x: 65, y: 85, s: 12 },
-    { id: 'b5', action: 'heal', x: 78, y: 49, s: 11 },
-    { id: 'b6', action: 'konso', x: 66, y: 67, s: 11 },
-    { id: 'b7', action: 'burst', x: 52, y: 85, s: 11 },
-    { id: 'b8', action: 'bankai', x: 91, y: 36, s: 10 },
-    { id: 'b9', action: 'mask', x: 80, y: 31, s: 10 },
-    { id: 'b10', action: 'interact', x: 66, y: 47, s: 10 },
+    // main cluster (right thumb): a big Slash, Jump above it, Shunpo and Kidō beside it
+    { id: 'b1', action: 'jump', x: 91, y: 56, s: 17 },
+    { id: 'b2', action: 'attack', x: 85, y: 79, s: 21 },
+    { id: 'b3', action: 'dash', x: 66, y: 83, s: 14 },
+    { id: 'b4', action: 'kido', x: 70, y: 58, s: 13 },
+    // Heal and the tray key, then the rare powers (hidden until 'more' is tapped)
+    { id: 'b5', action: 'heal', x: 55, y: 85, s: 11 },
+    { id: 'b6', action: 'more', x: 96, y: 33, s: 9 },
+    { id: 'b7', action: 'konso', x: 88, y: 21, s: 10 },
+    { id: 'b8', action: 'burst', x: 76, y: 28, s: 10 },
+    { id: 'b9', action: 'bankai', x: 76, y: 44, s: 10 },
+    { id: 'b10', action: 'mask', x: 64, y: 36, s: 10 },
+    // small menu keys along the top; Interact is the stick's Up
     { id: 'b11', action: 'map', x: 3.5, y: 9, s: 7 },
-    { id: 'b12', action: 'inventory', x: 3.5, y: 24, s: 7 },
+    { id: 'b12', action: 'inventory', x: 12, y: 9, s: 7 },
     { id: 'b13', action: 'pause', x: 96, y: 9, s: 7 },
   ],
 };
@@ -55,6 +60,7 @@ const Touch = {
   pointers: new Map(), // pointerId -> { kind, id, code } for buttons, { kind: 'stick' } for the stick
   stick: { dirs: { left: false, right: false, up: false, down: false } },
   editing: false,
+  moreOpen: false,
   selected: null,
   resumeAfterEdit: false,
 
@@ -89,7 +95,14 @@ const Touch = {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(TOUCH_KEY) || 'null'); } catch (e) { saved = null; }
     const d = JSON.parse(JSON.stringify(TOUCH_DEFAULT));
-    if (saved && saved.v === 1 && Array.isArray(saved.buttons)) {
+    if (saved && (saved.v === 1 || saved.v === 2)) {
+      // v1 layouts had 13 crowded buttons: keep the settings, take the new button arrangement
+      d.enabled = saved.enabled === undefined ? null : saved.enabled;
+      d.scale = clampNum(saved.scale, 0.5, 1.8, 1);
+      d.opacity = clampNum(saved.opacity, 0.15, 1, 0.6);
+      d.latch = !!saved.latch;
+    }
+    if (saved && saved.v === 2 && Array.isArray(saved.buttons)) {
       d.enabled = saved.enabled === undefined ? null : saved.enabled;
       d.scale = clampNum(saved.scale, 0.5, 1.8, 1);
       d.opacity = clampNum(saved.opacity, 0.15, 1, 0.6);
@@ -172,6 +185,7 @@ const Touch = {
       if (this.editing) return this.editDown(e, id);
       const code = getCode();
       const btn = id && this.layout.buttons.find(x => x.id === id);
+      if (btn && btn.action === 'more') { this.moreOpen = !this.moreOpen; this.refreshLabels(); return; }
       if (btn && this.layout.latch && TOUCH_LATCH.includes(btn.action)) {
         // tap to start, tap again to stop
         if (this.latched.has(id)) { const c = this.latched.get(id); this.latched.delete(id); el.classList.remove('down'); if (c) Controls.release(c); }
@@ -270,6 +284,8 @@ const Touch = {
       const el = this.els[b.id]; if (!el) continue;
       el.firstChild.textContent = TOUCH_LABEL[b.action];
       el.classList.toggle('hold', ['heal', 'konso', 'burst', 'attack'].includes(b.action));
+      el.classList.toggle('tray', TOUCH_TRAY.includes(b.action) && !this.moreOpen);
+      el.classList.toggle('open', b.action === 'more' && !!this.moreOpen);
     }
     this.refreshLocks();
   },
@@ -306,7 +322,7 @@ const Touch = {
   },
   applyMode(m, force) {
     if (m === this.mode && !force) return;
-    if (this.mode === 'play' && m !== 'play') this.releaseAll();
+    if (this.mode === 'play' && m !== 'play') { this.releaseAll(); this.moreOpen = false; this.refreshLabels(); }
     this.mode = m;
     this.root.className = 'm-' + m + (this.enabled ? ' on' : '');
   },

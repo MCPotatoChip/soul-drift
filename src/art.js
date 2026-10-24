@@ -518,10 +518,10 @@ Object.assign(STYLES, {
 // Ganju, ready for his rematch: the same bandana, a club, and every clip a fighter needs
 STYLES.ganju_f = variant(STYLES.npc_ganju, { anims: ENEMY_ANIMS, carry: 'hand', basePose: null,
   weapon: { type: 'club', col: '#8a5a3a', hi: '#b47a50', len: 12, smear: '#ffb07060' } });
-// Ichibē Hyōsube of the Royal Guard: bald, a great black beard, dark robes and a string of prayer beads
+// Ichibē Hyōsube of the Royal Guard: tall and gaunt, swept-back black hair, a long moustache and goatee, dark robes under a pale collar
 STYLES.npc_ichibe = {
-  skin: '#c89a74', skinShade: '#94704e', eye: '#1a1410', brow: '#16121a', beard: '#16121a',
-  hair: '#c89a74', hairHi: '#e0b890', hairShade: '#94704e', hairStyle: 'bald',
+  skin: '#e0b894', skinShade: '#a88060', eye: '#1a1410', brow: '#16121a', beard: '#16121a', mustache: '#16121a',
+  hair: '#16121a', hairHi: '#3a3444', hairShade: '#08060a', hairStyle: 'slick',
   robe: '#1c1a22', robeHi: '#34303e', robeShade: '#0e0c12', inner: '#e8e2d2', sash: '#c89a3a',
   hakama: '#1c1a22', hakamaShade: '#0e0c12', hakamaHi: '#34303e', tabi: '#e8e2d2', sandal: '#3a2a1a',
   armband: '#c89a3a', legLen: 9, torsoLen: 11, carry: 'none', weapon: { type: 'none' }, anims: NPC_ANIMS,
@@ -1295,31 +1295,42 @@ function drawMenos(pen, mode, f, n = 8) {
   const sway = mode === 'idle' ? Math.sin(ph) : 0;
   const breathe = mode === 'idle' ? Math.cos(ph) : 0;
   const top = 18 + crouch + breathe;
-  pen.poly([[40, top], [72 + sway, 120], [8 + sway, 120]], B);
-  pen.line(40, top + 2, 68 + sway, 118, Hi);
-  pen.line(36, top + 30, 20 + sway, 116, Hi);
-  for (let x = 10; x < 72; x += 6) pen.poly([[x + sway, 120], [x + 3 + sway, 112 + ((x / 6 + Math.floor(f / 2)) % 2 ? 2 : 0)], [x + 6 + sway, 120]], '#07060b');
-  pen.ellipse(40, top + 6, 16, 20, B);
-  for (let i = 0; i < 7; i++) { const x = 16 + i * 7; pen.poly([[x, top + 32], [x + 3.5, top + 20 - (i % 2) * 3], [x + 7, top + 32]], W_); }
-  pen.rect(16, top + 30, 49, 4, W_);
-  pen.line(16, top + 33, 64, top + 33, Sh);
-  pen.ellipse(44, top + 4, 12, 13, W_);
-  pen.poly([[50, top], [79, top + 9], [50, top + 13]], W_);
-  pen.line(50, top + 12, 78, top + 9, Sh);
-  pen.line(38, top - 6, 44, top - 8, Sh);
-  pen.rect(42, top - 3, 4, 4, R); pen.rect(49, top - 3, 3, 4, R);
-  pen.px(43, top - 2, '#ffb0b8');
+  // cloak: broad rounded shoulders falling to a ragged hem
+  pen.poly([[22, top + 26], [58, top + 26], [70 + sway, 96], [76 + sway, 120], [4 + sway, 120], [10 + sway, 96]], B);
+  pen.ellipse(40, top + 33, 27, 13, B);
+  pen.line(40, top + 30, 62 + sway, 118, Hi);
+  pen.line(34, top + 34, 18 + sway, 116, Hi);
+  pen.line(46, top + 36, 40 + sway, 118, Hi);
+  for (let x = 6; x < 74; x += 6) pen.poly([[x + sway, 120], [x + 3 + sway, 110 + ((x / 6 + Math.floor(f / 2)) % 2 ? 3 : 0)], [x + 6 + sway, 120]], '#07060b');
+  // long arms hanging at the sides, ending in white claws
+  const arm = (sx, hx) => {
+    pen.limb(sx, top + 36, hx + sway, 94 + crouch, 7, 5, B);
+    pen.line(sx, top + 38, hx + sway, 92 + crouch, Hi);
+    pen.rect(hx - 3 + sway, 94 + crouch, 7, 4, W_);
+    for (let i = 0; i < 3; i++) pen.poly([[hx - 3 + i * 3 + sway, 98 + crouch], [hx - 2 + i * 3 + sway, 104 + crouch], [hx - 1 + i * 3 + sway, 98 + crouch]], W_);
+  };
+  arm(17, 10); arm(63, 70);
+  // the hollow mask: a tall bald skull, a long nose that droops, and a grin of teeth
+  pen.ellipse(40, top + 2, 18, 22, B);
+  pen.ellipse(44, top - 2, 11, 18, W_);
+  pen.ellipse(41, top - 8, 7, 8, '#f8f4ec');
+  pen.line(36, top - 12, 41, top - 18, Sh);
+  pen.poly([[50, top + 2], [79, top + 11], [76, top + 14], [50, top + 11]], W_);
+  pen.line(50, top + 11, 77, top + 13, Sh);
+  pen.line(37, top - 5, 45, top - 6, Sh);
+  pen.rect(41, top - 3, 4, 3, R); pen.rect(49, top - 2, 3, 3, R);
+  pen.px(42, top - 3, '#ffb0b8');
+  pen.rect(34, top + 12, 20, 6, W_);
+  pen.line(34, top + 17, 54, top + 17, Sh);
   if (mode === 'cero') {
-    pen.poly([[38, top + 11], [52, top + 11], [50, top + 18], [40, top + 18]], '#3a0a12');
-    pen.ellipse(77, top + 9, 3.5, 3.5, '#ff8aa0'); pen.ellipse(77, top + 9, 1.5, 1.5, '#ffffff');
-    for (let a = 0; a < 6; a++) pen.under(77 + Math.cos(a) * 6, top + 9 + Math.sin(a) * 6, '#ff4a7060');
+    pen.poly([[36, top + 13], [52, top + 13], [50, top + 20], [38, top + 20]], '#3a0a12');
+    pen.ellipse(77, top + 11, 3.5, 3.5, '#ff8aa0'); pen.ellipse(77, top + 11, 1.5, 1.5, '#ffffff');
+    for (let a = 0; a < 6; a++) pen.under(77 + Math.cos(a) * 6, top + 11 + Math.sin(a) * 6, '#ff4a7060');
   } else {
-    pen.rect(36, top + 12, 14, 2, B);
-    for (let i = 0; i < 4; i++) pen.px(37 + i * 3, top + 11, W_);
+    pen.rect(35, top + 14, 18, 2, B);
+    for (let i = 0; i < 6; i++) { pen.px(36 + i * 3, top + 13, W_); pen.px(37 + i * 3, top + 16, W_); }
   }
   for (let y = Math.floor(top + 47); y <= top + 61; y++) for (let x = 33; x <= 47; x++) if (Math.hypot(x + 0.5 - 40, y + 0.5 - (top + 54)) < 6.5) pen.erase(x, y);
-  pen.rect(13 + sway, 92 + crouch, 6, 4, W_); pen.rect(61 + sway, 92 + crouch, 6, 4, W_);
-  pen.px(13 + sway, 96 + crouch, W_); pen.px(18 + sway, 96 + crouch, W_); pen.px(61 + sway, 96 + crouch, W_); pen.px(66 + sway, 96 + crouch, W_);
 }
 
 // Grand Fisher: a hunched mass of dark fur behind an angler's bone mask, a lure on a stalk from
