@@ -2970,7 +2970,7 @@ class Yhwach extends Duelist {
       let e = 0;
       const T = 0.65 / this.spd;
       Sfx.play('telegraph');
-      while (e < T) { e += this.dt; g.clear(); ys.forEach(y => g.fillStyle(0x8ac8ff, 0.3 + 0.6 * (e / T)).fillRect(x0 - 4, y - 1, 8, 2)); yield 0; }
+      while (e < T) { e += this.dt; g.clear(); ys.forEach(y => g.fillStyle(0x8ac8ff, 0.3 + 0.6 * (e / T)).fillRect(x0 - 5, y - 2, 10, 4)); yield 0; }
       g.clear();
       ys.forEach(y => new EnemyShot(s, x0, y, 'needle', dir * 430, 0, { dmg: 1, life: 2.6, rotate: true, w: 8, h: 4, tint: 0xbfe0ff, scale: 1.6, passWalls: true }));
       Sfx.play('zap');
@@ -3018,12 +3018,12 @@ class Yhwach extends Duelist {
       let e = 0;
       const T = 0.7 / this.spd;
       Sfx.play('charge');
-      while (e < T) { e += this.dt; g.clear(); cols.forEach(x => { g.lineStyle(1, 0xcfe4ff, 0.25 + 0.5 * (e / T)).lineBetween(x, a.top, x, a.floor); }); yield 0; }
+      while (e < T) { e += this.dt; g.clear(); cols.forEach(x => { g.lineStyle(3, 0xcfe4ff, 0.3 + 0.6 * (e / T)).lineBetween(x, a.top, x, a.floor); }); yield 0; }
       g.clear();
       Sfx.play('zap');
       cols.forEach(x => {
         s.fx.ring(x, a.floor - 6, 0xcfe4ff, 16, 260, 2);
-        const img = s.add.rectangle(x, (a.top + a.floor) / 2, 12, a.floor - a.top, 0xe8f4ff, 0.8).setDepth(17).setBlendMode('ADD');
+        const img = s.add.rectangle(x, (a.top + a.floor) / 2, 12, a.floor - a.top, ink(s, 0xe8f4ff), 0.8).setDepth(17).setBlendMode(inkOn(s) ? 'NORMAL' : 'ADD');
         s.tweens.add({ targets: img, alpha: 0, scaleX: 0.2, duration: 380, onComplete: () => img.destroy() });
         const pr = bodyRect(p.body);
         if (p.state !== 'dead' && pr.right > x - 7 && pr.left < x + 7 && p.takeDamage(1, x)) this.takeBack();

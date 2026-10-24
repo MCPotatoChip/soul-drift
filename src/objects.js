@@ -57,18 +57,19 @@ class Co {
 class Fx {
   constructor(scene) {
     this.s = scene;
+    this.blend = inkOn(scene) ? 'NORMAL' : 'ADD';   // additive glow cannot be seen on the white palace
     const base = { lifespan: { min: 220, max: 480 }, scale: { start: 1, end: 0 }, alpha: { start: 1, end: 0 }, emitting: false };
     this.burstE = scene.add.particles(0, 0, 'px', Object.assign({ speed: { min: 40, max: 170 } }, base)).setDepth(26);
-    this.sparkE = scene.add.particles(0, 0, 'spark', { speed: { min: 80, max: 220 }, lifespan: 180, scale: { start: 1, end: 0 }, emitting: false, blendMode: 'ADD' }).setDepth(26);
+    this.sparkE = scene.add.particles(0, 0, 'spark', { speed: { min: 80, max: 220 }, lifespan: 180, scale: { start: 1, end: 0 }, emitting: false, blendMode: this.blend }).setDepth(26);
     this.dustE = scene.add.particles(0, 0, 'px', { speedX: { min: -50, max: 50 }, speedY: { min: -40, max: -5 }, lifespan: 320, alpha: { start: 0.55, end: 0 }, tint: 0xbbbbbb, emitting: false }).setDepth(19);
-    this.moteE = scene.add.particles(0, 0, 'dot', { speed: { min: 10, max: 40 }, lifespan: 700, scale: { start: 0.6, end: 0 }, alpha: { start: 0.8, end: 0 }, emitting: false, blendMode: 'ADD' }).setDepth(26);
+    this.moteE = scene.add.particles(0, 0, 'dot', { speed: { min: 10, max: 40 }, lifespan: 700, scale: { start: 0.6, end: 0 }, alpha: { start: 0.8, end: 0 }, emitting: false, blendMode: this.blend }).setDepth(26);
     this.debrisE = scene.add.particles(0, 0, 'px', { speed: { min: 60, max: 200 }, angle: { min: 200, max: 340 }, gravityY: 600, lifespan: 700, scale: { start: 1.5, end: 0.5 }, emitting: false }).setDepth(26);
   }
   // Every burst goes through Settings.count so the Particles setting (and phones) can thin them out
-  burst(x, y, color = 0xffffff, n = 14) { this.burstE.setParticleTint(color); this.burstE.explode(Settings.count(n), x, y); }
-  spark(x, y, color = 0xffffff, n = 7) { this.sparkE.setParticleTint(color); this.sparkE.explode(Settings.count(n), x, y); }
+  burst(x, y, color = 0xffffff, n = 14) { this.burstE.setParticleTint(ink(this.s, color)); this.burstE.explode(Settings.count(n), x, y); }
+  spark(x, y, color = 0xffffff, n = 7) { this.sparkE.setParticleTint(ink(this.s, color)); this.sparkE.explode(Settings.count(n), x, y); }
   dust(x, y, n = 6) { this.dustE.explode(Settings.count(n), x, y); }
-  motes(x, y, color = 0xbfe6ff, n = 10) { this.moteE.setParticleTint(color); this.moteE.explode(Settings.count(n), x, y); }
+  motes(x, y, color = 0xbfe6ff, n = 10) { this.moteE.setParticleTint(ink(this.s, color)); this.moteE.explode(Settings.count(n), x, y); }
   debris(x, y, color, n = 8) { this.debrisE.setParticleTint(color); this.debrisE.explode(Settings.count(n), x, y); }
 
   afterimage(sprite, tint = 0x9fb4ff, alpha = 0.55, dur = 220) {
@@ -80,7 +81,7 @@ class Fx {
   }
 
   ring(x, y, color = 0xffffff, radius = 30, dur = 300, width = 2) {
-    const g = this.s.add.circle(x, y, 4).setStrokeStyle(width, color).setDepth(26);
+    const g = this.s.add.circle(x, y, 4).setStrokeStyle(width, ink(this.s, color)).setDepth(26);
     g.setFillStyle();
     this.s.tweens.add({ targets: g, radius, alpha: 0, duration: dur, onComplete: () => g.destroy() });
   }
@@ -96,7 +97,7 @@ class Fx {
     for (let i = 0; i < count; i++) {
       const spread = dir ? Phaser.Math.FloatBetween(-0.95, 0.95) : Phaser.Math.FloatBetween(-Math.PI, Math.PI);
       const a = (dir < 0 ? Math.PI : 0) + spread, l = len * Phaser.Math.FloatBetween(0.6, 1.2);
-      const g = this.s.add.image(x, y, 'px').setOrigin(0, 0.5).setRotation(a).setScale(l / 2, 0.6).setTint(color).setDepth(27).setBlendMode('ADD');
+      const g = this.s.add.image(x, y, 'px').setOrigin(0, 0.5).setRotation(a).setScale(l / 2, 0.6).setTint(ink(this.s, color)).setDepth(27).setBlendMode(this.blend);
       this.s.tweens.add({ targets: g, x: x + Math.cos(a) * l * 1.5, y: y + Math.sin(a) * l * 1.5, scaleX: 0, alpha: 0, duration: Phaser.Math.Between(120, 200), ease: 'Cubic.out', onComplete: () => g.destroy() });
     }
   }
@@ -121,7 +122,7 @@ class Fx {
   }
   // A soul-coloured glow that lifts and fades
   wisp(x, y, color = 0xbfe6ff, rise = 46) {
-    const g = this.s.add.image(x, y, 'glow').setTint(color).setBlendMode('ADD').setDepth(26).setScale(0.7).setAlpha(0.8);
+    const g = this.s.add.image(x, y, 'glow').setTint(ink(this.s, color)).setBlendMode(this.blend).setDepth(26).setScale(0.7).setAlpha(0.8);
     this.s.tweens.add({ targets: g, y: y - rise, scale: 0.2, alpha: 0, duration: 900, ease: 'Sine.out', onComplete: () => g.destroy() });
   }
   // How an enemy comes apart: chunks in its own colour, a soul rising out, shake scaled to its size
@@ -138,8 +139,8 @@ class Fx {
   // Two feathered wings snap out and fade (Hirenkyaku Wings)
   wings(x, y, color = 0xe8f4ff) {
     [-1, 1].forEach((side) => {
-      const w = this.s.add.image(x + side * 3, y, 'wing').setOrigin(side < 0 ? 1 : 0, 0.7).setFlipX(side > 0).setTint(color)
-        .setDepth(18).setBlendMode('ADD').setAlpha(0.9).setScale(0.3).setAngle(side * 30);
+      const w = this.s.add.image(x + side * 3, y, 'wing').setOrigin(side < 0 ? 1 : 0, 0.7).setFlipX(side > 0).setTint(ink(this.s, color))
+        .setDepth(18).setBlendMode(this.blend).setAlpha(0.9).setScale(0.3).setAngle(side * 30);
       this.s.tweens.add({ targets: w, scale: 1, angle: side * -8, y: y + 8, alpha: 0, duration: 340, ease: 'Cubic.out', onComplete: () => w.destroy() });
     });
   }
@@ -551,7 +552,7 @@ class EnemyShot extends Phaser.Physics.Arcade.Image {
       if (this.splash && this.body.velocity.y > 0) {
         const top = Math.floor(this.y / TILE) * TILE;
         s.addHurt(this.x - 10, top - 8, 20, 8, 1, 0.5);
-        const pool = s.add.image(this.x, top, 'glow').setTint(this.burstColor).setBlendMode('ADD').setDepth(17).setScale(1, 0.25).setAlpha(0.7);
+        const pool = s.add.image(this.x, top, 'glow').setTint(ink(s, this.burstColor)).setBlendMode(inkOn(s) ? 'NORMAL' : 'ADD').setDepth(17).setScale(1, 0.25).setAlpha(0.7);
         s.tweens.add({ targets: pool, alpha: 0, scaleX: 1.4, duration: 600, onComplete: () => pool.destroy() });
         s.fx.motes(this.x, top - 3, this.burstColor, 5);
       }
