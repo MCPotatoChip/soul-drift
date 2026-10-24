@@ -42,6 +42,8 @@ class MenuScene extends Phaser.Scene {
   close() {
     Sfx.play('select');
     if (this.scene.isPaused('game')) this.scene.resume('game');
+    // opened from the title (Journeys, Settings): the title's Continue may no longer point at a journey that exists
+    if (this.scene.isActive('title')) this.scene.get('title').refreshSaves();
     this.scene.stop();
   }
 

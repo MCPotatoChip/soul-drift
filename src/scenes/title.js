@@ -62,9 +62,7 @@ class TitleScene extends Phaser.Scene {
 
     // menu: Continue picks up the journey played last; every save and new game lives under Journeys
     this.hasSave = GS.hasSave();
-    this.items = [];
-    if (this.hasSave) this.items.push({ label: 'Continue', act: () => this.cont() });
-    else this.items.push({ label: 'New journey', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'difficulty', newGame: { slot: GS.slot, mode: 'new' } }); } });
+    this.items = [this.firstItem()];
     this.items.push({ label: 'Journeys', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'slots' }); } });
     this.items.push({ label: 'Controls', act: () => this.toggleControls() });
     this.items.push({ label: 'Settings', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'settings' }); } });
@@ -79,8 +77,8 @@ class TitleScene extends Phaser.Scene {
     });
     this.note = this.add.text(150, 422 + this.items.length * 58 + 10, '', { fontFamily: FONT_BODY, fontSize: '17px', color: GOLD });
     // which journey Continue opens
-    const sum = this.hasSave && GS.summary(GS.slot);
-    if (sum) this.add.text(this.menu[0].x + this.menu[0].width - 250, this.menu[0].y, `${SLOT_KANJI[GS.slot]}  ${sum.room} · ${sum.pct}%`, { fontFamily: FONT_BODY, fontSize: '16px', color: MUTED }).setOrigin(0, 0.5);
+    this.sumText = this.add.text(this.menu[0].x + this.menu[0].width - 250, this.menu[0].y, '', { fontFamily: FONT_BODY, fontSize: '16px', color: MUTED }).setOrigin(0, 0.5);
+    this.refreshSummary();
     this.keyHint = this.add.text(28, GAME_H - 20, '', { fontFamily: FONT_BODY, fontSize: '15px', color: MUTED }).setOrigin(0, 1).setAlpha(0.8);
     const hint = () => this.keyHint.setText(Touch.enabled ? 'Tap an option to choose' : Controls.fmt('Click the game first · {up} {down} choose · {jump} or Enter confirm'));
     hint();
@@ -91,6 +89,24 @@ class TitleScene extends Phaser.Scene {
     this.events.once('shutdown', off);
     this.cameras.main.fadeIn(900, 0, 0, 0);
     this.refresh(false);
+  }
+
+  // Continue when the slot being played has a journey in it, a new journey when it does not
+  firstItem() {
+    return this.hasSave ? { label: 'Continue', act: () => this.cont() }
+      : { label: 'New journey', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'difficulty', newGame: { slot: GS.slot, mode: 'new' } }); } };
+  }
+  refreshSummary() {
+    const sum = this.hasSave && GS.summary(GS.slot);
+    this.sumText.setText(sum ? `${SLOT_KANJI[GS.slot]}  ${sum.room} · ${sum.pct}%` : '');
+  }
+  // The Journeys screen may have erased the journey that Continue points at: the first entry follows the saves
+  refreshSaves() {
+    this.hasSave = GS.hasSave();
+    this.items[0] = this.firstItem();
+    this.menu[0].setText(this.items[0].label);
+    this.refreshSummary();
+    this.note.setText('');
   }
 
   // Generated backdrop pieces for the title screen
