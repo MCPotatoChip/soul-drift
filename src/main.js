@@ -84,6 +84,85 @@ function startGame() {
       this.step(120, 16.67, keep);
       return { room, id: boss.id, phases: phases.join(''), moves, closest: Math.round(closest), defeated: !!GS.data.bosses[boss.id], errors: this.errors.splice(0) };
     },
+    // Robustness test: a player who presses keys at random (every power, Bankai and the mask now and then) and cannot be hurt,
+    // in a room, or against its boss (whose health is knocked down by 30% every 15 s so every phase gets played). Runs without
+    // drawing. Returns what happened and any errors thrown while the game ran.
+    chaosTest(room, secs = 60) {
+      const orig = this.game.scene.render;
+      this.game.scene.render = () => {};
+      try {
+        this.give('all'); GS.god = true; this.errors.length = 0;
+        const s0 = this.scene; s0.transitioning = false; s0.goTo(room, { spawn: 'rest' });
+        this.step(40);
+        let g = this.scene, p = g.player; const boss = g.boss;
+        if (!p) return { room, err: 'no player' };
+        let spot = g.pxW / 2;
+        if (boss) {   // far from every door and lock, like bossTest
+          const cells = g.lockCells.concat(g.doors); let far = -1;
+          for (let x = g.arena.left + 20; x < g.arena.right - 20; x += 8) {
+            if (cells.some(c => Math.abs(x - (c.x * TILE + 8)) < 7.5 * TILE && Math.abs(g.arena.floor - 12 - (c.y * TILE + 8)) < 8 * TILE)) continue;
+            if (Math.abs(x - boss.x) > far) { far = Math.abs(x - boss.x); spot = x; }
+          }
+          p.body.reset(spot, g.arena.floor - 12);
+          if (boss.waitsForReveal) { this.step(10); boss.reveal(); }
+          this.step(90);
+        }
+        const K = (c, on) => { if (on) { if (!Controls.held.has(c)) { Controls.held.add(c); Controls.pressed.add(c); } } else Controls.held.delete(c); };
+        const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyX', 'KeyC', 'KeyS', 'KeyD', 'KeyV', 'KeyF', 'KeyQ', 'KeyA'];
+        const ui = this.game.scene.getScene('ui'), phases = new Set(boss ? [boss.phase] : []);
+        let held = new Set(), next = 0, left = 0;
+        for (let i = 0; i < secs * 60 && !(boss && !boss.alive) && this.errors.length < 4; i++) {
+          if (this.scene !== g) { left++; g = this.scene; p = g.player; if (!p) break; }
+          this.step(1, 16.667, () => {
+            if (i >= next) {
+              next = i + 6 + Math.floor(Math.random() * 30); held = new Set();
+              const r = Math.random;
+              const d = r() < 0.4 ? 'ArrowLeft' : r() < 0.7 ? 'ArrowRight' : null; if (d) held.add(d);
+              [['Space', 0.3], ['ArrowUp', 0.14], ['ArrowDown', 0.14], ['KeyX', 0.7], ['KeyC', 0.18], ['KeyS', 0.15], ['KeyD', 0.04], ['KeyV', 0.05], ['KeyF', 0.05], ['KeyQ', 0.04], ['KeyA', 0.06]]
+                .forEach(([k, pr]) => { if (r() < pr) held.add(k); });
+              if (r() < 0.05) { GS.data.reiatsu = COMBAT.maxReiatsu; GS.run.primed = true; }   // so Bankai really happens
+            }
+            keys.forEach(k => K(k, held.has(k)));
+            GS.data.hp = GS.data.maxHp;
+            if (g.frozen) g.freeze(false);
+            if (ui.popState) { ui.popState.t = -1e9; ui.closePopup(); }
+            if (ui.dlgState) { ui.dlgState.wait = 0; ui.advanceDialog(); }
+            if (this.game.scene.isActive('menu')) this.game.scene.getScene('menu').close();
+            if (boss) {
+              phases.add(boss.phase);
+              if (p.body.center.y > g.arena.floor + 20) p.body.reset(spot, g.arena.floor - 12);
+              if (i % 900 === 899 && boss.alive && boss.fighting) { boss.hp = Math.max(1, boss.hp - boss.maxHp * 0.3); boss.hit(1, 1, {}); }
+            }
+          });
+        }
+        Controls.releaseAll();
+        return { room, boss: boss && boss.id, defeated: boss ? !boss.alive : null, phases: [...phases].join(''), left, errors: this.errors.splice(0, 4) };
+      } finally { this.game.scene.render = orig; GS.god = false; Controls.releaseAll(); }
+    },
+    // Enter every room by each of its doors, its rest gate and its start, step a moment, and list what is wrong: no player,
+    // a player inside a wall, or an error. (end_boss door 2 is the rift wall, solid until the Hollow within falls: skipped.)
+    sweepRooms(frames = 40) {
+      const orig = this.game.scene.render, bad = [];
+      this.game.scene.render = () => {};
+      try {
+        this.errors.length = 0; let n = 0;
+        for (const room of Object.keys(ROOMS)) {
+          const entries = Object.keys(ROOMS[room].doors).map(door => ({ door })).concat([{ spawn: 'rest' }, { spawn: 'start' }]);
+          for (const e of entries) {
+            if (room === 'end_boss' && e.door === '2') continue;
+            const s = this.scene; s.transitioning = false; s.scene.restart(Object.assign({ room }, e)); this.step(3);
+            const g = this.scene, p = g.player;
+            if (!p) { bad.push(`${room} ${JSON.stringify(e)}: no player`); continue; }
+            if ((e.spawn === 'rest' && !g.restGate) || (e.spawn === 'start' && !g.startPos)) continue;
+            n++;
+            this.step(frames);
+            const b = p.body, inWall = [[b.left + 1, b.top + 1], [b.right - 1, b.top + 1], [b.left + 1, b.bottom - 1], [b.right - 1, b.bottom - 1]].some(([x, y]) => g.isSolidAt(x, y));
+            if (inWall) bad.push(`${room} ${JSON.stringify(e)}: inside a wall`);
+          }
+        }
+        return { entries: n, bad, errors: this.errors.splice(0, 5) };
+      } finally { this.game.scene.render = orig; }
+    },
     // Fight a boss with a scripted player who does nothing but walk up and swing (never dodges, never heals, never
     // casts). Health is topped up after every blow, so what comes back is how fast the sword alone ends the fight
     // (`ttk`, game seconds) and how often the boss lands a blow on someone who does not move out of the way.
