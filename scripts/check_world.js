@@ -153,7 +153,7 @@ function run(g, A, start, ctl, maxT = 2.6) {
     } else if (s.mode === 'climb') {
       s.vx = s.wallDir * 30; s.vy = -PHYS.wallClimb;
       if (!touchingWall(g, s, s.wallDir, true)) { s.mode = 'normal'; s.vy = -250; s.vx = s.wallDir * 90; }
-      else if (solidAt(g, s.x, s.y - BH - 2)) { out.rests.push({ cling: s.wallDir, x: s.x, y: s.y }); break; }
+      else if (solidAt(g, s.x, s.y - BH - 2)) { out.rests.push({ cling: s.wallDir, x: s.x, y: s.y, t }); break; }
     } else {
       const accel = s.grounded ? (dir ? PHYS.accelGround : PHYS.decelGround) : PHYS.accelAir;
       const k = s.lock > 0 ? 0.2 : 1, target = dir * PHYS.runSpeed * (heavy ? 0.78 : 1);
@@ -166,7 +166,7 @@ function run(g, A, start, ctl, maxT = 2.6) {
       if (c.dash && A.dash && s.canDash) { s.mode = 'dash'; s.dashDir = dir || s.facing; s.dashT = PHYS.dashTime; s.canDash = false; s.vy = 0; }
       if (c.burst && A.burst && (s.grounded || c.fromWall)) { s.mode = 'burst'; s.burstDir = dir || s.facing; s.vy = 0; }
       if (A.grip && !heavy && !s.grounded && dir && s.vy > -200 && s.lock <= 0.04 && s.mode === 'normal' && touchingWall(g, s, dir) && t > 0.02) {
-        out.rests.push({ cling: dir, x: s.x, y: s.y });
+        out.rests.push({ cling: dir, x: s.x, y: s.y, t });
         break;
       }
     }
@@ -178,14 +178,14 @@ function run(g, A, start, ctl, maxT = 2.6) {
     const ex = exitDoor(g, s);
     if (ex === 'dead') { out.dead = true; break; }
     if (ex === 'wall') { s.x = Math.max(6, Math.min(g.pxW - 6, s.x)); s.vx = 0; }
-    else if (ex) { out.doors.push(ex); break; }
+    else if (ex) { out.doors.push(ex); out.doorT = t; out.doorX = s.x; break; }
     for (const tg of g.targets) {
       if (out.hits.has(tg)) continue;
       if (Math.abs(s.x - tg.x) < tg.r && Math.abs(s.y - tg.feet) < (tg.ground ? 34 : 20) && (!tg.ground || s.grounded)) out.hits.add(tg);
     }
     if (!s.grounded) airborne = true;
-    if (s.grounded && airborne && t > 0.05 && s.mode === 'normal') { out.rests.push({ x: s.x, y: s.y }); if (!c.walk) break; airborne = false; }
-    if (s.grounded && c.walk && f % 4 === 0) out.rests.push({ x: s.x, y: s.y });
+    if (s.grounded && airborne && t > 0.05 && s.mode === 'normal') { out.rests.push({ x: s.x, y: s.y, t }); if (!c.walk) break; airborne = false; }
+    if (s.grounded && c.walk && f % 4 === 0) out.rests.push({ x: s.x, y: s.y, t });
   }
   return out;
 }
@@ -417,7 +417,7 @@ function routeSeconds(route, endsAtBoss) {
   return t;
 }
 
-module.exports = { ROOMS, PHYS, TILE, ABIL, explore, journey, makeGrid, relevant };
+module.exports = { ROOMS, PHYS, TILE, ABIL, DT, explore, journey, makeGrid, relevant, run, groundScripts, clingScripts, at };
 
 // ------------------------------------------------------------------ main
 if (require.main === module) main();
