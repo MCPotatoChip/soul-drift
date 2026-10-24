@@ -15,7 +15,7 @@ function fmtClock(t, tenths = false) {
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 // The kanji shown faintly behind each release banner
-const BANNER_KANJI = { BANKAI: '卍解', 'RESURRECCIÓN': '帰刃', UNLEASHED: '剣八', SHIKAI: '始解', UNBOUND: '虚' };
+const BANNER_KANJI = { BANKAI: '卍解', 'RESURRECCIÓN': '帰刃', UNLEASHED: '剣八', SHIKAI: '始解', UNBOUND: '虚', 'HŌGYOKU': '崩玉', TRANSCENDENCE: '超越', 'AUSWÄHLEN': '聖別', 'THE ALMIGHTY': '全知全能', IRA: '憤怒' };
 
 class UIScene extends Phaser.Scene {
   constructor() { super('ui'); }
@@ -46,6 +46,8 @@ class UIScene extends Phaser.Scene {
     this.oreText = this.add.text(0, 84, '', { fontFamily: FONT_BODY, fontSize: '20px', fontStyle: '700', color: '#c8a8ff' }).setDepth(10).setVisible(false);
     this.bankaiBar = this.add.graphics().setDepth(10);
     this.bankaiLabel = this.add.text(150, 120, '卍解  BANKAI', { fontFamily: FONT_DISPLAY, fontSize: '15px', color: CRIMSON, fontStyle: '800' }).setDepth(10).setVisible(false);
+    // While Bankai sleeps: 卍 and five pips for the strikes in a row it wants, or the seconds before it can answer
+    this.bankaiState = this.add.text(150, 120, '', { fontFamily: FONT_DISPLAY, fontSize: '15px', color: MUTED, fontStyle: '800' }).setDepth(10);
 
     // Where you are, quietly, in the top right
     this.locKanji = this.add.text(GAME_W - 26, 18, '', { fontFamily: FONT_DISPLAY, fontSize: '22px', fontStyle: '800', color: CRIMSON }).setOrigin(1, 0).setDepth(10).setAlpha(0.85);
@@ -206,6 +208,22 @@ class UIScene extends Phaser.Scene {
 
     this.bankaiBar.clear();
     this.bankaiLabel.setVisible(bank);
+    const sleeps = !bank && GS.has('bankai') && !(GS.rush && GS.rush.bind.reiatsu);
+    this.bankaiState.setVisible(sleeps);
+    if (sleeps) {
+      const r = GS.run, cd = r.bankaiCD > 0;
+      const label = cd ? `卍  ${Math.ceil(r.bankaiCD)}s` : '卍';
+      if (this.cache.bankaiState !== label) { this.cache.bankaiState = label; this.bankaiState.setText(label); }
+      this.bankaiState.setColor(cd ? '#5c5868' : r.primed && d.reiatsu >= COMBAT.maxReiatsu - 0.5 ? CRIMSON : r.primed ? GOLD : MUTED);
+      if (!cd) {
+        const n = COMBAT.bankaiCombo, have = r.primed ? n : Math.min(n, r.combo);
+        for (let i = 0; i < n; i++) {
+          const x = 176 + i * 13, y = 129, on = i < have;
+          this.bankaiBar.fillStyle(on ? (r.primed ? 0xd8343f : 0xd9b35a) : 0x3a3646, on ? 1 : 0.8)
+            .fillPoints([{ x, y: y - 4 }, { x: x + 4, y }, { x, y: y + 4 }, { x: x - 4, y }], true);
+        }
+      }
+    }
     if (bank) {
       const full = COMBAT.bankaiDuration * (GS.sealOn('gentei') ? COMBAT.genteiMul : 1) * (1 + 0.2 * GS.upgrade('bankaiLast'));
       const w = 200 * Math.min(1, GS.run.bankaiT / full);

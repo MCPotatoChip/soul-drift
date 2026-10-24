@@ -68,11 +68,28 @@ const COMBAT = {
   raikoRadius: 58,
   getsugaDamage: 18,
   swordBonus: 2,          // extra slash damage per forge level
-  kaidoDiscount: 11,      // Kaidō seal: Reiatsu saved per heal
+  kaidoDiscount: 8,       // Kaidō seal: Reiatsu saved per heal
   bellStep: 0.15,         // Bell of the Eleventh: damage added per quick follow-up strike
   bellMax: 0.6,
   genteiMul: 1.5,         // Gentei Kaijo seal: Bankai lasts this much longer
+  bankaiCombo: 5,         // strikes in a row, without being hit, before Bankai answers
+  comboWindow: 2.4,       // seconds a combo waits for its next strike
+  bankaiCooldown: 35,     // seconds after Bankai ends before it can be called again (scaled by the difficulty)
 };
+
+// Three ways to walk the journey, chosen when it begins and changed only at a rest gate.
+// damage: masks a blow costs (half: every second blow costs one, the remainder carried); invuln: how long a blow
+// leaves you untouchable; reiatsu: Reiatsu drawn by each landed strike; foeHp / bossHp: health of enemies and
+// bosses; bossSpeed: how quickly bosses act; warn: a red mark over every foe winding up; bankaiCd: Bankai's cooldown.
+const DIFFICULTY = {
+  easy:   { name: 'Easy', jp: '易', damage: 0.5, invuln: 1.5, reiatsu: 1.5, foeHp: 0.8, bossHp: 0.8, bossSpeed: 0.92, warn: true, bankaiCd: 0.7,
+    desc: 'Every second blow costs a mask, you stay untouchable longer after one, strikes draw half again as much Reiatsu, and foes and bosses are weaker and slower. A red mark warns of every attack.' },
+  normal: { name: 'Normal', jp: '常', damage: 1, invuln: 1, reiatsu: 1, foeHp: 1, bossHp: 1, bossSpeed: 1, warn: false, bankaiCd: 1,
+    desc: 'The journey as it was meant to be walked.' },
+  hard:   { name: 'Hard', jp: '難', damage: 1, invuln: 0.8, reiatsu: 0.85, foeHp: 1.3, bossHp: 1.35, bossSpeed: 1.12, warn: false, bankaiCd: 1.3,
+    desc: 'Foes have 30% more health and bosses 35% more, and bosses act 12% faster. Strikes draw less Reiatsu, you recover from a blow sooner, and Bankai takes longer to come back.' },
+};
+const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
 
 // Elite enemies: tougher than their kind, with one trait each, marked by a kanji over the head.
 // New Game+ meets them everywhere (more each cycle); a first journey only in Hueco Mundo and the Forest.
@@ -125,7 +142,7 @@ const ABILITIES = {
   getsuga: { name: 'Getsuga Tenshō', key: 'Hold {attack}, then release', desc: 'Moon Fang Heaven-Piercer. Pour Reiatsu into the blade and loose it as a crescent that cuts through everything in a line. Costs 22 Reiatsu.' },
   konso:  { name: 'Konsō', key: 'Hold {konso}', desc: 'Soul Burial. Strike with the hilt to read the memories of the dead, send lost souls on, and draw out Reiatsu. Unseen things show themselves.' },
   burst:  { name: 'Senkaimon Burst', key: 'Hold {burst} on ground or wall, then release', desc: 'Tear the air open like a Garganta and rocket forward. Smashes sealed Senkaimon. Press {jump} to stop early.' },
-  bankai: { name: 'Bankai: Tensa Zangetsu', key: '{bankai} with a full Reiatsu vessel', desc: 'The final release. A black blade, faster and longer strikes that throw crescent waves, and Reiatsu that refills on its own.' },
+  bankai: { name: 'Bankai: Tensa Zangetsu', key: '{bankai} with a full vessel, after 5 strikes in a row', desc: 'The final release. A black blade, faster and longer strikes that throw crescent waves, and Reiatsu that refills on its own. It answers only a full vessel and a blade that has landed five strikes in a row without you being hit, and once it fades it needs time before it can be called again.' },
   hollow: { name: 'Hollow Mask', key: '{mask}', desc: 'Hollowfication. Don the mask for raw power and speed. Something inside you is keeping count.' },
 };
 const ABILITY_ORDER = ['konso', 'dash', 'hado', 'grip', 'bakudo', 'wings', 'raiko', 'burst', 'bankai', 'getsuga', 'hollow'];
@@ -156,27 +173,29 @@ const UPGRADE_ORDER = ['kidoPower', 'kidoReach', 'moonEdge', 'flow', 'shunpoEdge
 // each forge level adds this share of their base health (damage per slash rises by 40% of the first, per level).
 const BOSS_HP_PER_FORGE = 0.32;
 
+// Slot costs follow what a seal is worth: 1 for a convenience or a narrow edge, 2 for a lasting gain in a fight,
+// 3 for what changes how every fight is played. (Rebalanced in world 5: see GS.migrate for saves that wore more.)
 const SEALS = {
   edge:    { name: 'Whetted Edge', cost: 2, desc: 'Slash damage +40%.' },
   swift:   { name: 'Shunpo Mastery', cost: 1, desc: 'Shunpo recovers twice as fast.' },
-  harvest: { name: 'Spirit Harvest', cost: 1, desc: 'Gain 50% more Reiatsu from strikes.' },
+  harvest: { name: 'Spirit Harvest', cost: 2, desc: 'Gain 50% more Reiatsu from strikes.' },
   focus:   { name: 'Kidō Focus', cost: 2, desc: 'Kidō damage +50%. Bakudō binds for longer.' },
   quick:   { name: 'Quick Suppression', cost: 2, desc: 'Heal almost twice as fast.' },
-  magnet:  { name: 'Reishi Magnet', cost: 1, desc: 'Reishi shards drift toward you.' },
+  magnet:  { name: 'Reishi Magnet', cost: 1, desc: 'Reishi shards drift toward you, and foes drop a quarter more of them.' },
   long:    { name: 'Long Reach', cost: 2, desc: 'Slash range +35%.' },
-  grace:   { name: 'Grace of the Departed', cost: 2, desc: 'Standing still slowly restores health.' },
+  grace:   { name: 'Grace of the Departed', cost: 1, desc: 'Standing still restores a mask every four seconds.' },
   moonfang: { name: 'Moon Fang', cost: 1, desc: 'Getsuga Tenshō charges faster and costs less Reiatsu.' },
-  phantom: { name: 'Utsusemi', cost: 2, desc: 'Leave only an afterimage behind: nothing can touch you during Shunpo.' },
-  will:    { name: 'Unbreakable Will', cost: 3, desc: 'One extra mask of health while equipped.' },
-  recall:  { name: 'Soul Recall', cost: 1, desc: 'Konsō works faster and draws out more Reiatsu.' },
-  kaido:   { name: 'Kaidō', cost: 1, desc: 'The Fourth Division\'s healing arts: each mask you heal costs 11 less Reiatsu.' },
+  phantom: { name: 'Utsusemi', cost: 3, desc: 'Leave only an afterimage behind: nothing can touch you during Shunpo.' },
+  will:    { name: 'Unbreakable Will', cost: 2, desc: 'One extra mask of health while equipped.' },
+  recall:  { name: 'Soul Recall', cost: 1, desc: 'Konsō works faster and draws out more Reiatsu, and every foe you strike with the hilt gives a little, even one you have heard before.' },
+  kaido:   { name: 'Kaidō', cost: 1, desc: 'The Fourth Division\'s healing arts: each mask you heal costs 8 less Reiatsu.' },
   bell:    { name: 'Bell of the Eleventh', cost: 2, desc: 'Strikes landed in quick succession hit harder, up to +60%.' },
   shunko:  { name: 'Shunkō', cost: 2, desc: 'Flash War Cry: Shunpo cuts through every enemy in its path.' },
   hierro:  { name: 'Hierro', cost: 2, desc: 'Skin of steel: blows no longer knock you back, and every fourth one is shrugged off.' },
-  gentei:  { name: 'Gentei Kaijo', cost: 2, desc: 'Limit release: Bankai lasts half again as long.' },
+  gentei:  { name: 'Gentei Kaijo', cost: 2, desc: 'Limit release: Bankai lasts half again as long and comes back a third sooner.' },
   pride:   { name: 'Lion\'s Pride', cost: 1, desc: 'Kon\'s courage: with one mask left, your strikes hit 75% harder.' },
   tesla:   { name: 'Tesla\'s Charm', cost: 1, desc: 'After a blow you stay untouchable 40% longer.' },
-  might:   { name: 'Llargo\'s Might', cost: 2, desc: 'Slash damage +20%.' },
+  might:   { name: 'Llargo\'s Might', cost: 1, desc: 'Slash damage +20%.' },
   shiba:   { name: 'Shiba Crest', cost: 2, desc: 'The fireworks clan\'s mark: every Kidō costs a quarter less Reiatsu.' },
 };
 
@@ -207,29 +226,37 @@ const REGIONS = {
   end: { name: 'The Inner World', sub: 'Sideways towers under an endless sky', kanji: '精神世界', color: 0x7fb4e8, dark: 0 },
   dan: { name: 'The Dangai', sub: 'The Precipice World between worlds', kanji: '断界', color: 0x9a7ad8, dark: 0.3 },
   for: { name: 'Forest of Menos', sub: 'Beneath the white sand', kanji: '大虚の森', color: 0x6a8a7a, dark: 0.72 },
+  fkt: { name: 'Fake Karakura Town', sub: 'A town held up on four pillars, and a man who planned all of it', kanji: '偽空座町', color: 0x8ab8e8, dark: 0 },
 };
 
 // What the ground sounds like underfoot in each region
-const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand', stu: 'dirt', rei: 'crystal' };
+const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand', stu: 'dirt', rei: 'crystal', fkt: 'stone' };
 
 
 // notches: health fractions where the fight changes phase (drawn on the boss bar). jp: the name in Japanese.
 // `espada` is Aaroniero and `final` the Hollow within: those ids are kept so old saves still know them.
+// rush: the place in the palace's Grand Trial (every boss without `secret` takes part, in this order, so a boss
+// added here joins the trial by itself). secret: found only at the end of the Grand Trial, never counted toward
+// completion and never offered as a single duel.
 const BOSSES = {
-  fisher:    { name: 'Grand Fisher', title: 'The Hollow Who Hunts With a Lure', jp: 'グランドフィッシャー', notches: [0.5] },
-  menos:     { name: 'Menos Grande', title: 'Hollow of a Thousand Faces', jp: '大虚', notches: [0.5] },
-  renji:     { name: 'Renji Abarai', title: 'Lieutenant of the Sixth Division', jp: '阿散井恋次', notches: [0.5] },
-  kenpachi:  { name: 'Kenpachi Zaraki', title: 'Captain of the Eleventh Division', jp: '更木剣八', notches: [0.5] },
-  byakuya:   { name: 'Byakuya Kuchiki', title: 'Captain of the Sixth Division', jp: '朽木白哉', notches: [0.55, 0.22] },
-  grimmjow:  { name: 'Grimmjow Jaegerjaquez', title: 'Sexta Espada', jp: 'グリムジョー', notches: [0.5] },
-  vasto:     { name: 'Vasto Lorde', title: 'Sovereign of the Sand', jp: '最上級大虚', notches: [0.6, 0.25] },
-  ulquiorra: { name: 'Ulquiorra Cifer', title: 'Cuarta Espada', jp: 'ウルキオラ', notches: [0.6, 0.3] },
-  espada:    { name: 'Aaroniero Arruruerie', title: 'Noveno Espada, Hidden Among the Menos', jp: 'アーロニーロ', notches: [0.5] },
-  final:     { name: 'Hollow Ichigo', title: 'The White One Within', jp: '内なる虚', notches: [0.7, 0.45, 0.2] },
-  urahara:   { name: 'Kisuke Urahara', title: 'Shopkeeper, Scientist, Captain Once', jp: '浦原喜助', notches: [0.5] },
-  nnoitra:   { name: 'Nnoitra Gilga', title: 'Quinta Espada', jp: 'ノイトラ', notches: [0.5] },
-  yammy:     { name: 'Yammy Llargo', title: 'Décima Espada', jp: 'ヤミー', notches: [0.5] },
+  fisher:    { name: 'Grand Fisher', title: 'The Hollow Who Hunts With a Lure', jp: 'グランドフィッシャー', notches: [0.5], rush: 1 },
+  menos:     { name: 'Menos Grande', title: 'Hollow of a Thousand Faces', jp: '大虚', notches: [0.5], rush: 2 },
+  renji:     { name: 'Renji Abarai', title: 'Lieutenant of the Sixth Division', jp: '阿散井恋次', notches: [0.5], rush: 3 },
+  kenpachi:  { name: 'Kenpachi Zaraki', title: 'Captain of the Eleventh Division', jp: '更木剣八', notches: [0.5], rush: 4 },
+  byakuya:   { name: 'Byakuya Kuchiki', title: 'Captain of the Sixth Division', jp: '朽木白哉', notches: [0.55, 0.22], rush: 5 },
+  urahara:   { name: 'Kisuke Urahara', title: 'Shopkeeper, Scientist, Captain Once', jp: '浦原喜助', notches: [0.5], rush: 6 },
+  grimmjow:  { name: 'Grimmjow Jaegerjaquez', title: 'Sexta Espada', jp: 'グリムジョー', notches: [0.5], rush: 7 },
+  yammy:     { name: 'Yammy Llargo', title: 'Décima Espada', jp: 'ヤミー', notches: [0.5], rush: 8 },
+  espada:    { name: 'Aaroniero Arruruerie', title: 'Noveno Espada, Hidden Among the Menos', jp: 'アーロニーロ', notches: [0.5], rush: 9 },
+  ulquiorra: { name: 'Ulquiorra Cifer', title: 'Cuarta Espada', jp: 'ウルキオラ', notches: [0.6, 0.3], rush: 10 },
+  nnoitra:   { name: 'Nnoitra Gilga', title: 'Quinta Espada', jp: 'ノイトラ', notches: [0.5], rush: 11 },
+  vasto:     { name: 'Vasto Lorde', title: 'Sovereign of the Sand', jp: '最上級大虚', notches: [0.6, 0.25], rush: 12 },
+  final:     { name: 'Hollow Ichigo', title: 'The White One Within', jp: '内なる虚', notches: [0.7, 0.45, 0.2], rush: 13 },
+  aizen:     { name: 'Sōsuke Aizen', title: 'The One Who Stands in the Heavens', jp: '藍染惣右介', notches: [0.6, 0.3], rush: 14 },
+  yhwach:    { name: 'Yhwach', title: 'Father of the Quincy, the Almighty', jp: 'ユーハバッハ', notches: [0.65, 0.35], secret: true },
 };
+// The bosses that count toward completion, the Grand Trial and the single duels
+const STORY_BOSSES = Object.keys(BOSSES).filter(b => !BOSSES[b].secret);
 
 const MEMORIES = {
   thug: ['"Just one more meal. Just one more day."', '"Nobody remembers my name, so I took theirs."'],
@@ -258,6 +285,8 @@ const MEMORIES = {
   nnoitra: ['"Strong or weak, that is all there ever was. I picked strong."', '"Who is the one laughing now? Nobody. Nobody is."'],
   yammy: ['"Ten. They gave me a ten and I wore it like a crown."', '"If I stop being angry, there is nothing left of me."'],
   urahara: ['"Everything I ever built, I built so that someone like you could stand here."', '"A shopkeeper is only a captain who learned to smile."'],
+  aizen: ['"Admiration is the emotion furthest from understanding."', '"I was never standing in the heavens. I only wanted someone to stand beside."'],
+  yhwach: ['"I gave my power to the world, and I will take it back. That is all a father is."', '"I saw every future. In none of them did I lose."'],
 };
 
 // Knowing a foe pays: sending on this many of a kind, and hearing its memory, each add 5% damage against it
@@ -289,8 +318,10 @@ const BESTIARY = [
   ['nnoitra', 'Nnoitra Gilga', 'A scythe taller than he is. Sweeping cuts, crescent waves and Sonído; released, four arms and Santa Teresa.'],
   ['yammy', 'Yammy Llargo', 'Slow, huge and impossible to stagger. Fists, quakes and a great Cero; in Ira, pillars of Reiatsu.'],
   ['urahara', 'Kisuke Urahara', 'The cane was a sword all along. Benihime changes whatever she touches.'],
+  ['aizen', 'Sōsuke Aizen', 'Kyōka Suigetsu shows you whatever he likes: the one you strike may be glass. Hadō #90 boxes you in black; one finger stops your blade.'],
+  ['yhwach', 'Yhwach', 'The father of the Quincy. Arrows of light by the thousand, Auswählen to take back power, and the Almighty: he sees where you will be.'],
 ];
-const BOSS_KINDS = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'vasto', 'ulquiorra', 'espada', 'final', 'urahara', 'nnoitra', 'yammy'];
+const BOSS_KINDS = Object.keys(BOSSES);
 
 // The old man in Rukongai wants to hear what the dead remember
 const QUEST_NAMES = { npc: 'Old Man of Junrinan', need: ['thug', 'shini', 'hollow'], reishi: 200, seal: 'recall' };
@@ -322,5 +353,8 @@ const BINDINGS = {
   reiatsu: { name: 'Binding of the Spirit', jp: '霊', desc: 'Your vessel holds a third of its Reiatsu, and Bankai will not answer.' },
 };
 const BINDING_ORDER = ['blade', 'shell', 'seals', 'reiatsu'];
-const RUSH_ORDER = ['fisher', 'menos', 'renji', 'kenpachi', 'byakuya', 'grimmjow', 'ulquiorra', 'espada', 'vasto', 'final'];
-const RUSH_RESTS = [2, 5, 7];   // after these fights (by index) the trial grants a respite: health restored
+// The Grand Trial: every boss of the journey, in the order of BOSSES[id].rush. Yhwach waits after the last.
+const RUSH_ORDER = STORY_BOSSES.slice().sort((a, b) => BOSSES[a].rush - BOSSES[b].rush);
+const RUSH_SECRET = 'yhwach';
+// after every third fight the trial grants a respite: health restored (indices into RUSH_ORDER)
+const RUSH_RESTS = RUSH_ORDER.map((_, i) => i).filter(i => (i + 1) % 3 === 0 && i < RUSH_ORDER.length - 1);

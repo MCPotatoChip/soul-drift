@@ -64,7 +64,7 @@ class TitleScene extends Phaser.Scene {
     this.hasSave = GS.hasSave();
     this.items = [];
     if (this.hasSave) this.items.push({ label: 'Continue', act: () => this.cont() });
-    else this.items.push({ label: 'New journey', act: () => this.startSlot(GS.slot, 'new') });
+    else this.items.push({ label: 'New journey', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'difficulty', newGame: { slot: GS.slot, mode: 'new' } }); } });
     this.items.push({ label: 'Journeys', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'slots' }); } });
     this.items.push({ label: 'Controls', act: () => this.toggleControls() });
     this.items.push({ label: 'Settings', act: () => { Sfx.play('confirm'); this.scene.launch('menu', { type: 'settings' }); } });
@@ -170,21 +170,24 @@ class TitleScene extends Phaser.Scene {
 
   toggleControls() { Sfx.play('confirm'); this.scene.launch('menu', { type: 'controls' }); }
 
-  // Play a slot: continue it, begin it anew, or walk it again as New Game+ (the Journeys screen confirms first)
-  startSlot(i, mode) {
+  // Play a slot: continue it, begin it anew, or walk it again as New Game+ (the Journeys screen confirms first).
+  // o.difficulty: the one chosen for a new journey; o.from: the finished save New Game+ grows from (this slot's own,
+  // or another's when the slot is empty)
+  startSlot(i, mode, o = {}) {
     if (this.leaving) return;
     GS.useSlot(i);
     if (mode === 'continue') { this.cont(); return; }
     if (mode === 'plus') {
-      const old = GS.peek(i);
+      const old = o.from || GS.peek(i);
       if (!old) return;
-      GS.newGamePlus(old);
+      GS.newGamePlus(old, o.difficulty);
       GS.save();
       this.begin({ room: 'kar_hub', spawn: 'start' });
       return;
     }
     GS.wipe(i);
     GS.newGame();
+    if (o.difficulty) GS.data.difficulty = o.difficulty;
     GS.save();
     this.begin({ room: 'kar_hub', spawn: 'start' }, 'intro');
   }
@@ -214,9 +217,9 @@ class EndingScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#f4f1ea');
     this.cameras.main.fadeIn(1200, 255, 255, 255);
     const lines = [
-      'The white one comes apart into drifting reishi, laughing.',
-      'For a moment you see your own face in it, unmasked.',
-      'Then only the blue sky of the Inner World remains, and the towers right themselves.',
+      'The white one came apart laughing. Now the man who planned all of it falls too.',
+      'Kyōka Suigetsu shatters, and the false town on its four pillars breaks like a mirror around him.',
+      'Then only the blue sky remains, and far below, the real Karakura has slept through all of it.',
     ];
     lines.forEach((l, i) => {
       const t = this.add.text(GAME_W / 2, 170 + i * 46, l, { fontFamily: FONT_BODY, fontSize: '24px', color: '#17161f' }).setOrigin(0.5).setAlpha(0);
@@ -243,7 +246,7 @@ class EndingScene extends Phaser.Scene {
 }
 
 
-// The true ending: the Trial of the Ten is won (deaths along the way do not matter). The Inner World
+// The true ending: the Grand Trial is won, Yhwach included (deaths along the way do not matter). The Inner World
 // under a clear sky, Zangetsu and the white one side by side with you, and what the trial cost.
 class TrueEndingScene extends Phaser.Scene {
   constructor() { super('trueEnding'); }
@@ -260,6 +263,7 @@ class TrueEndingScene extends Phaser.Scene {
       scale: { start: 0.8, end: 0.2 }, alpha: { start: 0.6, end: 0 }, frequency: 160, tint: 0xffffff, blendMode: 'ADD',
     });
     const lines = [
+      'Every eye of the Almighty closes at once, and the Soul King\'s palace is quiet again.',
       'Under the last name there is no name at all.',
       'Only a clear sky, and the towers of the Inner World standing upright for the first time.',
       'Zangetsu stands on one side of you. The white one stands on the other. Neither holds a blade.',
@@ -268,7 +272,7 @@ class TrueEndingScene extends Phaser.Scene {
       'For the first time, the rain inside you has stopped.',
     ];
     lines.forEach((l, i) => {
-      const txt = this.add.text(GAME_W / 2, 92 + i * 44, l, { fontFamily: FONT_BODY, fontSize: '23px', color: '#17161f', stroke: '#f4f1ea', strokeThickness: 4 }).setOrigin(0.5).setAlpha(0);
+      const txt = this.add.text(GAME_W / 2, 70 + i * 40, l, { fontFamily: FONT_BODY, fontSize: '22px', color: '#17161f', stroke: '#f4f1ea', strokeThickness: 4 }).setOrigin(0.5).setAlpha(0);
       this.tweens.add({ targets: txt, alpha: 1, delay: 1400 + i * 1900, duration: 1300 });
     });
     // the three of them, side by side
@@ -283,7 +287,7 @@ class TrueEndingScene extends Phaser.Scene {
     const sub = this.add.text(GAME_W / 2, 578, 'The True Ending', { fontFamily: FONT_DISPLAY, fontSize: '24px', fontStyle: '700', color: '#c89a3a' }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: [title, shin, sub], alpha: 1, delay: at + 1600, duration: 1500 });
     const bound = BINDING_ORDER.filter(k => info.bind && info.bind[k]);
-    const stat = `Trial of the Ten ${fmtClock(info.t || 0, true)}${info.newBest ? ' (best)' : ''}   ·   ${bound.length ? 'bound: ' + bound.map(k => BINDINGS[k].jp).join(' ') : 'unbound'}   ·   journey ${fmtClock(d.time)}   ·   ${d.deaths} deaths`;
+    const stat = `Grand Trial ${fmtClock(info.t || 0, true)}${info.newBest ? ' (best)' : ''}   ·   ${bound.length ? 'bound: ' + bound.map(k => BINDINGS[k].jp).join(' ') : 'unbound'}   ·   journey ${fmtClock(d.time)}   ·   ${d.deaths} deaths`;
     const stats = this.add.text(GAME_W / 2, 624, stat, { fontFamily: FONT_BODY, fontSize: '18px', color: '#5a5668' }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: stats, alpha: 1, delay: at + 2600, duration: 1200 });
     const foot = this.add.text(GAME_W / 2, 676, Touch.enabled ? 'Thank you for playing. Tap to return to the title.' : Controls.fmt('Thank you for playing. Press {jump} to return to the title.'), { fontFamily: FONT_BODY, fontSize: '16px', color: '#8a8497' }).setOrigin(0.5).setAlpha(0);

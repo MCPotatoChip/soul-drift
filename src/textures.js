@@ -43,6 +43,7 @@ const TILE_PAL = {
   for: { base: '#1d1a25', mid: '#25202f', dark: '#110f18', top: '#52705f', line: '#2b2537', spike: '#ece8f4', plank: '#cfcbe0', plankHi: '#ffffff' },
   stu: { base: '#6a5a48', mid: '#7a6a56', dark: '#4a3e32', top: '#b8a888', line: '#58493a', spike: '#e8dcc4', plank: '#8a6a4a', plankHi: '#b89470' },
   rei: { base: '#e8e2d2', mid: '#f4f0e4', dark: '#c8bea4', top: '#e8c46a', line: '#d4caae', spike: '#c8a040', plank: '#c89a3a', plankHi: '#f4d68a' },
+  fkt: { base: '#5a6070', mid: '#686e80', dark: '#40444f', top: '#b8c2d4', line: '#4a4f5c', spike: '#e8ecf4', plank: '#8a8e9a', plankHi: '#c8ccd8' },
 };
 
 function makeTileset(scene, region) {
@@ -73,6 +74,9 @@ function makeTileset(scene, region) {
         c.fillStyle = 'rgba(232,196,106,0.55)'; c.fillRect(ox + 2, 2, 12, 1);
       } else if (region === 'stu') {   // packed rock with pale strata
         c.fillStyle = p.line; c.fillRect(ox, 5, 16, 1); c.fillRect(ox, 11, 16, 1);
+      } else if (region === 'fkt') {   // the replica's asphalt: grey, with a painted road line and cracks from the fighting
+        c.fillStyle = p.line; c.fillRect(ox, 11, 16, 1);
+        c.fillStyle = 'rgba(230,226,200,0.35)'; c.fillRect(ox + 2, 6, 6, 1);
       } else if (region === 'end') {   // the glass and steel face of a fallen skyscraper
         c.fillStyle = p.line; c.fillRect(ox, 0, 16, 16);
         c.fillStyle = p.mid; c.fillRect(ox + 1, 1, 6, 6); c.fillRect(ox + 9, 1, 6, 6); c.fillRect(ox + 1, 9, 6, 6); c.fillRect(ox + 9, 9, 6, 6);
@@ -600,6 +604,54 @@ function makeBackgrounds(scene, region) {
     });
     canvasTex(scene, k(3), W, H, c => {
       clouds(c, 9, 241, 'rgba(255,255,255,0.95)', 320, 352, 160, 320, 16);
+    });
+  } else if (region === 'fkt') {
+    // Fake Karakura Town: the replica in broad daylight, held up by four great white pillars at its corners
+    const block = (c, x, w, h, col, win) => {
+      c.fillStyle = col; c.fillRect(x, H - h, w, h);
+      c.fillStyle = win;
+      for (let wy = H - h + 5; wy < H - 6; wy += 7) for (let wx = x + 3; wx < x + w - 3; wx += 6) c.fillRect(wx, wy, 3, 4);
+    };
+    const pillar = (c, x, w, top, col, shade) => {
+      c.fillStyle = col; c.fillRect(x, top, w, H - top);
+      c.fillStyle = shade; c.fillRect(x + w - 3, top, 3, H - top);
+      for (let y = top + 18; y < H; y += 26) { c.fillStyle = shade; c.fillRect(x, y, w, 2); }
+      c.fillStyle = col; c.fillRect(x - 3, top - 6, w + 6, 8);
+    };
+    canvasTex(scene, k(0), W, H, c => {
+      sky(c, [[0, '#4a86c8'], [0.55, '#8ab8e8'], [1, '#d8e8f4']]);
+      glowDisc(c, 150, 60, 120, 'rgba(255,250,230,0.45)', 'rgba(255,250,230,0)');
+      clouds(c, 9, 301, 'rgba(255,255,255,0.7)', 40, 200, 120, 260, 7);
+    });
+    canvasTex(scene, k(1), W, H, c => {
+      // the far replica, and two of the four pillars rising out of it
+      const r = seeded(307);
+      let x = 0;
+      while (x < W) { const w = 24 + r() * 30, h = 60 + r() * 90, bx = x; tile(o => block(c, bx + o, w, h, 'rgba(150,170,196,0.6)', 'rgba(220,232,246,0.35)')); x += w + 2 + r() * 6; }
+      tile(o => { pillar(c, 110 + o, 22, 40, 'rgba(232,236,244,0.85)', 'rgba(170,180,200,0.8)'); pillar(c, 470 + o, 22, 56, 'rgba(232,236,244,0.85)', 'rgba(170,180,200,0.8)'); });
+    });
+    canvasTex(scene, k(2), W, H, c => {
+      const r = seeded(311);
+      let x = 0;
+      while (x < W) {
+        const w = 40 + r() * 46, h = 70 + r() * 80, bx = x;
+        tile(o => block(c, bx + o, w, h, '#5a6a84', 'rgba(200,220,240,0.55)'));
+        x += w + 10 + r() * 24;
+      }
+      // a crack across the sky where a Garganta opened
+      c.strokeStyle = 'rgba(10,10,16,0.7)'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(380, 30); c.lineTo(395, 52); c.lineTo(388, 70); c.lineTo(402, 96); c.stroke();
+    });
+    canvasTex(scene, k(3), W, H, c => {
+      // the street: walls, poles, wires
+      const r = seeded(317);
+      c.fillStyle = '#2e3442';
+      let x = 0;
+      while (x < W) { const w = 40 + r() * 60, h = 16 + r() * 18; c.fillRect(x, H - h, w, h); x += w + r() * 14; }
+      c.fillStyle = '#262a36';
+      for (let px = 60; px < W; px += 200) { c.fillRect(px, 150, 4, H - 150); c.fillRect(px - 10, 160, 24, 3); }
+      c.strokeStyle = 'rgba(38,42,54,0.9)'; c.lineWidth = 1;
+      c.beginPath(); for (let px = -140; px < W + 200; px += 200) { c.moveTo(px, 162); c.quadraticCurveTo(px + 100, 188, px + 200, 162); } c.stroke();
     });
   } else if (region === 'end') {
     // The Inner World: skyscrapers lying on their sides under a blue sky that never ends

@@ -62,6 +62,13 @@ const AMBIENCE = {
       { tex: 'dot', freq: 520, life: 6000, add: true, cfg: { speedX: { min: -8, max: 8 }, speedY: { min: -6, max: 6 }, scale: { start: 0.5, end: 0.1 }, alpha: { start: 0.6, end: 0 }, tint: 0xa8ffd8 } },
     ],
   },
+  fkt: {   // a false noon: dust off broken roofs, and light falling straight down
+    emitters: [
+      { tex: 'dot', freq: 260, life: 6000, cfg: { speedX: { min: -16, max: 16 }, speedY: { min: 6, max: 18 }, scale: { start: 0.5, end: 0.1 }, alpha: { start: 0.45, end: 0 }, tint: 0xd8dce6 } },
+      { tex: 'px', freq: 900, life: 3000, cfg: { speedX: { min: -40, max: -20 }, speedY: { min: 20, max: 40 }, scaleX: 2, scaleY: 2, rotate: { start: 0, end: 360 }, alpha: { start: 0.6, end: 0 }, tint: 0x6a6e7a } },
+    ],
+    shafts: true,
+  },
 };
 
 class Ambience {

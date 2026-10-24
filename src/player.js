@@ -251,7 +251,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       for (const e of s.enemies) {
         if (!e.alive || this.dashHit.has(e) || !e.hittable() || !Phaser.Geom.Intersects.RectangleToRectangle(r, bodyRect(e.body))) continue;
         this.dashHit.add(e);
-        if (e.hit(GS.slashDamage() * 1.2 * this.dmgMul(), this.dashDir, { kind: 'dash' }) === 'hit') { s.fx.hit(e.x, e.y, this.dashDir, 0xffe8a0, 1); Sfx.play('hit'); s.hitStop(0.03); }
+        if (e.hit(GS.slashDamage() * 1.2 * this.dmgMul(), this.dashDir, { kind: 'dash' }) === 'hit') { s.fx.hit(e.x, e.y, this.dashDir, 0xffe8a0, 1); Sfx.play('hit'); s.hitStop(0.03); GS.comboHit(); }
       }
     }
     if (inp.attackP) { this.endDash(); this.attack(inp, this.grounded); return; }
@@ -485,14 +485,19 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
   startBurst() {
     const dir = this.chargeWall ? -this.chargeWall : this.facing;
+    this.enterBurst(dir);
+    Sfx.play('burst');
+    this.scene.fx.shake(150, 0.008);
+    this.scene.fx.ring(this.x, this.y, 0xff8a3a, 30, 300, 3);
+  }
+  // Flying already: a Burst that left the last room through a door keeps going in this one, until a wall stops it
+  enterBurst(dir) {
     this.state = 'burst';
     this.burstDir = dir; this.facing = dir;
     this.burstHit = new Set();
     this.body.setAllowGravity(false);
     this.body.velocity.y = 0;
-    Sfx.play('burst');
-    this.scene.fx.shake(150, 0.008);
-    this.scene.fx.ring(this.x, this.y, 0xff8a3a, 30, 300, 3);
+    this.body.velocity.x = dir * PHYS.burstSpeed * (1 + 0.12 * GS.upgrade('burstDrive'));
   }
   updateBurst(dt, inp) {
     const body = this.body, s = this.scene;
@@ -516,7 +521,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
     const blocked = this.burstDir > 0 ? body.blocked.right : body.blocked.left;
-    if (inp.jumpP || inp.dashP || (blocked && !broke)) this.endBurst(blocked && !broke);
+    // a wall ends it (a gate it smashes does not); jump stops it early
+    if (inp.jumpP || (blocked && !broke)) this.endBurst(blocked && !broke);
   }
   endBurst(crashed) {
     this.state = 'normal';
@@ -526,13 +532,22 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   // ---------------- Bankai / Hollow mask ----------------
+  // Seconds Bankai rests after it fades: the difficulty's share of the base, a third less with Gentei Kaijo
+  bankaiCooldown() { return COMBAT.bankaiCooldown * GS.diff().bankaiCd * (GS.sealOn('gentei') ? 2 / 3 : 1); }
   updatePowers(dt, inp) {
     const run = GS.run, s = this.scene;
+    if (run.comboT > 0) { run.comboT -= dt; if (run.comboT <= 0) run.combo = 0; }
+    if (run.bankaiCD > 0) {
+      run.bankaiCD -= dt;
+      if (run.bankaiCD <= 0) { run.bankaiCD = 0; if (GS.has('bankai')) { s.toast('Your Bankai stirs again.'); Sfx.play('charge'); } }
+    }
     if (run.bankaiT > 0) {
       run.bankaiT -= dt;
       GS.addReiatsu(COMBAT.bankaiRegen * dt);
       if (run.bankaiT <= 0) {
         run.bankaiT = 0;
+        run.bankaiCD = this.bankaiCooldown();
+        run.primed = false; run.combo = 0;
         s.fx.burst(this.x, this.y, 0xc8202c, 20);
         s.toast('Bankai released');
       }
@@ -556,15 +571,18 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const idle = this.state === 'normal' && this.grounded && Math.abs(this.body.velocity.x) < 1 && !inp.left && !inp.right;
     if (GS.sealOn('grace') && idle && GS.data.hp < GS.data.maxHp) {
       this.graceT += dt;
-      if (this.graceT > 5) { this.graceT = 0; GS.data.hp++; Sfx.play('heal'); s.fx.motes(this.x, this.y, 0xffffff, 10); }
+      if (this.graceT > 4) { this.graceT = 0; GS.data.hp++; Sfx.play('heal'); s.fx.motes(this.x, this.y, 0xffffff, 10); }
     } else this.graceT = 0;
   }
   tryBankai() {
     const s = this.scene;
     if (!GS.has('bankai') || this.bankai) return;
     if (GS.rush && GS.rush.bind.reiatsu) { s.denied('The binding on your Reiatsu holds Bankai back'); return; }
+    if (GS.run.bankaiCD > 0) { s.denied(`Bankai is spent. It answers again in ${Math.ceil(GS.run.bankaiCD)}s`); return; }
     if (GS.data.reiatsu < COMBAT.maxReiatsu - 0.5) { s.denied('Bankai needs a full Reiatsu vessel'); return; }
+    if (!GS.run.primed) { s.denied(`Bankai needs ${COMBAT.bankaiCombo} strikes in a row without being hit (${GS.run.combo}/${COMBAT.bankaiCombo})`); return; }
     GS.data.reiatsu = 0;
+    GS.run.primed = false; GS.run.combo = 0;
     GS.run.bankaiT = COMBAT.bankaiDuration * (GS.sealOn('gentei') ? COMBAT.genteiMul : 1) * (1 + 0.2 * GS.upgrade('bankaiLast'));
     Controls.rumble(450, 0.9, 0.6);
     Sfx.play('bankai');
@@ -610,8 +628,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
     Controls.rumble(200, 0.8, 0.5);
     if (['cling', 'dash', 'charge', 'burst'].includes(this.state)) body.setAllowGravity(true);
+    GS.comboBreak();
     GS.data.hp -= o.force ? amount : GS.lose(amount);
-    this.t.invuln = 1.1 * (o.force ? 1 : Settings.get('invuln')) * (GS.sealOn('tesla') ? 1.4 : 1);
+    this.t.invuln = 1.1 * (o.force ? 1 : GS.diff().invuln) * (GS.sealOn('tesla') ? 1.4 : 1);
     Sfx.play('hurt');
     s.hitStop(0.1);
     s.fx.shake(180, 0.012);

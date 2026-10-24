@@ -446,6 +446,37 @@ STYLES.final_k = variant(STYLES.final_b, { skin: '#f2dadf', hair: '#ff2a3c', hai
   coat: { col: '#1a0f14', hi: '#4a1a24', lining: '#c8202c' },
   weapon: variant(STYLES.final_b.weapon, { blade: '#ff2a3c', edge: '#ffffff', smear: '#ff2a3c80' }) });
 
+// Sōsuke Aizen in Hueco Mundo: hair swept back, the white coat of Las Noches, Kyōka Suigetsu at his side
+STYLES.aizen = Object.assign({
+  skin: '#f0d0b0', skinShade: '#c0a084', eye: '#6a3a1a', brow: '#4a2a14',
+  hair: '#6a3c1c', hairHi: '#9a643a', hairShade: '#42240e', hairStyle: 'slick',
+  coat: { col: '#f2f0f6', hi: '#ffffff', lining: '#4a3a5a' }, legLen: 10, torsoLen: 10, carry: 'hand', anims: BOSS_ANIMS,
+  weapon: { type: 'katana', blade: '#d8dce8', edge: '#ffffff', guard: '#8a7a3a', hilt: '#3a2a4a', hiltShade: '#5a4a6a', len: 15, smear: '#c8b0ff60' },
+}, ARRANCAR_WHITE, { inner: '#2a2234', sash: '#2a2234' });
+// Fused with the Hōgyoku: white as a chrysalis, the hair grown long, the jewel set in his chest
+STYLES.aizen_h = variant(STYLES.aizen, {
+  skin: '#f4f2f8', skinShade: '#c4c0d4', eye: '#b048d8', sclera: '#16141c', brow: '#e8e4f0', hairStyle: 'longflow',
+  hair: '#3a2414', hairHi: '#6a4a2a', hairShade: '#1e120a', robe: '#f4f2f8', robeHi: '#ffffff', robeShade: '#b8b4c8', inner: '#f4f2f8', sash: '#d8d4e4',
+  hakama: '#f0eef6', hakamaShade: '#b8b4c8', coat: null, hogyoku: '#b048d8', claws: null,
+  weapon: variant(STYLES.aizen.weapon, { blade: '#e8e0ff', edge: '#ffffff', smear: '#b048d870' }),
+});
+// The last form: three pairs of wings, and every one of them watching
+STYLES.aizen_w = variant(STYLES.aizen_h, { wings6: '#ecebf4', wings6Edge: '#8a5aa8', wings6Shade: '#b4b0c8', wingEye: '#b048d8', eye: '#ff3a60',
+  skin: '#e8e4f0', hair: '#16121c', hairHi: '#3a3046', hairShade: '#08060c', hairStyle: 'mane', mane: '#16121c' });
+// Yhwach, father of the Quincy: a long black mane, a moustache, a black coat lined white, a broad sword of reishi
+STYLES.yhwach = {
+  skin: '#e0c4a4', skinShade: '#b09478', eye: '#c8202c', brow: '#100e14', mustache: '#100e14', beard: null,
+  hair: '#16131c', hairHi: '#3a3446', hairShade: '#08060c', hairStyle: 'wild',
+  robe: '#16151c', robeHi: '#2e2c38', robeShade: '#0a090e', inner: '#e8e8f0', sash: '#e8e8f0',
+  hakama: '#1a1920', hakamaShade: '#0c0b10', hakamaHi: '#2e2c38', tabi: '#0c0b10', sandal: '#0c0b10',
+  coat: { col: '#121118', hi: '#2c2a36', lining: '#e8eaf2' }, legLen: 11, torsoLen: 11, carry: 'hand', anims: BOSS_ANIMS,
+  weapon: { type: 'broad', blade: '#bfe0ff', edge: '#ffffff', guard: '#8ab4e8', hilt: '#16151c', hiltShade: '#3a3846', len: 20, smear: '#8ac8ff70' },
+};
+// The Almighty: the coat turns red-lined, eyes open everywhere, the blade goes dark
+STYLES.yhwach_a = variant(STYLES.yhwach, { eye: '#ff2a3c', eyes: '#ff2a3c', sclera: '#0a0a0e', skin: '#d4b898',
+  coat: { col: '#0a090e', hi: '#26222e', lining: '#c8202c' }, inner: '#c8202c', sash: '#c8202c',
+  weapon: variant(STYLES.yhwach.weapon, { blade: '#2a2836', edge: '#ff3a50', guard: '#c8202c', smear: '#ff2a3c70' }) });
+
 // ---- Enemies drawn on the rig ----
 Object.assign(STYLES, {
   // Kidō master: a hooded Shinigami in deep blue with glowing eyes, hands free for casting
@@ -544,6 +575,13 @@ function drawWeapon(pen, w, grip, deg, sway = 0) {
     pen.line(...at(-4), ...at(0.5), w.hilt, 2);
     pen.px(...at(-2), w.hiltShade);
     if (w.chain) { const p = at(-4.5); pen.px(p[0], p[1] + 1, w.chain); pen.px(p[0] - 1 + sway * 0.5, p[1] + 2, w.chain); pen.px(p[0] - 1 + sway, p[1] + 3, w.chain); }
+  } else if (w.type === 'broad') {   // a wide, straight blade of reishi (Yhwach)
+    const L = w.len + 2, hw = 2;
+    pen.poly([at(2, -hw), at(L - 3, -hw), at(L + 1, 0), at(L - 3, hw), at(2, hw)], w.blade);
+    pen.line(...at(3, 0), ...at(L - 2, 0), w.edge);
+    pen.line(...at(1.5, -3.5), ...at(1.5, 3.5), w.guard, 1);
+    pen.line(...at(-4), ...at(0.5), w.hilt, 2);
+    pen.px(...at(-2), w.hiltShade);
   } else if (w.type === 'trident') {   // Nejibana: a long shaft, three prongs, a ribbon of water
     const L = w.len;
     pen.line(...at(-7), ...at(L - 4), w.shaft, 1);
@@ -736,6 +774,23 @@ function drawHair(pen, st, sx, hy, sway) {
       pen.line(sx - 6, hy - 3, sx - 4, hy - 1, st.robeShade);
       if (st.patch) { pen.px(sx - 3, hy - 8, st.patch); pen.px(sx - 2, hy - 8, st.patch); pen.px(sx - 3, hy - 7, st.patch); }
       break;
+    case 'slick':   // Aizen in Hueco Mundo: swept straight back, one lock fallen over the brow
+      crown(4.4, 2.5); back(-6);
+      tri([-1, -11], [2, -11], [-6 + sway, -12]);
+      tri([-3, -10], [-2, -11], [-9 + sway, -9]);
+      tri([-4, -8], [-4, -6], [-8 + sway, -5], S);
+      pen.line(sx + 2, hy - 10, sx + 3, hy - 6, H);
+      pen.px(sx + 3, hy - 5, H);
+      pen.line(sx - 2, hy - 12, sx + 1, hy - 11, L);
+      break;
+    case 'wild':   // Yhwach: a long black mane that falls past the shoulders
+      pen.limb(sx - 3, hy - 9, sx - 9 + sway * 1.4, hy + 12, 6, 2.5, H);
+      pen.line(sx - 4, hy - 7, sx - 9 + sway * 1.4, hy + 10, S);
+      crown(4.6, 2.9);
+      tri([1, -11], [3, -10], [5, -6]);
+      tri([-2, -11], [1, -12], [-4 + sway, -14]);
+      pen.line(sx - 2, hy - 12, sx + 1, hy - 12, L);
+      break;
     case 'horns':
       if (st.mane) { pen.limb(sx - 3, hy - 9, sx - 9 + sway, hy + 2, 4, 2, st.mane); pen.line(sx - 4, hy - 7, sx - 9 + sway, hy + 1, S); }
       pen.ellipse(sx - 0.5, hy - 8.5, 4, 2.5, H);
@@ -787,6 +842,8 @@ function drawHead(pen, st, sx, sy, P) {
       pen.line(sx - 1, hy - 5, sx - 1, hy - 3, st.jawMask);
     }
     if (st.beard) { pen.rect(sx, hy - 3, 4, 2, st.beard); pen.px(sx + 1, hy - 1, st.beard); pen.px(sx + 2, hy - 1, st.beard); }
+    if (st.mustache) { pen.line(sx + 1, hy - 3, sx + 4, hy - 3, st.mustache); pen.px(sx + 4, hy - 2, st.mustache); pen.px(sx + 2, hy - 2, st.mustache); }
+    if (st.eyes) { pen.px(sx + 2, hy - 7, st.eyes); pen.px(sx + 4, hy - 6, st.eyes); pen.px(sx + 1, hy - 5, st.eyes); }   // the Almighty: more eyes than a face should hold
   }
   drawHair(pen, st, sx, hy, P.sway || 0);
   if (st.tattoo) { pen.line(sx - 2, hy - 9, sx + 3, hy - 9, st.tattoo); pen.line(sx - 3, hy - 7, sx - 1, hy - 7, st.tattoo); }
@@ -855,6 +912,16 @@ function drawHumanoid(pen, st, P) {
     pen.line(sx - 1, sy + 1, sx - 12, sy - 9 - flap, '#3a3646');
     pen.poly([[sx + 1, sy + 1], [sx + 9, sy - 11 - flap], [sx + 12, sy - 5 - flap], [sx + 8, sy + 2]], '#26232e');
   }
+  if (st.wings6) {   // Aizen's last form: three pairs of wings, each pair a little shorter than the one above it
+    const flap = sway * 1.2;
+    for (let i = 0; i < 3; i++) {
+      const len = 15 - i * 3, y0 = sy + 1 + i * 3, tip = sy - 9 + i * 6 - flap * (1 - i * 0.25);
+      pen.poly([[sx - 1, y0], [sx - 5 - len, tip], [sx - 3 - len, tip + 5], [sx - 3, y0 + 3]], st.wings6);
+      pen.line(sx - 1, y0, sx - 5 - len, tip, st.wings6Edge);
+      pen.px(sx - 4 - len * 0.6, tip + 3, st.wingEye || st.wings6Edge);
+      pen.poly([[sx + 1, y0], [sx + 6 + len * 0.6, tip - 2], [sx + 4 + len * 0.6, tip + 3]], st.wings6Shade);
+    }
+  }
   if (P.smear && wpn.mode === 'hand') drawSmear(pen, st.weapon, fh, P.smear[0], P.smear[1]);
   if (wpn.mode === 'back') drawWeapon(pen, Object.assign({}, st.weapon, st.weapon.backBlade || {}), { x: sx, y: sy - 7 }, 122, sway);
   if (st.coat) {
@@ -887,6 +954,7 @@ function drawHumanoid(pen, st, P) {
   else if (!st.open) { pen.line(sx, sy, sx + 2, sy + 4, st.inner); pen.line(sx + 3, sy, sx + 2, sy + 3, st.inner); }
   if (st.apron) pen.poly([[sx - 1, sy + 3], [sx + 4, sy + 3], [wr + 1, hipY + 4], [wl + 1, hipY + 4]], st.apron);
   if (st.hole) { pen.erase(sx, sy + 4); pen.erase(sx + 1, sy + 4); pen.erase(sx, sy + 5); pen.erase(sx + 1, sy + 5); }
+  if (st.hogyoku) { pen.rect(sx, sy + 4, 2, 2, st.hogyoku); pen.px(sx, sy + 4, '#ffffff'); pen.px(sx - 1, sy + 5, st.hogyoku); pen.px(sx + 2, sy + 4, st.hogyoku); }
   pen.rect(wl, hipY - 2, wr - wl + 1, 2, st.sash);
   if (st.strap) pen.line(sx - 3, sy + 1, wr - 1, hipY - 3, st.strap);
   if (st.coat) pen.line(sx + 3, sy, wr + 1, hipY + 3, st.coat.lining);

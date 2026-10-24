@@ -10,6 +10,7 @@ const SAVE_KEY = 'soul-drift-save-v1';
 const SLOT_COUNT = 3;
 const SLOT_KEY = 'soul-drift-slot';
 const slotKey = (i) => i ? `${SAVE_KEY}-${i + 1}` : SAVE_KEY;
+const LEGACY_KEY = 'soul-drift-cleared';   // the last journey that reached the story's end (see GS.rememberClear)
 
 // Where each room sat on the map before it was spread out (world version 3), so pins placed on the old map move with their rooms
 const LEGACY_POS = {"kar_hub":[18,10],"kar_alley":[14,10],"kar_roof":[20,7.7],"kar_river":[24,10],"kar_grave":[31,7.6],"ruk_1":[31,10],"ruk_2":[38,10],"ruk_3":[44,10],"ruk_boss":[50.4,10],"sei_gate":[44,7.2],"sei_ward":[49.2,7.4],"sei_1":[55.6,6.4],"sei_11":[50.8,4.8],"sei_2":[59.6,1.8],"sei_4":[64.4,2.1],"sei_renji":[70,2.1],"sok_1":[64.4,-2],"sok_boss":[69.2,-3.1],"hm_1":[73.2,-4.6],"hm_2":[79.6,-5.4],"hm_3":[85.2,-5.4],"hm_grimm":[91.2,-4.6],"hm_side":[79.6,-7.7],"hm_boss":[85.2,-2.4],"hm_dome":[85.6,-8.2],"forest_1":[76.7,-2.3],"forest_2":[81.1,0.1],"dangai_1":[-1.5,5.6],"dangai_2":[-5.5,5.6],"end_1":[12,12.4],"end_boss":[7.2,12.4],"sei_lantern":[64.4,4.7],"hm_sand":[73.4,-6.9],"sok_shrine":[59.4,-2],"kar_study":[18.2,12.6],"palace":[18,4.5]};
@@ -59,7 +60,8 @@ const GS = {
       plus: 0,               // New Game+ cycles completed
       kills: {},             // enemy kind -> how many fell (the Journal)
       gifts: {},             // NPC name -> true once they have handed over their gift
-      world: 4,              // layout version of the save (2: the expanded world, 3: upgrades, new rooms, new places for old rewards, 4: wider rooms)
+      world: 5,              // layout version of the save (2: the expanded world, 3: upgrades, new rooms, new places for old rewards, 4: wider rooms, 5: difficulty, seal costs, Aizen)
+      difficulty: 'normal',  // see DIFFICULTY: chosen when the journey begins, changed only at a rest gate
       upgrades: {},          // power upgrades found: track id -> level (see UPGRADES)
       notes: [],             // things the game tells the player once on loading (what a migration changed)
       forms: { zangetsu: true },   // Zanpakutō forms owned
@@ -73,9 +75,22 @@ const GS = {
     };
   },
 
+  // combo: strikes landed in a row without being hit (comboT: time left for the next one); primed: Bankai's
+  // five-strike condition met (kept until you are hit); bankaiCD: seconds before Bankai can be called again
   freshRun() {
-    return { bankaiT: 0, maskOn: false, hollow: 0, maskLock: 0, region: null, debt: 0 };
+    return { bankaiT: 0, maskOn: false, hollow: 0, maskLock: 0, region: null, debt: 0, combo: 0, comboT: 0, primed: false, bankaiCD: 0 };
   },
+  // The difficulty of the journey being played
+  diff() { return DIFFICULTY[(this.data && this.data.difficulty) || 'normal'] || DIFFICULTY.normal; },
+  // A strike landed (one per swing): counts toward the five Bankai answers to
+  comboHit() {
+    const r = this.run;
+    if (!r) return;
+    r.combo = r.comboT > 0 ? r.combo + 1 : 1;
+    r.comboT = COMBAT.comboWindow;
+    if (r.combo >= COMBAT.bankaiCombo) r.primed = true;
+  },
+  comboBreak() { if (this.run) { this.run.combo = 0; this.run.comboT = 0; this.run.primed = false; } },
   useSlot(i) {
     this.slot = i;
     try { localStorage.setItem(SLOT_KEY, String(i)); } catch (e) { /* storage unavailable */ }
@@ -111,17 +126,20 @@ const GS = {
     return 1 + 0.05 * ((d.kills[kind] || 0) >= STUDY_KILLS ? 1 : 0) + 0.05 * (d.memories[kind] ? 1 : 0);
   },
   hpMul() { return 1 + 0.6 * Math.min(3, this.data.plus || 0); },
+  // Health of a non-boss foe on this difficulty (bosses use bossHpMul and the difficulty's bossHp)
+  foeHpMul(kind) { return BOSS_KINDS.includes(kind) ? 1 : this.diff().foeHp; },
   // Bosses are tougher the sharper the Zanpakutō (a trial's blade binding counts as the plain edge)
   bossHpMul() { return 1 + BOSS_HP_PER_FORGE * this.swordLevel(); },
   // Levels of a power upgrade held (a trial that binds the seals leaves them be: upgrades are not seals)
   upgrade(id) { return (this.data.upgrades && this.data.upgrades[id]) || 0; },
   // The Pin Compass is not on the shelf until the story is over (a second journey keeps it for sale)
   shopOpen(it) { const d = this.data; return !(it.type === 'tool' && TOOLS[it.id] && TOOLS[it.id].needsClear) || !!d.cleared || (d.plus || 0) > 0; },
-  dropMul() { return 1 + 0.5 * Math.min(3, this.data.plus || 0); },
+  dropMul() { return (1 + 0.5 * Math.min(3, this.data.plus || 0)) * (this.data.equipped && this.data.equipped.includes('magnet') ? 1.25 : 1); },
 
   // A fresh journey that keeps what you earned: powers, seals, the edge of the blade and health
-  newGamePlus(old) {
+  newGamePlus(old, difficulty) {
     const d = this.fresh();
+    d.difficulty = difficulty || old.difficulty || 'normal';
     Object.assign(d, {
       abilities: Object.assign({}, old.abilities), seals: old.seals.slice(), equipped: old.equipped.slice(),
       sealSlots: old.sealSlots, swordLevel: old.swordLevel || 0, temper: Object.assign({}, old.temper), maxHp: old.maxHp, hp: old.maxHp,
@@ -150,13 +168,14 @@ const GS = {
   // How full the Reiatsu vessel can get (a bound trial holds only a third)
   reiCap() { return this.rush && this.rush.bind.reiatsu ? COMBAT.spellCost : COMBAT.maxReiatsu; },
   addReiatsu(n, strike = false) {
-    if (strike) n *= Settings.get('reiatsuGain') * (1 + 0.25 * this.upgrade('flow'));
+    if (strike) n *= this.diff().reiatsu * (1 + 0.25 * this.upgrade('flow'));
     this.data.reiatsu = Phaser.Math.Clamp(this.data.reiatsu + n, 0, this.reiCap());
   },
-  // Masks a blow of `n` really takes, after the assist setting: half damage carries the remainder
-  // to the next blow, so every second hit costs a mask
+  // Masks a blow of `n` really takes on this difficulty: half damage carries the remainder
+  // to the next blow, so every second hit costs a mask. (GS.god, for testing, takes nothing.)
   lose(n) {
-    const k = Settings.get('damage');
+    const k = this.god ? 0 : this.diff().damage;
+    this.comboBreak();
     if (!k) return 0;
     this.run.debt = (this.run.debt || 0) + n * k;
     const lost = Math.floor(this.run.debt + 1e-6);
@@ -253,6 +272,28 @@ const GS = {
       d.pins = this.carryPins(d.pins, LEGACY3, (id, o) => [ROOMS[id].pos[0] + (o.x - LEGACY3[id][0]) + LEGACY3[id][3] / 10, ROOMS[id].pos[1] + (o.y - LEGACY3[id][1])]);
       d.world = 4;
     }
+    if (d.world < 5) {
+      // World 5: the assist settings became a difficulty for each journey. A save takes the one closest to how it was played.
+      d.notes = d.notes || [];
+      {   // (the save itself never held one: what `fresh` filled in is replaced)
+        let old = null;
+        try { old = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch (e) { /* storage unavailable */ }
+        old = old || {};
+        d.difficulty = old.bossHard || old.damage > 1 ? 'hard' : (old.damage !== undefined && old.damage < 1) || old.invuln > 1 || old.reiatsuGain > 1 || old.speed < 1 ? 'easy' : 'normal';
+        d.notes.push(`This journey is played on ${DIFFICULTY[d.difficulty].name}. The difficulty can be changed at any rest gate.`);
+      }
+      // Some seals cost more slots now: take off the last ones put on until the rest fit
+      const fit = () => d.equipped.reduce((n, id) => n + (SEALS[id] ? SEALS[id].cost : 0), 0) <= d.sealSlots;
+      const off = [];
+      while (d.equipped.length && !fit()) {
+        const id = d.equipped.pop();
+        off.push(SEALS[id] ? SEALS[id].name : id);
+        if (id === 'will') { d.maxHp -= 1; d.hp = Math.min(d.hp, d.maxHp); }
+      }
+      if (off.length) d.notes.push(`Seal costs changed: ${off.join(', ')} ${off.length > 1 ? 'were' : 'was'} taken off to fit your slots. Equip seals again at a rest gate.`);
+      d.world = 5;
+    }
+    if (!DIFFICULTY[d.difficulty]) d.difficulty = 'normal';
     d.upgrades = d.upgrades || {};
     d.notes = d.notes || [];
     d.temper = d.temper || {};
@@ -262,6 +303,20 @@ const GS = {
     Object.keys(d.gates).forEach(id => { if (!restOK(id)) delete d.gates[id]; });
     if (!ROOMS[d.room]) d.room = d.restRoom || 'kar_hub';
     return d;
+  },
+  // The last journey to reach the story's end, kept apart from the slots, so New Game+ can begin on an empty slot
+  // even after that journey's own slot was erased
+  rememberClear(d = this.data) {
+    try { localStorage.setItem(LEGACY_KEY, JSON.stringify(d)); } catch (e) { /* storage unavailable */ }
+  },
+  // Where an empty slot's New Game+ can come from: every finished journey in the slots, else the last one remembered
+  plusSources() {
+    const out = [];
+    for (let i = 0; i < SLOT_COUNT; i++) { const d = this.peek(i); if (d && d.cleared) out.push({ slot: i, d }); }
+    if (!out.length) {
+      try { const raw = localStorage.getItem(LEGACY_KEY); if (raw) out.push({ slot: -1, d: this.migrate(Object.assign(this.fresh(), JSON.parse(raw))) }); } catch (e) { /* unreadable */ }
+    }
+    return out;
   },
   hasSave(slot = this.slot) {
     try { return !!localStorage.getItem(slotKey(slot)); } catch (e) { return false; }
@@ -324,7 +379,7 @@ const GS = {
     const d = this.peek(slot);
     if (!d) return null;
     const room = ROOMS[d.room] || ROOMS.kar_hub;
-    return { d, room: room.name, region: room.region, pct: this.completion(d), time: d.time, deaths: d.deaths, plus: d.plus, cleared: d.cleared, trueEnding: d.trueEnding };
+    return { d, room: room.name, region: room.region, pct: this.completion(d), time: d.time, deaths: d.deaths, plus: d.plus, cleared: d.cleared, trueEnding: d.trueEnding, difficulty: d.difficulty };
   },
 
   // How many of each collectible the world holds, counted from the rooms themselves
@@ -339,7 +394,7 @@ const GS = {
       (r.rewardItems || []).forEach(it => { if (it === 'fragment') t.fragments++; if (it === 'ore') t.ore++; });
     });
     t.fragments += SHOP_STOCK.filter(s => s.type === 'fragment').length;
-    t.bosses = Object.keys(BOSSES).length;
+    t.bosses = STORY_BOSSES.length;
     return (this._totals = t);
   },
 
@@ -350,7 +405,7 @@ const GS = {
     total += Object.keys(SEALS).length; have += d.seals.filter(id => SEALS[id]).length;
     total += T.fragments; have += Math.min(T.fragments, d.fragmentsTotal);
     total += T.pluses; have += Math.min(T.pluses, d.pluses);
-    total += T.bosses; have += Object.keys(d.bosses).filter(b => BOSSES[b]).length;
+    total += T.bosses; have += STORY_BOSSES.filter(b => d.bosses[b]).length;
     total += FORGE.length; have += d.swordLevel || 0;
     total += FORM_ORDER.length; have += FORM_ORDER.filter(f => d.forms && d.forms[f]).length;
     total += QUEST_ORDER.length; have += QUEST_ORDER.filter(q => d.quests[q] === 2).length;

@@ -43,6 +43,7 @@ function makeGrid(room, A) {
       case 'H': if (A.konso) oneway[i] = 1; break;
       case '^': case 's': spike[i] = 1; break;
       case 'K': solid[i] = 1; break;
+      case 'z': if (!A.afterFinal) solid[i] = 1; break;   // the rift to Aizen opens once the Hollow within falls
       case 'p': press[i] = 1; break;
       case 'M': plats.push({ x: x * TILE + 8, top: y * TILE, cfg: (room.platforms || [])[cnt.M++] || {} }); break;
     }
@@ -233,7 +234,7 @@ function relevant(rid, A) {
   const t = ROOMS[rid].tiles.join('');
   const R = { konso: A.konso && t.includes('H'), dash: A.dash, grip: A.grip, wings: A.wings, hado: A.hado && t.includes('X'),
     burst: A.burst, bankai: A.bankai && t.includes('D') && !ROOMS[rid].sealAll, bakudo: A.bakudo && t.includes('M'),
-    sealAll: ROOMS[rid].sealAll && ABIL.every(a => A[a]) };
+    sealAll: ROOMS[rid].sealAll && ABIL.every(a => A[a]), afterFinal: A.afterFinal && t.includes('z') };
   return Object.fromEntries(Object.entries(R).filter(([, v]) => v));
 }
 // full: keep searching after every door and target is reached (to list every place you can stand).
@@ -251,14 +252,17 @@ function explore(rid, Afull, entry, o = {}) {
   }
   const room = o.tiles ? Object.assign({}, ROOMS[rid], { tiles: o.tiles }) : ROOMS[rid], g = makeGrid(room, A);
   const seen = new Set(), queue = [], doors = new Set(), hits = new Set();
+  const depth = new Map();   // door id or target -> the fewest moves (jumps, dashes, walks) it takes to get there
+  let cur = 0;
   const allDoors = g.doors.length, allTargets = g.targets.filter(t => t.kind !== 'start').length;
   const done = () => !o.full && doors.size >= allDoors && [...hits].filter(t => t.kind !== 'start').length >= allTargets;
   const push = (st) => {
     const k = st.cling ? `c${st.cling}:${Math.round(st.x)}:${Math.round(st.y / 6)}` : `g${Math.round(st.x / 12)}:${Math.round(st.y)}`;
     if (seen.has(k)) return;
-    seen.add(k); queue.push(st);
+    seen.add(k); st.d = cur; queue.push(st);
   };
-  const take = (res) => { res.rests.forEach(push); res.doors.forEach(d => doors.add(d)); res.hits.forEach(h => hits.add(h)); };
+  const mark = (what) => { if (!depth.has(what)) depth.set(what, cur); };
+  const take = (res) => { res.rests.forEach(push); res.doors.forEach(d => { doors.add(d); mark(d); }); res.hits.forEach(h => { hits.add(h); mark(h); }); };
   // where the player appears
   if (entry === 'start' || entry === 'rest') {
     const tg = g.targets.find(t => t.kind === (entry === 'start' ? 'start' : 'rest'));
@@ -278,6 +282,7 @@ function explore(rid, Afull, entry, o = {}) {
   while (queue.length && steps < (o.full ? 120000 : 60000) && !done()) {
     const st = queue.shift(); steps++;
     stands.push(st);
+    cur = st.d + 1;
     if (st.cling) {
       for (const sc of clingScripts(A, st.cling)) {
         const start = { x: st.x, y: st.y, vx: 0, vy: 0, canDash: true, airJumps: A.wings ? 1 : 0 };
@@ -291,7 +296,7 @@ function explore(rid, Afull, entry, o = {}) {
     const onOneWay = !at(g, g.solid, tx, ty) && at(g, g.oneway, tx, ty);
     for (const sc of groundScripts(A, onOneWay)) take(run(g, A, { x: st.x, y: st.y, grounded: true }, sc.ctl, sc.maxT));
   }
-  const res = { doors, hits, states: seen.size, g, complete: done(), stands: stands.concat(queue) };
+  const res = { doors, hits, depth, states: seen.size, g, complete: done(), stands: stands.concat(queue) };
   if (cached) roomCache.set(key, res);
   return res;
 }
@@ -344,6 +349,7 @@ function journey() {
           if (tg.kind === 'ability' && tg.id && !A[tg.id]) { seen.add(tag); A[tg.id] = true; log('ability ' + tg.id, rid, entry); changed = true; break outer; }
           if (tg.kind === 'boss' && !bosses.has(tg.id)) {
             seen.add(tag); bosses.add(tg.id); log('boss ' + tg.id, rid, entry);
+            if (tg.id === 'final') A.afterFinal = true;
             const r = ROOMS[rid];
             if (r.reward && !A[r.reward]) { A[r.reward] = true; log('ability ' + r.reward, rid, 'reward'); }
             (r.rewardItems || []).forEach(it => { if (it.startsWith('seal:')) { seals.add(it.slice(5)); log('seal ' + it.slice(5), rid, 'reward'); } else items[it] = (items[it] || 0) + 1; });
@@ -457,12 +463,12 @@ for (const e of J.got) {
 }
 if (gaps.length) console.log(`\nShortest gap between two powers: about ${Math.round(Math.min(...gaps) / 6) / 10} min (a lower bound: straight routes, no detours, no deaths)`);
 const missing = ABIL.filter(a => !J.A[a]);
-const bossMissing = Object.keys(BOSSES).filter(b => !J.bosses.has(b));
+const bossMissing = Object.keys(BOSSES).filter(b => !J.bosses.has(b) && !BOSSES[b].secret);
 console.log(`\nPowers never reached: ${missing.join(', ') || 'none'}`);
 console.log(`Bosses never reached: ${bossMissing.join(', ') || 'none'}`);
 console.log(`Seals: ${J.seals.size}  upgrades: ${J.items.upgrade}  fragments: ${J.items.fragment}  lost pluses: ${J.items.plus}  ore: ${J.items.ore}  petals: ${J.items.petal}  Kon's pill: ${J.items.gikongan}`);
 // the palace opens at 100% (by fast travel), so it is never walked into
-const unreached = Object.keys(ROOMS).filter(r => !journey.reach.has(r) && r !== 'palace');
-console.log(`Rooms never entered: ${unreached.join(', ') || 'none'} (the Soul King Palace opens at 100%)`);
+const unreached = Object.keys(ROOMS).filter(r => !journey.reach.has(r) && r !== 'palace' && r !== 'palace_throne');
+console.log(`Rooms never entered: ${unreached.join(', ') || 'none'} (the Soul King Palace opens at 100%, and its throne only at the end of the Grand Trial)`);
 console.log(`(${((Date.now() - t0) / 1000).toFixed(1)}s)`);
 }

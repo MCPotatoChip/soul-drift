@@ -7,14 +7,15 @@
 
 // The faint kanji in the corner of each screen
 const MENU_KANJI = { pause: '休', rest: '休息', seals: '封印', travel: '門', shop: '浦原商店', forge: '鍛冶', map: '地図', inventory: '持物', journal: '記録', settings: '設定', controls: '操作',
-  assist: '助', slots: '旅', slot: '旅', forms: '斬魄刀', records: '記', trial: '霊王宮', duels: '決闘' };
+  difficulty: '難易', slots: '旅', slot: '旅', forms: '斬魄刀', records: '記', trial: '霊王宮', duels: '決闘' };
 const SLOT_KANJI = ['壱', '弐', '参'];
 // Pins the player sets on the map: each press on the same spot moves to the next kind, then clears it
 const PIN_KINDS = [['★', '#d9b35a'], ['!', '#ff5a64'], ['?', '#7fe8ff'], ['✕', '#b8b2c4']];
 
 class MenuScene extends Phaser.Scene {
   constructor() { super('menu'); }
-  init(data) { this.type = data.type; }
+  // newGame: { slot, mode ('new' or 'plus'), from (the finished save New Game+ grows from) } while a journey is being begun
+  init(data) { this.type = data.type; this.newGame = data.newGame || null; }
 
   create() {
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x07070b, 0.94).setOrigin(0);
@@ -123,7 +124,7 @@ class MenuScene extends Phaser.Scene {
       }
       case 'controls': { this.renderControls(); break; }
       case 'settings': { this.renderSettings(); break; }
-      case 'assist': { this.renderAssist(); break; }
+      case 'difficulty': { this.renderDifficulty(); break; }
       case 'slots': { this.renderSlots(); break; }
       case 'slot': { this.renderSlot(); break; }
       case 'rest': {
@@ -132,6 +133,7 @@ class MenuScene extends Phaser.Scene {
         const forms = FORM_ORDER.filter(f => d.forms[f]).length, palace = d.palace >= 1 && !d.gates.palace;
         this.items = [{ label: 'Equip seals', right: `${GS.usedSlots()}/${d.sealSlots} slots`, act: () => this.go('seals') }];
         if (forms > 1) this.items.push({ label: 'Zanpakutō form', right: GS.form().name, act: () => this.go('forms') });
+        this.items.push({ label: 'Difficulty', right: `${GS.diff().jp}  ${GS.diff().name}`, act: () => { this.newGame = null; this.go('difficulty'); this.sel = DIFFICULTY_ORDER.indexOf(d.difficulty); this.render(); } });
         this.items.push({ label: 'Travel', right: gates > 1 || palace ? `${gates + (palace ? 1 : 0)} gates` : 'find more gates', disabled: gates < 2 && !palace, act: () => (gates > 1 || palace) && this.go('travel') });
         this.items.push({ label: 'Rise', act: () => this.close() });
         this.list(this.items, GAME_W / 2 - 210, 220, 50, 440);
@@ -233,27 +235,49 @@ class MenuScene extends Phaser.Scene {
   renderSettings() {
     this.title('Settings', 'Left and right change a value. Changes save right away.');
     this.items = Settings.schema.map(row => ({ row, label: row[1], right: Settings.label(row), rightColor: GOLD, act: () => this.adjustSetting(row, 1, true) }));
-    this.items.push({ label: 'Assist and accessibility…', right: Settings.assisted() ? 'in use' : '', rightColor: '#7fe8ff', act: () => this.go('assist') });
+    // the difficulty belongs to the journey: it is shown here, and changed only at a rest gate
+    if (GS.data && this.scene.isPaused('game')) this.items.push({ label: 'Difficulty', right: `${GS.diff().jp}  ${GS.diff().name} · change it at a rest gate`, rightColor: MUTED, disabled: true, act: () => {} });
     this.items.push({ label: 'Back', act: () => this.back() });
     this.list(this.items, GAME_W / 2 - 300, 178, 46, 600);
     this.footer(Controls.fmt('{left} {right} change · {jump} next value · {attack} back'));
   }
-  // Gentler (or harsher) play, for anyone who wants it. Nothing is locked away for using it.
-  renderAssist() {
-    this.title('Assist', 'Make the journey gentler or harder. Every ending and trial stays open whatever you choose.');
-    this.items = Settings.assist.map(row => ({ row, label: row[1], right: Settings.label(row), rightColor: GOLD, act: () => this.adjustSetting(row, 1, true) }));
+  // Easy, Normal or Hard. Chosen when a journey begins; after that only at a rest gate.
+  renderDifficulty() {
+    const starting = !!this.newGame, cur = GS.data && !starting ? GS.data.difficulty : null;
+    this.title('Difficulty', starting ? (this.newGame.mode === 'plus' ? 'How hard should New Game+ be? It can be changed at any rest gate.' : 'How hard should this journey be? It can be changed later at any rest gate.')
+      : 'Changed here, at a rest gate, and nowhere else. Nothing is locked away by any choice.');
+    this.items = DIFFICULTY_ORDER.map(id => ({ id, label: `${DIFFICULTY[id].jp}    ${DIFFICULTY[id].name}`, right: cur === id ? 'current' : '', rightColor: GOLD, act: () => this.chooseDifficulty(id) }));
     this.items.push({ label: 'Back', act: () => this.back() });
-    this.list(this.items, GAME_W / 2 - 300, 200, 52, 600);
-    const cur = this.items[this.sel], about = {
-      damage: 'Half: every second blow costs a mask. None: blows still knock you back, but cost nothing. Double: every blow costs two.',
-      invuln: 'How long you flicker, untouchable, after taking a blow.',
-      reiatsuGain: 'How much Reiatsu each slash that lands draws out, for healing and Kidō.',
-      speed: 'Slows the whole world: you, your foes, their attacks. Menus are unaffected.',
-      warnings: 'Bold: a red mark appears over every foe while it winds up an attack.',
-      bossHard: 'Hard: every boss has 35% more health and acts 12% faster. Nothing is locked away by either choice.',
-    }[cur && cur.row && cur.row[0]];
-    if (about) this.txt(GAME_W / 2, GAME_H - 96, about, 18, '#b8b2c4', { origin: 0.5, wrap: 900, style: { align: 'center' } });
-    this.footer(Controls.fmt('{left} {right} change · {jump} next value · {attack} back'));
+    this.list(this.items, 150, 214, 64, 420);
+    const it = this.items[this.sel], D = it && it.id && DIFFICULTY[it.id];
+    if (D) {
+      const px = 660, g = this.add.graphics(); this.layer.add(g);
+      g.fillStyle(0x16141f, 0.8).fillRect(px - 20, 196, 560, 360);
+      g.lineStyle(1, 0xe9e4d8, 0.18).strokeRect(px - 19.5, 196.5, 559, 359);
+      this.txt(px, 212, D.jp, 64, CRIMSON, { display: true });
+      this.txt(px + 90, 228, D.name, 36, INK, { display: true });
+      this.txt(px, 300, D.desc, 19, INK, { wrap: 510 });
+      const pct = (v) => `${Math.round(v * 100)}%`;
+      const rows = [['Blows cost', D.damage < 1 ? 'every second one, a mask' : 'a mask each'], ['Foe health', pct(D.foeHp)], ['Boss health', pct(D.bossHp)], ['Boss speed', pct(D.bossSpeed)],
+        ['Reiatsu from strikes', pct(D.reiatsu)], ['Bankai cooldown', `${Math.round(COMBAT.bankaiCooldown * D.bankaiCd)} s`]];
+      rows.forEach(([k, v], i) => { this.txt(px, 410 + i * 24, k, 16, '#b8b2c4'); this.txt(px + 520, 410 + i * 24, v, 16, GOLD, { bold: true, origin: [1, 0] }); });
+    }
+    this.footer(Controls.fmt('{up} {down} choose · {jump} take it · {attack} back'));
+  }
+  chooseDifficulty(id) {
+    if (this.newGame) {
+      const ng = this.newGame, title = this.scene.get('title');
+      this.newGame = null;
+      this.scene.stop();
+      title.startSlot(ng.slot, ng.mode, { difficulty: id, from: ng.from });
+      return;
+    }
+    if (GS.data.difficulty === id) { this.back(); return; }
+    GS.data.difficulty = id;
+    GS.save();
+    Sfx.play('confirm');
+    this.game.events.emit('toast', `The journey goes on at ${DIFFICULTY[id].name}.`);
+    this.render();
   }
 
   // ------------------------------------------------------------------ save slots
@@ -278,7 +302,7 @@ class MenuScene extends Phaser.Scene {
         const reg = REGIONS[sum.region];
         this.txt(x + 120, y + 18, sum.room, 28, on ? INK : '#cfc9d8', { display: true });
         this.txt(x + 120, y + 60, `${reg.kanji}  ${reg.name}`, 17, '#' + reg.color.toString(16).padStart(6, '0'), { bold: true });
-        this.txt(x + 120, y + 86, `${this.fmtTime(sum.time)}  ·  ${sum.deaths} death${sum.deaths === 1 ? '' : 's'}${sum.plus ? `  ·  New Game+ ${sum.plus}` : ''}`, 16, MUTED);
+        this.txt(x + 120, y + 86, `${DIFFICULTY[sum.difficulty || 'normal'].name}  ·  ${this.fmtTime(sum.time)}  ·  ${sum.deaths} death${sum.deaths === 1 ? '' : 's'}${sum.plus ? `  ·  New Game+ ${sum.plus}` : ''}`, 16, MUTED);
         this.txt(x + w - 30, y + 22, `${sum.pct}%`, 40, sum.pct >= 100 ? GOLD : INK, { display: true, origin: [1, 0] });
         const marks = (sum.cleared ? '討' : '') + (sum.trueEnding ? '　真' : '');
         if (marks) this.txt(x + w - 30, y + 76, marks, 22, sum.trueEnding ? GOLD : CRIMSON, { display: true, origin: [1, 0] });
@@ -297,12 +321,19 @@ class MenuScene extends Phaser.Scene {
     const ask = (key, label, fn) => ({ label: this.confirm === key ? `${label}: press again to confirm` : label, danger: true,
       act: () => { if (this.confirm === key) fn(); else { this.confirm = key; Sfx.play('deny'); this.render(); } } });
     const start = (mode) => { this.scene.stop(); title.startSlot(i, mode); };
+    // a new journey (or New Game+) first asks how hard it should be
+    const begin = (mode, from) => { this.newGame = { slot: i, mode, from }; this.go('difficulty'); this.sel = DIFFICULTY_ORDER.indexOf((from && from.difficulty) || 'normal'); this.render(); };
     if (sum) {
       this.items = [{ label: 'Continue', act: () => start('continue') }];
-      if (sum.cleared) this.items.push({ label: `New Game+${sum.plus ? ' ' + (sum.plus + 1) : ''}`, right: 'keep your powers, face tougher foes', act: () => start('plus') });
-      this.items.push(ask('over', 'Start over', () => start('new')));
+      if (sum.cleared) this.items.push({ label: `New Game+${sum.plus ? ' ' + (sum.plus + 1) : ''}`, right: 'keep your powers, face tougher foes', act: () => begin('plus', sum.d) });
+      this.items.push(ask('over', 'Start over', () => begin('new')));
       this.items.push(ask('erase', 'Erase this journey', () => { GS.wipe(i); Sfx.play('break'); this.confirm = null; this.view = 'slots'; this.sel = i; this.render(); }));
-    } else this.items = [{ label: 'Begin a new journey', act: () => start('new') }];
+    } else {
+      this.items = [{ label: 'Begin a new journey', act: () => begin('new') }];
+      // once any journey has reached the story's end, an empty slot can start New Game+ from it
+      GS.plusSources().forEach(src => this.items.push({ label: `New Game+${src.d.plus ? ' ' + (src.d.plus + 1) : ''} from ${src.slot >= 0 ? `Journey ${SLOT_KANJI[src.slot]}` : 'your last finished journey'}`,
+        right: 'keep its powers, face tougher foes', act: () => begin('plus', src.d) }));
+    }
     this.items.push({ label: 'Back', act: () => this.back() });
     this.items.forEach(it => { if (it.danger && this.confirm && it.label.includes('confirm')) it.rightColor = CRIMSON; });
     this.list(this.items, GAME_W / 2 - 300, 220, 54, 600);
@@ -552,7 +583,7 @@ class MenuScene extends Phaser.Scene {
     const d = GS.data, rec = d.rush, bind = rec.lastBind || (rec.lastBind = {});
     this.title('Altar of Trials', 'Every battle you have won, fought again as it was. Heal as you like; bind yourself if you dare.');
     const all = RUSH_ORDER.every(b => d.bosses[b]);
-    this.items = [{ label: 'The Trial of the Ten', right: rec.best != null ? `best ${fmtClock(rec.best, true)}` : all ? 'unbeaten' : 'defeat every boss first', rightColor: GOLD, disabled: !all,
+    this.items = [{ label: 'The Grand Trial', right: rec.best != null ? `best ${fmtClock(rec.best, true)}` : all ? 'unbeaten' : `defeat every boss first (${RUSH_ORDER.filter(b => d.bosses[b]).length}/${RUSH_ORDER.length})`, rightColor: GOLD, disabled: !all,
       act: () => this.beginTrial('gauntlet', RUSH_ORDER) }];
     BINDING_ORDER.forEach(k => this.items.push({ bind: k, label: `${BINDINGS[k].jp}   ${BINDINGS[k].name}`, right: bind[k] ? 'bound' : 'free', rightColor: bind[k] ? CRIMSON : MUTED,
       act: () => { bind[k] = !bind[k]; Sfx.play(bind[k] ? 'bakudo' : 'select'); this.render(); } }));
@@ -564,12 +595,12 @@ class MenuScene extends Phaser.Scene {
     g.fillStyle(0x16141f, 0.8).fillRect(px - 20, 180, 520, 380);
     g.lineStyle(1, 0xd9b35a, 0.3).strokeRect(px - 19.5, 180.5, 519, 379);
     this.txt(px, 196, 'THE ALTAR REMEMBERS', 14, MUTED, { bold: true, style: { letterSpacing: 3 } });
-    this.txt(px, 226, rec.wins ? `Trial of the Ten won ${rec.wins} time${rec.wins > 1 ? 's' : ''}` : 'The Trial of the Ten has not been won.', 19, INK);
+    this.txt(px, 226, rec.wins ? `The Grand Trial won ${rec.wins} time${rec.wins > 1 ? 's' : ''}` : 'The Grand Trial has not been won.', 19, INK);
     BINDING_ORDER.forEach((k, i) => this.txt(px + i * 56, 262, BINDINGS[k].jp, 34, rec.bound[k] ? GOLD : '#3a3646', { display: true }));
     if (rec.bound.all) this.txt(px + 240, 270, 'all four at once', 16, GOLD, { bold: true });
     const cur = this.items[this.sel];
     const about = cur && cur.bind ? BINDINGS[cur.bind].desc
-      : this.sel === 0 ? `All ten in order, from Grand Fisher to the Hollow within. You keep your health between fights; after the third, sixth and eighth, a respite heals you. Finish it to see what lies under the last name.`
+      : this.sel === 0 ? `All ${RUSH_ORDER.length} in order, from ${BOSSES[RUSH_ORDER[0]].name} to ${BOSSES[RUSH_ORDER[RUSH_ORDER.length - 1]].name}. You keep your health between fights; after every third, a respite heals you. Finish it to see what lies under the last name.`
       : cur && cur.label.startsWith('Single') ? 'Fight any one boss you have beaten, with the bindings you chose.' : '';
     this.txt(px, 330, about, 18, '#cfc9d8', { wrap: 480 });
     const on = BINDING_ORDER.filter(k => bind[k]).length;
@@ -626,8 +657,9 @@ class MenuScene extends Phaser.Scene {
     this.txt(x, 178, 'SPLITS', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
     this.txt(x + 300, 178, 'THIS JOURNEY', 13, MUTED, { bold: true, origin: [1, 0] });
     this.txt(x + 430, 178, 'BEST', 13, MUTED, { bold: true, origin: [1, 0] });
+    const rowH = Math.min(36, Math.floor(440 / RUSH_ORDER.length));
     RUSH_ORDER.forEach((b, i) => {
-      const y = 208 + i * 36, mine = d.splits[b], top = best[b], known = d.bosses[b] || mine != null;
+      const y = 208 + i * rowH, mine = d.splits[b], top = best[b], known = d.bosses[b] || mine != null;
       this.txt(x, y, known ? BOSSES[b].name : '? ? ?', 19, known ? INK : '#4c4858');
       this.txt(x + 300, y, mine != null ? fmtClock(mine) : '—', 19, mine != null && top != null && mine <= top ? '#8af0a0' : INK, { origin: [1, 0] });
       this.txt(x + 430, y, top != null ? fmtClock(top) : '—', 19, GOLD, { origin: [1, 0] });
@@ -643,7 +675,7 @@ class MenuScene extends Phaser.Scene {
     if (d.palace >= 1) {
       const r = d.rush;
       this.txt(qx, 574, 'THE SOUL KING PALACE', 15, MUTED, { bold: true, style: { letterSpacing: 3 } });
-      this.txt(qx, 600, r.wins ? `Trial of the Ten: won ${r.wins}× · best ${fmtClock(r.best, true)}` : 'Trial of the Ten: not yet won', 18, r.wins ? GOLD : INK);
+      this.txt(qx, 600, r.wins ? `The Grand Trial: won ${r.wins}× · best ${fmtClock(r.best, true)}` : 'The Grand Trial: not yet won', 18, r.wins ? GOLD : INK);
       this.txt(qx, 628, BINDING_ORDER.map(k => BINDINGS[k].jp).join('  '), 24, r.bound.all ? GOLD : '#7a7486', { display: true });
     }
     this.items = [];
@@ -1134,7 +1166,7 @@ class MenuScene extends Phaser.Scene {
   // ------------------------------------------------------------------ actions
   go(view) { if (view === 'map') { this.mapCam = null; this.mapPulse = null; } this.view = view; this.sel = 0; this.msg = ''; Sfx.play('confirm'); this.render(); this.popIn(); }
   back() {
-    const parent = { seals: 'rest', travel: 'rest', forms: 'rest', controls: 'pause', settings: 'pause', assist: 'settings', slot: 'slots', records: 'pause', duels: 'trial' }[this.view];
+    const parent = { seals: 'rest', travel: 'rest', forms: 'rest', difficulty: this.newGame ? 'slot' : 'rest', controls: 'pause', settings: 'pause', slot: 'slots', records: 'pause', duels: 'trial' }[this.view];
     if (parent && this.type !== this.view) { this.view = parent; this.sel = parent === 'slots' ? this.slotSel || 0 : 0; this.msg = ''; this.confirm = null; Sfx.play('select'); this.render(); this.popIn(); }
     else if (['map', 'inventory', 'journal', 'records'].includes(this.view) && this.type === 'pause') { this.view = 'pause'; this.sel = 0; this.render(); this.popIn(); }
     else this.close();
@@ -1185,7 +1217,7 @@ class MenuScene extends Phaser.Scene {
       if (code === 'Escape' || code === 'Pad1') { this.back(); return; }
       return;
     }
-    if (this.view === 'settings' || this.view === 'assist') {
+    if (this.view === 'settings') {
       const it = this.items[this.sel], L = Controls.isLeft(code), R = Controls.isRight(code);
       if (it && it.row && (L || R)) { this.adjustSetting(it.row, L ? -1 : 1); return; }
     }

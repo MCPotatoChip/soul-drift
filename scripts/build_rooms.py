@@ -397,8 +397,16 @@ R['end_1'] = dict(name='Sideways City', region='end', pos=[12, 12.4], sealAll=Tr
     doors={'1': ['kar_hub', '4'], '2': ['end_boss', '1']}, tiles=g.rows())
 
 g = old('end_boss')
+# World 5: once the Hollow within falls, the west wall (z) tears open onto the false Karakura, where Aizen waits
+g.put(0, 18, '2').rect(0, 15, 0, 17, 'z').rect(1, 15, 1, 18, 'z')
 R['end_boss'] = dict(name='Heart of the Inner World', region='end', pos=[7.2, 12.4],
-    doors={'1': ['end_1', '2']}, boss='final', tiles=g.rows())
+    doors={'1': ['end_1', '2'], '2': ['end_aizen', '1']}, boss='final', tiles=g.rows())
+
+# Fake Karakura Town: the replica held up on four pillars, and the man who planned everything
+g = arena(56, door='right', planks=[(7, 12, 14), (43, 48, 14), (22, 33, 10)])
+g.put(16, 18, 'B')
+R['end_aizen'] = dict(name='Fake Karakura Town', region='fkt', pos=[0, 0],
+    doors={'1': ['end_boss', '2']}, boss='aizen', tiles=g.rows())
 
 
 
@@ -478,20 +486,31 @@ R['palace'] = dict(name='Hall of the Royal Guard', region='rei', pos=[18, 4.5], 
         'Carry all of it through to the end, and you will see what lies under the last name. Bind yourself, if you want a harder road. The altar remembers both.']}],
     tiles=g.rows())
 
+# The Soul King's throne: where the Grand Trial ends, if you finish it. No door leads here; only the trial does.
+g = arena(56, planks=[(8, 13, 14), (42, 47, 14), (23, 32, 10)], lock=False)
+g.put(0, 18, '#')
+g.put(40, 18, 'B')
+R['palace_throne'] = dict(name='The Soul King\'s Throne', region='rei', pos=[0, 0], doors={}, boss='yhwach', tiles=g.rows())
+
 # =========================================================================== world 3
 from new_rooms import add_rooms
 NEW_ROOMS = add_rooms(R, Grid)
 
 
 # --------------------------------------------------------------------------- entrances
-# World 4: rooms grow a run-up beside every doorway on their edge, and no foe stands within reach of a way in.
+# World 4: rooms grow a run-up beside every doorway on their edge. World 5: foes are placed by place_foes below,
+# with the same rules scripts/check_placement.js checks (keep the two in step).
 PAD = 9            # tiles added beside an edge doorway
-SAFE = 22          # tiles of distance foes keep from every doorway
-GROUND_FOES = set('eganiqmxb')
-FLYING_FOES = set('hj')
-CEILING_FOES = set('v')
+GROUND_FOES = set('eganiqmxbj')   # walk (or charge, the Adjuchas) along a floor
+FLYING_FOES = set('h')            # Lesser Hollow swarms
+CEILING_FOES = set('v')           # Pale Hollows hang from the roof
 FOES = GROUND_FOES | FLYING_FOES | CEILING_FOES
 STRUCTURAL = set('#=.^sp')   # may be copied into the new run-up as they are; everything else becomes air there
+ENTRY_GROUND = 14  # tiles (vertical distance counts half again) a walker keeps from where you come in
+ENTRY_FLY = 16     # open-air steps a swarm keeps from where you come in (it wakes at 11)
+APART_GROUND = 6   # tiles between two foes on the same floor
+APART_ANY = 5      # tiles between any two foes
+REACH_FLY = 8      # a swarm hangs at most this many rows above a floor you can walk on
 
 
 def widen(R):
@@ -499,7 +518,7 @@ def widen(R):
     for rid, r in R.items():
         rows = [list(x) for x in r['tiles']]
         w = len(rows[0])
-        if r.get('boss') or rid in ('end_boss', 'hm_grimm', 'dangai_1'):
+        if r.get('boss') or rid in ('end_boss', 'hm_grimm', 'dangai_1', 'palace_throne'):
             pads[rid] = 0
             continue
         left = any(row[0] in '123456789' for row in rows)
@@ -516,60 +535,128 @@ def widen(R):
     return pads
 
 
-def steer_foes(R):
-    """Move foes out of the doorway zone toward the middle of their room (same row, nearest legal spot)."""
+def entry_points(rows):
+    """Where the player appears through each way in (doors, rest gates, the start), in tiles."""
+    h, w = len(rows), len(rows[0])
+    out = []
+    for y in range(h):
+        for x in range(w):
+            c = rows[y][x]
+            if c in 'RP':
+                out.append((x, y))
+            elif c in '123456789':
+                if x == 0:
+                    out.append((2, y))
+                elif x == w - 1:
+                    out.append((w - 3, y))
+                elif y == 0:
+                    out.append((x, 2))
+                else:
+                    out.append((x, h - 6))   # a door in the floor throws you up into the room
+    return out
+
+
+def air_steps(rows, start):
+    """Open-air steps (4-way) from a cell to every other: how far a flyer is from it."""
+    h, w = len(rows), len(rows[0])
+    solid = set('#XGODQK~z')
+    dist = {}
+    sx, sy = start
+    if not (0 <= sx < w and 0 <= sy < h) or rows[sy][sx] in solid:
+        return dist
+    dist[start] = 0
+    q = [start]
+    for (x, y) in q:
+        for (nx, ny) in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if 0 <= nx < w and 0 <= ny < h and (nx, ny) not in dist and rows[ny][nx] not in solid:
+                dist[(nx, ny)] = dist[(x, y)] + 1
+                q.append((nx, ny))
+    return dist
+
+
+def place_foes(R):
+    """Put every foe somewhere it makes sense: away from the ways in, apart from the others, a walker on a floor, a
+    swarm low enough to meet you, a diver over somewhere you pass. A foe already in a good spot stays; one that is not
+    moves to the nearest good spot (the same row first)."""
     moved = 0
     for rid, r in R.items():
+        if r.get('boss'):
+            continue
         rows = [list(x) for x in r['tiles']]
         h, w = len(rows), len(rows[0])
-        doors = [(x, y) for y in range(h) for x in range(w) if rows[y][x] in '123456789R']   # ways in, and rest gates
-        if not doors:
-            continue
+        ins = entry_points(rows)
+        fields = [air_steps(rows, (ex, max(0, ey - 1))) for ex, ey in ins]
+        walkable = lambda x, y: 0 <= y < h and rows[y][x] in '#=' and y >= 1 and rows[y - 1][x] in '.'
 
-        def near(x, y):
-            return min((abs(x - dx) for dx, dy in doors if abs(y - dy) < 8), default=999)
+        def floor_below(x, y, most):
+            for d in range(1, most + 1):
+                if y + d < h and rows[y + d][x] in '#=':
+                    return d
+                if y + d < h and rows[y + d][x] not in '.':
+                    return None
+            return None
 
         def legal(c, x, y):
             if not (1 <= x < w - 1) or rows[y][x] != '.':
                 return False
-            if c in CEILING_FOES:                        # hangs from the ceiling, one row under it
-                return y >= 1 and rows[y - 1][x] == '#'
-            if y < 1 or rows[y - 1][x] != '.':          # foes are two tiles tall
+            if c in CEILING_FOES:       # hangs from the roof, over a floor you walk 3 to 12 rows below
+                return y >= 1 and rows[y - 1][x] == '#' and any(walkable(x + dx, y + d) for dx in (-1, 0, 1) for d in range(3, 13) if 0 <= x + dx < w)
+            if c in FLYING_FOES:        # in open air, low enough over a floor to meet you
+                d = floor_below(x, y, REACH_FLY)
+                return y >= 4 and d is not None and d >= 2
+            tall = 4 if c == 'n' else 2
+            if y < tall - 1 or any(rows[y - k][x] != '.' for k in range(1, tall)):
                 return False
             below = rows[y + 1][x] if y + 1 < h else '#'
-            if c in GROUND_FOES:
-                return below in '#=' and rows[y][x - 1] != '^' and rows[y][x + 1] != '^'
+            return below in '#=' and rows[y][x - 1] != '^' and rows[y][x + 1] != '^'
+
+        def far_from_ways(c, x, y, slack):
+            if c in FLYING_FOES:
+                return all(f.get((x, y), 999) >= ENTRY_FLY - slack for f in fields)
+            return all(((x - ex) ** 2 + (1.5 * (y - ey)) ** 2) ** 0.5 >= ENTRY_GROUND - slack for ex, ey in ins)
+
+        def apart(c, x, y, placed, slack):
+            for (pc, px, py) in placed:
+                if c in GROUND_FOES and pc in GROUND_FOES and abs(py - y) <= 2 and abs(px - x) < APART_GROUND - slack:
+                    return False
+                if ((px - x) ** 2 + (py - y) ** 2) ** 0.5 < APART_ANY - slack:
+                    return False
             return True
-        for y in range(h):
-            for x in range(w):
-                c = rows[y][x]
-                if c not in FOES or near(x, y) >= SAFE:
-                    continue
-                spot = None
-                for nx in sorted(range(1, w - 1), key=lambda v: abs(v - x)):
-                    if near(nx, y) >= SAFE and legal(c, nx, y):
-                        spot = (nx, y)
-                        break
-                if spot is None:     # nothing on this row: the nearest legal place on any other
-                    best = None
-                    for ny in range(2, h - 1):
-                        for nx in range(1, w - 1):
-                            if near(nx, ny) >= SAFE and legal(c, nx, ny):
-                                dist = abs(nx - x) + 2 * abs(ny - y)
-                                if best is None or dist < best[0]:
-                                    best = (dist, nx, ny)
-                    if best:
-                        spot = (best[1], best[2])
-                if spot:
-                    rows[y][x] = '.'
-                    rows[spot[1]][spot[0]] = c
-                    moved += 1
+
+        foes = [(rows[y][x], x, y) for y in range(h) for x in range(w) if rows[y][x] in FOES]
+        for (c, x, y) in foes:
+            rows[y][x] = '.'
+        placed = []
+        for (c, x, y) in foes:
+            spot = None
+            for slack in (0, 2, 4):
+                ok = lambda nx, ny: legal(c, nx, ny) and far_from_ways(c, nx, ny, slack) and apart(c, nx, ny, placed, slack)
+                if ok(x, y):
+                    spot = (x, y)
+                    break
+                best = None
+                for ny in range(1, h - 1):
+                    for nx in range(1, w - 1):
+                        if ok(nx, ny):
+                            cost = abs(nx - x) + 3 * abs(ny - y)
+                            if best is None or cost < best[0]:
+                                best = (cost, nx, ny)
+                if best:
+                    spot = (best[1], best[2])
+                    break
+            if spot is None:
+                spot = (x, y)
+                print('  no good place for', c, 'in', rid, 'at', x, y)
+            if spot != (x, y):
+                moved += 1
+            rows[spot[1]][spot[0]] = c
+            placed.append((c, spot[0], spot[1]))
         r['tiles'] = [''.join(x) for x in rows]
     return moved
 
 
 PADS = widen(R)
-print('foes steered', steer_foes(R))
+print('foes placed', place_foes(R))
 
 
 # World 4 power upgrades for Shunpo, the Hollow Mask, Bankai and Burst: one pickup on a plank in each of these rooms.
@@ -611,7 +698,7 @@ place_upgrades(R)
 # Rooms stand beside the door that leads to them, with a gap between neighbours so names and marks never crowd.
 LAYOUT = {
     # Karakura, and the worlds beside it
-    'kar_alley': (-5.0, 0.0), 'kar_hub': (0.0, 0.0), 'kar_study': (2.2, 3.2), 'end_1': (-6.8, 3.4), 'end_boss': (-12.4, 3.4),
+    'kar_alley': (-5.0, 0.0), 'kar_hub': (0.0, 0.0), 'kar_study': (2.2, 3.2), 'end_1': (-6.8, 3.4), 'end_boss': (-12.4, 3.4), 'end_aizen': (-17.0, 3.4),
     'kar_roof': (3.8, -3.2), 'kar_river': (6.9, 0.0), 'kar_canal': (14.7, 0.0), 'kar_grave': (14.7, -3.2),
     'dangai_1': (-16.0, -8.0), 'dangai_2': (-0.2, -8.0), 'dangai_3': (4.6, -8.0),
     # Rukongai
@@ -629,7 +716,7 @@ LAYOUT = {
     'hm_hall2': (128.7, -16.4), 'hm_grimm': (136.0, -16.4),
     'forest_1': (102.3, -13.2), 'forest_depths': (107.6, -11.1), 'forest_2': (115.7, -10.8),
     'hm_nnoitra': (116.4, -24.4), 'hm_yammy': (110.8, -24.4),
-    'palace': (6.0, -14.0),
+    'palace': (6.0, -14.0), 'palace_throne': (6.0, -18.0),
 }
 
 
@@ -661,7 +748,7 @@ ORDER = ['kar_hub', 'kar_alley', 'kar_roof', 'kar_river', 'kar_grave',
          'sok_1', 'sok_boss',
          'hm_1', 'hm_2', 'hm_3', 'hm_grimm', 'hm_side', 'hm_boss', 'hm_dome',
          'forest_1', 'forest_2', 'dangai_1', 'dangai_2', 'end_1', 'end_boss',
-         'sei_lantern', 'hm_sand', 'sok_shrine', 'kar_study', 'palace'] + NEW_ROOMS
+         'sei_lantern', 'hm_sand', 'sok_shrine', 'kar_study', 'palace', 'end_aizen', 'palace_throne'] + NEW_ROOMS
 assert sorted(ORDER) == sorted(R), set(R) ^ set(ORDER)
 
 HEADER = '''// Room layouts, generated by scripts/build_rooms.py (edit that file, then run it).
@@ -679,6 +766,7 @@ HEADER = '''// Room layouts, generated by scripts/build_rooms.py (edit that file
 //          t lantern (strike it)   Q gold barrier (open while a lantern burns)   K blue barrier (solid only then)
 //          s quicksand   p spirit pressure (air that drags you down)   r Shun Shun Rikka petal   C Kon's Gikongan
 //          U ladder up to the shop   A altar of the trials   w power upgrade (read from the room's `upgrades`)
+//          z rift wall: solid until the Hollow within has fallen (and in every trial)
 // A room with sealAll: its Bankai seal doors open only to someone holding every power.
 // NPC entries: name, lines, and optionally gives (an ability), seal (a seal they hand over once),
 // heals (talking restores health) and after (what they say once they have given their gift).
