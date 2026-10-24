@@ -3089,7 +3089,7 @@ class Yhwach extends Duelist {
   *takeBackPhase() {
     yield* this.changeForm(null, '"You carry my blood. All of it returns to me."', { text: 'AUSWÄHLEN', color: '#8ac8ff', small: 'the father takes back' }, 0x8ac8ff, '#cfe4ff');
     this.aura.emitting = true;
-    this.scene.setDarkness(0.45);
+    this.scene.setDarkness(0.2);
     this.spd = 1.42; this.pause = 0.24;
     yield* this.brain();
   }
@@ -3097,7 +3097,7 @@ class Yhwach extends Duelist {
     this.vene = 0; this.armor = 1;
     yield* this.changeForm('yhwach_a', '"The Almighty. I have seen every future, and you lose in all of them."', { text: 'THE ALMIGHTY', color: '#ff2a3c', small: 'every eye opens' }, 0xff2a3c, '#ffb0b8');
     this.aura.setParticleTint(0xff2a3c);
-    this.scene.setDarkness(0.7);
+    this.scene.setDarkness(0.35);
     // a Bankai that is still burning breaks, as Tensa Zangetsu did
     if (GS.run.bankaiT > 0) {
       GS.run.bankaiT = 0; GS.run.bankaiCD = this.player.bankaiCooldown();

@@ -43,6 +43,7 @@ const TILE_PAL = {
   for: { base: '#1d1a25', mid: '#25202f', dark: '#110f18', top: '#52705f', line: '#2b2537', spike: '#ece8f4', plank: '#cfcbe0', plankHi: '#ffffff' },
   stu: { base: '#6a5a48', mid: '#7a6a56', dark: '#4a3e32', top: '#b8a888', line: '#58493a', spike: '#e8dcc4', plank: '#8a6a4a', plankHi: '#b89470' },
   rei: { base: '#e8e2d2', mid: '#f4f0e4', dark: '#c8bea4', top: '#e8c46a', line: '#d4caae', spike: '#c8a040', plank: '#c89a3a', plankHi: '#f4d68a' },
+  void: { base: '#14101c', mid: '#1c1626', dark: '#0a0810', top: '#7a2438', line: '#0e0a14', spike: '#c8c0d8', plank: '#3a2a4a', plankHi: '#8a3a58' },
   fkt: { base: '#5a6070', mid: '#686e80', dark: '#40444f', top: '#b8c2d4', line: '#4a4f5c', spike: '#e8ecf4', plank: '#8a8e9a', plankHi: '#c8ccd8' },
 };
 
@@ -68,6 +69,10 @@ function makeTileset(scene, region) {
         c.fillStyle = p.mid; c.fillRect(ox + 4, 0, 1, 16);
       } else if (region === 'for') {
         c.fillStyle = p.line; for (let i = 0; i < 3; i++) c.fillRect(ox + Math.floor(rnd() * 12), Math.floor(rnd() * 12), 4, 1);
+      } else if (region === 'void') {   // black stone with a seam of dull red light
+        c.fillStyle = p.mid; c.fillRect(ox + 1, 1, 14, 14);
+        c.fillStyle = p.line; c.fillRect(ox, 15, 16, 1); c.fillRect(ox + 15, 0, 1, 16);
+        c.fillStyle = 'rgba(160,30,50,0.35)'; c.fillRect(ox + 2, 2, 12, 1);
       } else if (region === 'rei') {   // white jade blocks with a gold seam
         c.fillStyle = p.mid; c.fillRect(ox + 1, 1, 14, 14);
         c.fillStyle = p.line; c.fillRect(ox, 15, 16, 1); c.fillRect(ox + 15, 0, 1, 16);
@@ -605,6 +610,36 @@ function makeBackgrounds(scene, region) {
     canvasTex(scene, k(3), W, H, c => {
       clouds(c, 9, 241, 'rgba(255,255,255,0.95)', 320, 352, 160, 320, 16);
     });
+  } else if (region === 'void') {
+    // The Soul King's throne with the sky gone: black, and the eyes of Yhwach opening in all of it
+    const eye = (c, x, y, w, a, red = 0) => {
+      const h = w * 0.36;
+      c.save(); c.globalAlpha = a;
+      c.fillStyle = '#d6cfdc';
+      c.beginPath(); c.moveTo(x - w / 2, y); c.quadraticCurveTo(x, y - h * 1.5, x + w / 2, y); c.quadraticCurveTo(x, y + h * 1.5, x - w / 2, y); c.fill();
+      c.fillStyle = red ? '#d41830' : '#2a1a3a';
+      c.beginPath(); c.arc(x, y, h * 0.85, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#05030a'; c.fillRect(x - Math.max(1, w * 0.04), y - h * 0.8, Math.max(2, w * 0.08), h * 1.6);
+      c.strokeStyle = '#05030a'; c.lineWidth = Math.max(1, w * 0.07);
+      c.beginPath(); c.moveTo(x - w / 2, y); c.quadraticCurveTo(x, y - h * 1.5, x + w / 2, y); c.stroke();
+      c.restore();
+    };
+    const eyes = (c, n, seed, wMin, wMax, yMin, yMax, a, redChance) => {
+      const r = seeded(seed);
+      for (let i = 0; i < n; i++) { const x = r() * W, y = yMin + r() * (yMax - yMin), w = wMin + r() * (wMax - wMin), red = r() < redChance ? 1 : 0, al = a * (0.6 + r() * 0.4); tile(o => eye(c, x + o, y, w, al, red)); }
+    };
+    canvasTex(scene, k(0), W, H, c => {
+      sky(c, [[0, '#030208'], [0.6, '#0c0614'], [1, '#1c0a1c']]);
+      glowDisc(c, 320, 300, 260, 'rgba(120,20,40,0.35)', 'rgba(120,20,40,0)');
+    });
+    canvasTex(scene, k(1), W, H, c => { eyes(c, 46, 401, 8, 16, 10, 330, 0.5, 0.15); });
+    canvasTex(scene, k(2), W, H, c => {
+      const r = seeded(409);
+      c.fillStyle = 'rgba(4,2,8,0.55)';
+      for (let i = 0; i < 6; i++) { const x = r() * W, y = 60 + r() * 220, w = 120 + r() * 160; tile(o => { c.beginPath(); c.ellipse(x + o, y, w / 2, 14 + r() * 10, 0, 0, Math.PI * 2); c.fill(); }); }
+      eyes(c, 20, 411, 18, 34, 20, 320, 0.8, 0.25);
+    });
+    canvasTex(scene, k(3), W, H, c => { eyes(c, 7, 421, 44, 80, 40, 300, 0.9, 0.4); ridge(c, '#050309', 332, [[8, 3], [4, 7]], 3); });
   } else if (region === 'fkt') {
     // Fake Karakura Town: the replica in broad daylight, held up by four great white pillars at its corners
     const block = (c, x, w, h, col, win) => {
