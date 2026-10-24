@@ -81,6 +81,8 @@ class Boss extends Enemy {
     this.sinceNear = near ? 0 : this.sinceNear + dt;
     for (const h of this.hazards) h.tick(dt);
     this.hazards = this.hazards.filter(h => !h.dead);
+    // Never leave the room: a boss that ends up below the floor (or inside it) is set back on it
+    if (this.fighting && !this.cfg.fly && this.body.bottom > this.arena.floor + 6) { this.body.reset(Phaser.Math.Clamp(this.x, this.arena.left + 8, this.arena.right - 8), this.arena.floor - this.body.height / 2); this.body.setVelocity(0, 0); }
     if (!this.fighting) { this.body.setVelocityX(0); return; }
     if (this.ai) this.ai.tick(dt * GS.diff().bossSpeed);
     this.checkPhase && this.checkPhase();

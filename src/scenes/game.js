@@ -375,6 +375,7 @@ class GameScene extends Phaser.Scene {
     const p = this.player;
     this.senseEnv();
     p.update(dt);
+    this.denyPerch(dt);
     this.updateEnv(dt);
     this.updateLanterns(dt);
     if (this.waves) this.updateWaves(dt);
@@ -548,7 +549,7 @@ class GameScene extends Phaser.Scene {
     if (GS.run.maskOn && !bank) img.setTint(0xffd0d0);
     else if (!bank && form.tint !== 0xffffff) img.setTint(form.tint);
     this.tweens.add({ targets: img, alpha: 0, duration: 150, onComplete: () => img.destroy() });
-    this.swing = { kind, t: kind === 'down' ? 0.14 : 0.1, hit: new Set(), scale, img, pogoed: false, crack: new Set() };
+    this.swing = { dir: p.facing, kind, t: kind === 'down' ? 0.14 : 0.1, hit: new Set(), scale, img, pogoed: false, crack: new Set() };
     Sfx.play('slash');
     if (bank && kind === 'side') {
       const mul = (GS.sealOn('edge') ? 1.4 : 1) * (GS.run.maskOn ? 1.5 : 1);
@@ -560,7 +561,7 @@ class GameScene extends Phaser.Scene {
   // Hitboxes are measured from the physics body, not the sprite
   swingRect(p, sw) {
     const b = p.body, sc = sw.scale, cx = b.center.x, cy = b.center.y - 2;
-    if (sw.kind === 'side') { const w = 34 * sc, h = 26 * sc; return new Phaser.Geom.Rectangle(p.facing > 0 ? cx + 2 : cx - 2 - w, cy - h / 2, w, h); }
+    if (sw.kind === 'side') { const w = 34 * sc, h = 26 * sc; return new Phaser.Geom.Rectangle(sw.dir > 0 ? cx + 2 : cx - 2 - w, cy - h / 2, w, h); }
     const w = 30 * sc;
     if (sw.kind === 'up') { const h = 36 * sc; return new Phaser.Geom.Rectangle(cx - w / 2, b.top + 4 - h, w, h); }
     const h = 38 * sc;
@@ -571,8 +572,22 @@ class GameScene extends Phaser.Scene {
     if (!sw || !sw.img.active) return;
     const r = this.swingRect(p, sw);
     sw.img.setPosition(r.centerX, r.centerY);
-    if (sw.kind === 'side') { sw.img.setAngle(0).setFlipX(p.facing < 0); }
+    if (sw.kind === 'side') { sw.img.setAngle(0).setFlipX(sw.dir < 0); }
     else { sw.img.setFlipX(false).setAngle(sw.kind === 'up' ? -90 : 90); }
+  }
+  // Standing on a plank right above a boss it cannot reach is no way to win: the plank gives way after a moment
+  denyPerch(dt) {
+    const p = this.player, b = this.boss;
+    if (!b || !b.alive || !b.fighting || p.state === 'dead' || !p.grounded || p.y > b.y - 10 || Math.abs(p.x - b.x) > 64 || !this.isOneWayAt(p.x, p.body.bottom + 2)) { this.perchT = 0; return; }
+    this.perchT = (this.perchT || 0) + dt;
+    if (this.perchT > 0.9) { this.perchT = 0; p.t.drop = 0.3; p.body.velocity.y = 60; this.fx.dust(p.x, p.body.bottom, 4); }
+  }
+  // Is solid ground in a straight line from (x, y) to the body?
+  wallBetween(x, y, body) {
+    const tx = Phaser.Math.Clamp(x, body.left, body.right), ty = Phaser.Math.Clamp(y, body.top, body.bottom);
+    const d = Math.hypot(tx - x, ty - y), n = Math.ceil(d / 4);
+    for (let i = 1; i < n; i++) if (this.isSolidAt(x + (tx - x) * i / n, y + (ty - y) * i / n)) return true;
+    return false;
   }
   updateSwing(dt) {
     const sw = this.swing;
@@ -584,8 +599,9 @@ class GameScene extends Phaser.Scene {
     for (const e of this.enemies) {
       if (!e.alive || sw.hit.has(e) || !e.hittable()) continue;
       if (!Phaser.Geom.Intersects.RectangleToRectangle(r, bodyRect(e.body))) continue;
+      if (this.wallBetween(p.body.center.x, p.body.center.y - 2, e.body)) continue;   // a slash does not carry through a wall
       sw.hit.add(e);
-      const dirX = sw.kind === 'side' ? p.facing : (Math.sign(e.x - p.x) || p.facing);
+      const dirX = sw.kind === 'side' ? sw.dir : (Math.sign(e.x - p.x) || p.facing);
       const res = e.hit(GS.slashDamage() * p.dmgMul(), dirX, { kind: sw.kind, slash: true });
       if (res === 'hit') {
         p.landedHit();
@@ -596,9 +612,9 @@ class GameScene extends Phaser.Scene {
         this.fx.hit(e.x, e.y, sw.kind === 'side' ? dirX : 0, 0xffffff, 1);
         Sfx.play('hit');
         if (sw.kind === 'down') this.pogo();
-        else if (sw.kind === 'side') { p.body.velocity.x = -p.facing * 110; p.t.recoil = 0.07; }
+        else if (sw.kind === 'side') { p.body.velocity.x = -sw.dir * 110; p.t.recoil = 0.07; }
       } else if (res === 'block') {
-        p.body.velocity.x = -p.facing * 230; p.t.recoil = 0.12;
+        p.body.velocity.x = -sw.dir * 230; p.t.recoil = 0.12;
         this.hitStop(0.06);
       }
     }

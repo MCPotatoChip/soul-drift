@@ -463,10 +463,8 @@ R['sok_shrine'] = dict(name='Pressure Shrine', region='sok', pos=[59.4, -2.0],
 # the ladder (U) climbs back up. Urahara runs his "light exercise" here.
 g = Grid(60, 24, '#')
 g.rect(1, 1, 58, 19, '.')
-g.rect(10, 15, 14, 15, '=').rect(45, 15, 49, 15, '=').rect(26, 11, 33, 11, '=')
-g.rect(20, 17, 22, 19, '#').rect(37, 17, 39, 19, '#')   # boulders
 g.put(4, 19, 'P').put(2, 19, 'U').put(8, 19, 'N')
-g.put(30, 10, 'f')   # a fragment on the high ledge (Urahara does not say who left it)
+g.put(52, 19, 'f')   # a fragment at the far end of the flat floor (Urahara does not say who left it)
 R['kar_study'] = dict(name='The Study Room', region='stu', pos=[18.2, 12.6], doors={},
     npcs=[{'name': 'Kisuke Urahara', 'study': True, 'lines': [
         'Welcome to my little study room! I dug it out myself. Well, Tessai did. Mostly Tessai.',
