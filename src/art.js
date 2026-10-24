@@ -368,7 +368,7 @@ Object.assign(STYLES, {
   // Ulquiorra Cifer, Cuarta Espada: green tear lines, the broken helmet, a long white coat
   ulquiorra: Object.assign({
     skin: '#f4f4f8', skinShade: '#c0c0d0', eye: '#3ae88a', brow: '#16141c', tears: '#2a8a5a',
-    hair: '#16141c', hairHi: '#34304a', hairShade: '#08070c', hairStyle: 'short', helmet: '#f6f4ee',
+    hair: '#16141c', hairHi: '#34304a', hairShade: '#08070c', hairStyle: 'ulqui', helmet: '#f6f4ee',
     coat: { col: '#ecebf2', hi: '#ffffff', lining: '#16141c' }, hole: true, legLen: 10, torsoLen: 10, carry: 'none', anims: BOSS_ANIMS,
     weapon: { type: 'none' }, basePose: null,
   }, ARRANCAR_WHITE),
@@ -413,8 +413,8 @@ STYLES.aaroniero_r = variant(STYLES.aaroniero, {
 STYLES.nnoitra = Object.assign({
   skin: '#ece0cc', skinShade: '#b8a88e', eye: '#d8b8ff', brow: '#16141c', eyepatch: '#0a0a10',
   hair: '#16141c', hairHi: '#34304a', hairShade: '#08070c', hairStyle: 'longflow', jawMask: '#f6f4ee',
-  hole: true, legLen: 12, torsoLen: 12, carry: 'hand', anims: BOSS_ANIMS,
-  weapon: { type: 'trident', shaft: '#3a3a44', head: '#e8e8f0', hi: '#ffffff', water: '#b8a8ff', len: 28, smear: '#b8a8ff70' },
+  hole: true, legLen: 12, torsoLen: 12, carry: 'hand', anims: BOSS_ANIMS, crest: '#f6f4ee', holdAngle: -62,
+  weapon: { type: 'scythe', shaft: '#3a3a44', head: '#e8e8f0', hi: '#ffffff', water: '#b8a8ff', len: 28, smear: '#b8a8ff70' },
 }, ARRANCAR_WHITE, { inner: '#ece0cc' });
 // Santa Teresa: the arms double and the scythe darkens
 STYLES.nnoitra_r = variant(STYLES.nnoitra, {
@@ -424,10 +424,10 @@ STYLES.nnoitra_r = variant(STYLES.nnoitra, {
 });
 // Yammy Llargo, Décima Espada: a big, loud man in white
 STYLES.yammy = Object.assign({
-  skin: '#dcb892', skinShade: '#a88a68', eye: '#e8a050', brow: '#16141c',
+  skin: '#c9a07a', skinShade: '#96724e', eye: '#e8a050', brow: '#16141c',
   hair: '#1c1a24', hairHi: '#3a3648', hairShade: '#0c0b10', hairStyle: 'short', jawMask: '#f6f4ee',
-  hole: true, legLen: 10, torsoLen: 11, carry: 'none', anims: BOSS_ANIMS, weapon: { type: 'none' }, basePose: null,
-}, ARRANCAR_WHITE, { inner: '#dcb892' });
+  bulk: 2, numeral: '#16141c', hole: false, legLen: 10, torsoLen: 11, carry: 'none', anims: BOSS_ANIMS, weapon: { type: 'none' }, basePose: null,
+}, ARRANCAR_WHITE, { inner: '#c9a07a' });
 // Ira: the anger takes the whole body
 STYLES.yammy_r = variant(STYLES.yammy, {
   skin: '#8a4a3a', skinShade: '#5a2a22', eye: '#ffb040', hairStyle: 'horns', hair: '#16141c', hairHi: '#34304a', hairShade: '#08070c', jawMask: null, claws: '#16141c',
@@ -437,7 +437,7 @@ STYLES.yammy_r = variant(STYLES.yammy, {
 
 // Kisuke Urahara with the cane drawn: the sword Benihime, the hat still on. In Shikai the hat falls away
 // and the haori turns crimson.
-STYLES.urahara = variant(STYLES.npc_merchant, { anims: BOSS_ANIMS, basePose: null, legLen: 10, torsoLen: 10,
+STYLES.urahara = variant(STYLES.npc_merchant, { stubble: '#8a7648', anims: BOSS_ANIMS, basePose: null, legLen: 10, torsoLen: 10,
   weapon: { type: 'katana', blade: '#d8d4dc', edge: '#ffffff', guard: '#c9a227', hilt: '#3a2a20', hiltShade: '#6a5a4a', len: 15, smear: '#ff708060' } });
 STYLES.urahara_r = variant(STYLES.urahara, { hairStyle: 'short', eye: '#ff4060', haori: { col: '#6a1a2c', shade: '#3e0e1a', hem: '#e8e4dc' },
   weapon: variant(STYLES.urahara.weapon, { blade: '#ff6a7a', edge: '#ffe0e4', smear: '#ff304880' }) });
@@ -591,6 +591,14 @@ function drawWeapon(pen, w, grip, deg, sway = 0) {
     pen.line(...at(L - 4, 2.5), ...at(L, 2.5), w.head, 1);
     pen.px(...at(L + 2), w.hi);
     for (let t = 0; t < 6; t++) pen.px(...at(L - 6 - t * 1.6, Math.sin(t * 1.4 + sway) * 2.2), w.water);
+  } else if (w.type === 'scythe') {   // Santa Teresa: a long shaft and one great curved blade
+    const L = w.len;
+    pen.line(...at(-9), ...at(L - 2), w.shaft, 1);
+    pen.px(...at(-9), w.hi); pen.px(...at(L - 8), w.hi);
+    pen.poly([at(L - 7, 0.5), at(L - 4, 5), at(L, 8.5), at(L + 4, 8), at(L + 1, 5), at(L - 1.5, 1.5), at(L - 1.5, -0.5)], w.head);
+    pen.line(...at(L - 4, 5.5), ...at(L + 4, 8), w.hi);
+    pen.line(...at(L - 2, 0), ...at(L + 2, 0), w.shaft, 1);
+    for (let t = 0; t < 4; t++) pen.px(...at(L - 8 - t * 1.6, Math.sin(t * 1.4 + sway) * 1.5), w.water);
   } else if (w.type === 'club') {
     pen.limb(...at(-1), ...at(w.len), 2, 3.5, w.col);
     pen.line(...at(1, -0.5), ...at(w.len - 1, -1), w.hi);
@@ -687,43 +695,54 @@ function drawHair(pen, st, sx, hy, sway) {
       pen.limb(sx - 5, hy - 9, sx - 9 + sway, hy - 7, 2, 1, st.bandana);
       pen.limb(sx - 5, hy - 8, sx - 8 + sway, hy - 4, 1.6, 1, st.bandana);
       break;
-    case 'ponytail':   // Renji: short at the sides, a spiked tail tied high
-      crown(4.2, 2.4); back(-6);
-      pen.limb(sx - 2, hy - 11, sx - 6 + sway * 0.6, hy - 15, 3, 2.2, H);
-      tri([-5, -16], [-7, -13], [-12 + sway, -15]);
-      tri([-6, -14], [-6, -12], [-11 + sway, -10]);
-      tri([-4, -15], [-3, -17], [-7 + sway, -20]);
-      tri([-7, -15], [-5, -16], [-10 + sway, -18], S);
-      pen.px(sx - 4, hy - 13, '#ece7dc');   // the tie
-      tri([2, -9], [4, -8], [4, -6]);
+    case 'ponytail':   // Renji: short at the sides, a thick spiked tail tied high that rises, then falls behind
+      crown(4.3, 2.5); back(-6);
+      pen.limb(sx - 2, hy - 10, sx - 6 + sway * 0.5, hy - 14, 4, 3.6, H);
+      pen.limb(sx - 6 + sway * 0.5, hy - 14, sx - 10 + sway, hy - 11, 4, 3, H);
+      pen.limb(sx - 10 + sway, hy - 11, sx - 12 + sway * 1.3, hy - 5, 3, 1.4, H);
+      tri([-4, -16], [-8, -15], [-8 + sway * 0.7, -19]);
+      tri([-9, -13], [-9, -10], [-14 + sway, -13]);
+      tri([-11, -9], [-11, -6], [-15 + sway, -6], S);
+      pen.line(sx - 5, hy - 14, sx - 9 + sway, hy - 12, L);
+      pen.rect(sx - 4, hy - 12, 2, 2, '#ece7dc');   // the tie
+      tri([1, -10], [3, -9], [5 + sway * 0.3, -7]);
       pen.line(sx - 2, hy - 11, sx + 1, hy - 11, L);
       break;
-    case 'kenseikan':   // Byakuya: long and straight, with the white kenseikan pieces
+    case 'kenseikan':   // Byakuya: long and straight, cut square, with the white kenseikan crowning it
       pen.ellipse(sx - 0.5, hy - 8.5, 4.4, 2.7, H);
-      pen.poly([[sx - 2, hy - 9], [sx - 5, hy - 9], [sx - 6 + sway * 0.4, hy + 3], [sx - 3, hy + 3], [sx - 2, hy - 4]], H);
-      pen.line(sx - 5, hy - 6, sx - 5 + sway * 0.4, hy + 2, S);
-      pen.line(sx + 3, hy - 9, sx + 4, hy - 4, H);
+      pen.poly([[sx - 2, hy - 9], [sx - 5, hy - 9], [sx - 6 + sway * 0.4, hy + 4], [sx - 3, hy + 4], [sx - 2, hy - 4]], H);
+      pen.line(sx - 5, hy - 6, sx - 5 + sway * 0.4, hy + 3, S);
+      pen.line(sx + 3, hy - 9, sx + 4, hy - 3, H);
       pen.px(sx + 2, hy - 9, H);
-      pen.rect(sx - 4, hy - 11, 3, 1, '#f4f4f8'); pen.rect(sx - 5, hy - 9, 1, 3, '#f4f4f8'); pen.px(sx - 1, hy - 12, '#f4f4f8');
-      pen.line(sx - 2, hy - 11, sx + 2, hy - 11, L);
+      pen.rect(sx - 4, hy - 12, 5, 2, '#f4f4f8'); pen.line(sx - 4, hy - 12, sx, hy - 12, '#ffffff'); pen.line(sx - 4, hy - 11, sx, hy - 11, '#c8c8d8');
+      pen.rect(sx - 6, hy - 10, 2, 4, '#f4f4f8'); pen.px(sx - 6, hy - 7, '#c8c8d8');
+      pen.line(sx - 2, hy - 10, sx + 2, hy - 10, L);
       break;
-    case 'kenpachi': {   // long spikes, a bell on every tip
+    case 'kenpachi': {   // spikes thrown out in every direction, a bell on every tip
       pen.ellipse(sx - 0.5, hy - 8.5, 4.6, 2.9, H);
       back(-5);
-      const spikes = [[[-3, -10], [-1, -11], [-12 + sway, -17]], [[-1, -11], [1, -11], [-4 + sway * 0.6, -20]], [[1, -11], [3, -10], [6, -19]],
-        [[2, -10], [4, -8], [10, -14]], [[-4, -9], [-4, -7], [-13 + sway, -10]], [[-4, -7], [-3, -5], [-11 + sway, -3]]];
-      spikes.forEach(([a, b, tip], i) => { tri(a, b, tip, i % 3 === 2 ? S : H); pen.px(sx + tip[0], hy + tip[1], '#f2d040'); });
+      const spikes = [[[-4, -10], [-1, -11], [-7 + sway, -18]], [[-2, -11], [2, -11], [0, -20]], [[1, -11], [4, -9], [7, -18]],
+        [[3, -10], [4, -6], [12, -12]], [[-4, -9], [-4, -6], [-12 + sway, -11]], [[-4, -7], [-3, -3], [-11 + sway, -4]]];
+      spikes.forEach(([a, b, tip], i) => { tri(a, b, tip, i % 2 ? S : H); pen.rect(sx + tip[0] - 1, hy + tip[1] - 1, 2, 2, '#f2d040'); pen.px(sx + tip[0], hy + tip[1] + 1, '#a8861c'); });
       pen.line(sx - 2, hy - 12, sx + 1, hy - 12, L);
       break;
     }
-    case 'grimmjow':   // swept back, light blue
+    case 'grimmjow':   // wild, swept back and up, light blue
       crown(4.4, 2.6); back(-6);
-      tri([-1, -11], [2, -11], [-7 + sway, -14]);
-      tri([-3, -10], [-2, -12], [-10 + sway, -11]);
-      tri([-4, -9], [-4, -7], [-10 + sway, -6]);
-      tri([1, -11], [3, -10], [0 + sway * 0.4, -14]);
-      tri([2, -10], [4, -8], [5, -6]);
+      tri([-3, -10], [0, -11], [-5 + sway * 0.5, -18]);
+      tri([0, -11], [3, -10], [3, -17]);
+      tri([2, -10], [4, -9], [10, -13]);
+      tri([-4, -9], [-3, -11], [-12 + sway, -14]);
+      tri([-4, -8], [-4, -6], [-13 + sway, -8]);
+      tri([-4, -6], [-3, -4], [-11 + sway, -2], S);
       pen.line(sx - 2, hy - 12, sx + 1, hy - 11, L);
+      break;
+    case 'ulqui':   // Ulquiorra: shaggy black hair, a long fringe over the brow
+      crown(4.3, 2.6); back(-4);
+      tri([-4, -9], [-4, -6], [-7 + sway * 0.5, -1]);
+      tri([-1, -10], [2, -10], [0, -6]);
+      tri([2, -10], [4, -9], [4, -6]);
+      pen.line(sx - 2, hy - 11, sx + 1, hy - 11, L);
       break;
     case 'mane':   // a mane down to the waist (Pantera)
       pen.limb(sx - 3, hy - 9, sx - 9 + sway * 1.5, hy + 14, 6, 2, st.mane || H);
@@ -846,7 +865,7 @@ function drawHead(pen, st, sx, sy, P) {
     if (st.eyes) { pen.px(sx + 2, hy - 7, st.eyes); pen.px(sx + 4, hy - 6, st.eyes); pen.px(sx + 1, hy - 5, st.eyes); }   // the Almighty: more eyes than a face should hold
   }
   drawHair(pen, st, sx, hy, P.sway || 0);
-  if (st.tattoo) { pen.line(sx - 2, hy - 9, sx + 3, hy - 9, st.tattoo); pen.line(sx - 3, hy - 7, sx - 1, hy - 7, st.tattoo); }
+  if (st.tattoo) { pen.line(sx, hy - 7, sx + 4, hy - 7, st.tattoo); pen.px(sx + 1, hy - 6, st.tattoo); pen.px(sx + 4, hy - 8, st.tattoo); }
   if (st.headband) {
     pen.line(sx - 3, hy - 8, sx + 3, hy - 8, st.headband);
     pen.line(sx - 4, hy - 8, sx - 6 + (P.sway || 0), hy - 6, st.headband);
@@ -855,23 +874,30 @@ function drawHead(pen, st, sx, sy, P) {
     pen.rect(sx - 4, hy - 10, 4, 4, st.sideMask);
     pen.px(sx - 3, hy - 9, '#16141c'); pen.px(sx - 2, hy - 7, '#c8202c');
   }
-  if (st.helmet) {   // what is left of Ulquiorra's mask: half a helmet and a horn
-    pen.rect(sx - 3, hy - 11, 5, 3, st.helmet);
-    pen.limb(sx - 2, hy - 11, sx - 5, hy - 17, 2, 1, st.helmet);
-    pen.px(sx + 1, hy - 9, st.helmet);
+  if (st.helmet) {   // what is left of Ulquiorra's mask: a curved horn rising from the left of his head
+    pen.rect(sx - 3, hy - 10, 3, 2, st.helmet);
+    pen.limb(sx - 2, hy - 10, sx - 4, hy - 15, 2.4, 1.6, st.helmet);
+    pen.limb(sx - 4, hy - 15, sx - 2, hy - 19, 1.6, 1, st.helmet);
+    pen.px(sx - 3, hy - 9, '#c8c4b8');
   }
+  if (st.crest) {   // a ragged white fragment of the old mask across the brow (Nnoitra)
+    pen.poly([[sx, hy - 9], [sx + 1, hy - 13], [sx + 2, hy - 10], [sx + 4, hy - 12], [sx + 4, hy - 8]], st.crest);
+    pen.px(sx + 2, hy - 9, '#16141c');
+  }
+  if (st.stubble) { pen.px(sx + 1, hy - 3, st.stubble); pen.px(sx + 3, hy - 4, st.stubble); pen.px(sx + 2, hy - 2, st.stubble); }
   if (!st.mask && !st.skull && !['hood', 'buckethat', 'bald'].includes(st.hairStyle)) pen.px(sx - 1, hy - 5, st.skinShade);
 }
 
 function drawArm(pen, st, sh, hand, back) {
   const sleeve = st.bareArms ? (back ? st.skinShade : st.skin) : back ? st.robeShade : st.robe;
   const ex = sh.x + (hand.x - sh.x) * 0.62, ey = sh.y + (hand.y - sh.y) * 0.62;
-  pen.limb(sh.x, sh.y, ex, ey, 3.6, 4, sleeve);
+  const bk = (st.bulk || 0) * 1.4;
+  pen.limb(sh.x, sh.y, ex, ey, 3.6 + bk, 4 + bk, sleeve);
   if (!back && !st.bareArms) pen.line(sh.x + 1, sh.y, ex + 1, ey, st.robeHi);
   if (!back && st.armband) pen.line(sh.x - 1, sh.y + 1, sh.x + 2, sh.y + 2, st.armband);
   let fore = st.coat ? (back ? st.robeShade : st.coat.col) : (back ? st.skinShade : st.skin);
   if (st.armGuard && !back) fore = st.armGuard;
-  pen.limb(ex, ey, hand.x, hand.y, 2, 2, fore);
+  pen.limb(ex, ey, hand.x, hand.y, 2 + bk * 0.6, 2 + bk * 0.6, fore);
   if (st.armGuard && !back) pen.px(ex + (hand.x - ex) * 0.5, ey + (hand.y - ey) * 0.5, '#c8202c');
   if (st.claws) {
     pen.rect(hand.x - 1, hand.y - 1, 2, 2, st.claws);
@@ -903,7 +929,7 @@ function drawHumanoid(pen, st, P) {
   const bf = { x: hx - 2 + P.bf[0], y: G - P.bf[1] };
   const fh = { x: sx + P.fh[0], y: sy + P.fh[1] };
   const bh = { x: sx + P.bh[0], y: sy + P.bh[1] };
-  const wpn = P.weapon || (st.carry === 'back' ? { mode: 'back' } : st.carry === 'hand' ? { mode: 'hand', angle: 70 } : { mode: 'none' });
+  const wpn = P.weapon || (st.carry === 'back' ? { mode: 'back' } : st.carry === 'hand' ? { mode: 'hand', angle: st.holdAngle || 70 } : { mode: 'none' });
   const wl = hx - 4 + lean * 0.3, wr = hx + 3 + lean * 0.3;
 
   if (st.batWings) {   // Murciélago: two black wings, the membranes beating with the sway
@@ -946,7 +972,8 @@ function drawHumanoid(pen, st, P) {
   drawLeg(pen, st, { x: hx + 2, y: hipY }, ff, false);
 
   // torso
-  pen.poly([[sx - 4, sy], [sx + 4, sy], [wr + 0.5, hipY], [wl - 0.5, hipY]], st.robe);
+  const bk = st.bulk || 0;
+  pen.poly([[sx - 4 - bk, sy], [sx + 4 + bk, sy], [wr + 0.5 + bk, hipY], [wl - 0.5 - bk, hipY]], st.robe);
   pen.line(sx - 4, sy + 1, wl, hipY - 1, st.robeShade);
   pen.line(sx + 3, sy + 1, wr, hipY - 2, st.robeHi);
   if (st.open) pen.poly([[sx - 1, sy], [sx + 3, sy], [sx + 2, hipY - 2], [sx + 1, hipY - 2]], st.skin);
@@ -955,7 +982,8 @@ function drawHumanoid(pen, st, P) {
   if (st.apron) pen.poly([[sx - 1, sy + 3], [sx + 4, sy + 3], [wr + 1, hipY + 4], [wl + 1, hipY + 4]], st.apron);
   if (st.hole) { pen.erase(sx, sy + 4); pen.erase(sx + 1, sy + 4); pen.erase(sx, sy + 5); pen.erase(sx + 1, sy + 5); }
   if (st.hogyoku) { pen.rect(sx, sy + 4, 2, 2, st.hogyoku); pen.px(sx, sy + 4, '#ffffff'); pen.px(sx - 1, sy + 5, st.hogyoku); pen.px(sx + 2, sy + 4, st.hogyoku); }
-  pen.rect(wl, hipY - 2, wr - wl + 1, 2, st.sash);
+  if (st.numeral) { pen.line(sx - 1, sy + 6, sx - 1, sy + 10, st.numeral); pen.px(sx - 2, sy + 7, st.numeral); pen.rect(sx + 1, sy + 6, 3, 5, st.numeral); pen.rect(sx + 2, sy + 7, 1, 3, st.robe); }
+  pen.rect(wl - bk, hipY - 2, wr - wl + 1 + bk * 2, 2, st.sash);
   if (st.strap) pen.line(sx - 3, sy + 1, wr - 1, hipY - 3, st.strap);
   if (st.coat) pen.line(sx + 3, sy, wr + 1, hipY + 3, st.coat.lining);
   if (st.haori) {
@@ -967,10 +995,12 @@ function drawHumanoid(pen, st, P) {
     const n = st.chainBroken ? 3 : 6;
     for (let i = 0; i < n; i++) pen.px(cx + 1 + i * 0.5 + (i % 2), cy + i, i % 2 ? '#c8c8d4' : st.chain);
   }
-  if (st.scarf) {   // Ginpaku Kazahana no Uzuginu: wrapped once, the end streaming behind
-    pen.rect(sx - 3, sy - 1, 7, 2, st.scarf);
-    pen.limb(sx - 3, sy, sx - 10 + sway * 2, sy + 7 + Math.abs(sway), 2.5, 1.5, st.scarf);
-    pen.px(sx - 2, sy - 1, '#ffffff');
+  if (st.scarf) {   // Ginpaku Kazahana no Uzuginu: thick and soft, wrapped round the neck, the end streaming behind
+    pen.rect(sx - 4, sy - 2, 9, 3, st.scarf);
+    pen.line(sx - 4, sy + 1, sx + 4, sy + 1, '#b4c0c8');
+    pen.px(sx - 3, sy - 2, '#ffffff'); pen.px(sx, sy - 2, '#ffffff'); pen.px(sx + 3, sy - 2, '#ffffff');
+    pen.limb(sx - 4, sy, sx - 11 + sway * 2, sy + 8 + Math.abs(sway), 3, 1.5, st.scarf);
+    pen.px(sx - 9 + sway * 2, sy + 6, '#b4c0c8');
   }
 
   drawHead(pen, st, sx, sy, P);
@@ -1049,12 +1079,13 @@ function humanoidAnims(st) {
 }
 function humanoidAnimsBase(st) {
   const hand = st.carry !== 'back';
-  const idleW = st.carry === 'hand' ? W(70) : null;
+  const hold = st.holdAngle || 70;
+  const idleW = st.carry === 'hand' ? W(hold) : null;
   // a slow breath: twelve frames eased in and out, a blink near the end
   const idle = [];
   for (let i = 0; i < 12; i++) {
     const t = (1 - Math.cos(i / 12 * Math.PI * 2)) / 2;
-    idle.push({ bob: t, sway: t, coatSway: t * 0.6, fh: [2, 8 + t], bh: [-3, 8 + t], weapon: idleW ? W(70 + t * 3) : null, blink: i === 9 });
+    idle.push({ bob: t, sway: t, coatSway: t * 0.6, fh: [2, 8 + t], bh: [-3, 8 + t], weapon: idleW ? W(hold + t * 3) : null, blink: i === 9 });
   }
   const jumpKeys = [
     { crouch: 2, ff: [2, 0], bf: [-3, 0], fh: [3, 6], bh: [-4, 7], sway: 1, weapon: idleW },
