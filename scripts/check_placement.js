@@ -45,6 +45,7 @@ const KEEP = [
   ['sok_stair', 25, 14, 'the stair toward the fragment pillar'], ['sok_stair', 35, 11, 'the stair toward the fragment pillar'], ['sok_stair', 55, 15, 'the step to the fragment pillar from the east'],
   ['hm_1', 67, 10, 'a bone step on the way up to the Sinking Dunes'],
   ['hm_2', 48, 18, 'the middle step of the stair to the upgrade'],
+  ['hm_3', 18, 14, 'the upper steps of the stair to the Lost Plus chamber: a gentle climb for anyone who does not trust a double jump'], ['hm_3', 13, 18, 'the upper steps of the stair to the Lost Plus chamber: a gentle climb for anyone who does not trust a double jump'],
   ['hm_dunes', 27, 17, 'the stair toward the mesa'], ['hm_dunes', 75, 22, 'the stair up to the Bone Vault'], ['hm_dunes', 79, 18, 'the stair up to the Bone Vault'],
   ['hm_vault', 16, 11, 'the way across the top of the vault'],
   ['dangai_1', 53, 15, 'stepping stones over the spikes, with the Kototsu behind you'], ['dangai_1', 57, 15, 'stepping stones over the spikes, with the Kototsu behind you'],
