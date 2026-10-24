@@ -382,7 +382,7 @@ class GameScene extends Phaser.Scene {
     this.updateSwing(dt);
     this.flow.update(dt);
     if (this.entryCalm > 0) this.entryCalm -= dt;
-    for (const e of this.enemies.slice()) if (e.active) e.tick(dt);
+    for (const e of this.enemies.slice()) if (e.active) { try { e.tick(dt); } catch (err) { this.enemyFailed(e, err); } }
     this.enemies = this.enemies.filter(e => e.active);
     for (const s of this.pShots.slice()) {
       if (!s.active) continue;
@@ -418,6 +418,15 @@ class GameScene extends Phaser.Scene {
     this.updateNpcs();
     this.updateBackground();
     if (this.dark.visible) this.dark.setPosition(p.x, p.y);
+  }
+
+  // One foe's fault must not stop the frame loop: a boss is put right (Boss.scriptFailed), anything else is taken out of play
+  enemyFailed(e, err) {
+    if (e.isBoss && e.scriptFailed) { e.scriptFailed(err); return; }
+    reportFault((e.kind || 'enemy') + ' tick', err);
+    e.alive = false;
+    if (e.body) e.body.enable = false;
+    e.destroy();
   }
 
   // Look ahead in the facing direction, and look up or down after standing still holding that way
