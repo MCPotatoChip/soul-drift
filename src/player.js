@@ -20,7 +20,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.play('ichigo:idle');
     this.facing = 1;
     this.state = 'normal';
-    this.t = { coyote: 0, buffer: 0, dashCD: 0, atkCD: 0, invuln: 0, wallLock: 0, drop: 0, hurt: 0, recoil: 0, kido: 0, state: 0, after: 0, beat: 0 };
+    this.t = { coyote: 0, buffer: 0, atkBuf: 0, dashBuf: 0, dashCD: 0, atkCD: 0, invuln: 0, wallLock: 0, drop: 0, hurt: 0, recoil: 0, kido: 0, state: 0, after: 0, beat: 0 };
     this.airJumps = 0;
     this.canDash = true;
     this.jumping = false;
@@ -141,6 +141,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.canDash = true;
     }
     if (inp.jumpP) this.t.buffer = PHYS.jumpBuffer;
+    // A slash or Shunpo pressed while it is still cooling down is remembered for a moment instead of being thrown away
+    if (inp.attackP && this.t.atkCD > 0) this.t.atkBuf = PHYS.attackBuffer;
+    if (inp.dashP && this.t.dashCD > 0) this.t.dashBuf = PHYS.dashBuffer;
 
     this.updatePowers(dt, inp);
 
@@ -196,8 +199,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    if (inp.attackP && this.t.atkCD <= 0) this.attack(inp, grounded);
-    else if (inp.dashP && GS.has('dash') && this.canDash && this.t.dashCD <= 0) this.startDash(dir || this.facing);
+    if ((inp.attackP || this.t.atkBuf > 0) && this.t.atkCD <= 0) this.attack(inp, grounded);
+    else if ((inp.dashP || this.t.dashBuf > 0) && GS.has('dash') && this.canDash && this.t.dashCD <= 0) this.startDash(dir || this.facing);
     else if (inp.kidoP) this.castKido(inp);
     else if (inp.konsoP && GS.has('konso')) this.startKonso();
     else if (inp.burstP && GS.has('burst') && grounded) this.startCharge(0);
@@ -227,6 +230,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   // ---------------- Shunpo (flash step) ----------------
   startDash(dir) {
+    this.t.dashBuf = 0;
     this.state = 'dash';
     this.dashDir = dir; this.facing = dir;
     this.t.state = PHYS.dashTime * (1 + 0.1 * GS.upgrade('shunpoEdge'));
@@ -322,12 +326,13 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     } else this.awayT = 0;
     if (inp.dashP && GS.has('dash') && this.t.dashCD <= 0) { this.exitCling(); this.startDash(-this.wallDir); return; }
     if (inp.burstP && GS.has('burst')) { this.startCharge(this.wallDir); return; }
-    if (inp.attackP && this.t.atkCD <= 0) { this.facing = -this.wallDir; this.attack({ up: inp.up, down: false }, false); }
+    if ((inp.attackP || this.t.atkBuf > 0) && this.t.atkCD <= 0) { this.facing = -this.wallDir; this.attack({ up: inp.up, down: false }, false); }
     if (inp.kidoP) { this.facing = -this.wallDir; this.castKido(inp); }
   }
 
   // ---------------- Zanpakuto ----------------
   attack(inp, grounded) {
+    this.t.atkBuf = 0;
     this.t.atkCD = (this.bankai ? COMBAT.bankaiSlashCooldown : COMBAT.slashCooldown) * GS.form().cd * (1 - 0.06 * GS.temper('quick'));
     let kind = 'side';
     if (inp.up) kind = 'up';
