@@ -120,6 +120,7 @@ g.rect(3, 4, 7, 4, '#').put(5, 3, 'f')          # a fragment on a ledge only gri
 g.rect(69, 0, 69, 6, '#').rect(69, 11, 69, 16, '#')
 g.put(0, 18, '1').put(69, 18, '2').put(69, 8, '3')
 g.put(5, 18, 'N').put(30, 22, 'l')
+g.put(62, 8, 'R')                                # a gate at the end of the bridge, in the room before Grand Fisher
 g.put(25, 22, 'i').put(45, 22, 'i').put(60, 18, 'i').put(40, 5, 'h')
 R['kar_river'] = dict(name='Onose Riverbank', region='kar', pos=[24, 10],
     doors={'1': ['kar_hub', '2'], '2': ['ruk_1', '1'], '3': ['kar_grave', '1']},
