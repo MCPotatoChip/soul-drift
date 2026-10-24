@@ -88,7 +88,7 @@ function startGame() {
     // in a room, or against its boss (whose health is knocked down by 30% every 15 s so every phase gets played). Runs without
     // drawing. Returns what happened and any errors thrown while the game ran.
     chaosTest(room, secs = 60) {
-      const orig = this.game.scene.render;
+      const orig = this.game.scene.render, wasGod = GS.god;
       this.game.scene.render = () => {};
       try {
         this.give('all'); GS.god = true; this.errors.length = 0;
@@ -137,7 +137,7 @@ function startGame() {
         }
         Controls.releaseAll();
         return { room, boss: boss && boss.id, defeated: boss ? !boss.alive : null, phases: [...phases].join(''), left, errors: this.errors.splice(0, 4) };
-      } finally { this.game.scene.render = orig; GS.god = false; Controls.releaseAll(); }
+      } finally { this.game.scene.render = orig; GS.god = wasGod; Controls.releaseAll(); }
     },
     // Enter every room by each of its doors, its rest gate and its start, step a moment, and list what is wrong: no player,
     // a player inside a wall, or an error. (end_boss door 2 is the rift wall, solid until the Hollow within falls: skipped.)
