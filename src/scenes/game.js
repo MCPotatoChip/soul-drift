@@ -37,6 +37,7 @@ class GameScene extends Phaser.Scene {
     this.crackHits = {};
     this.trueSight = GS.has('konso');
     this.boss = null; this.bossStarted = false;
+    this.planksOff = false; this.planksBusy = false; this.plankStand = 0; this.plankCD = 0; this.hcGfx = null;
     // The scene object is reused between rooms, so nothing room-specific may linger
     this.restGate = null; this.startPos = null; this.arena = null; this.shade = null;
     this.chase = null; this.chaseImg = null; this.chaseFx = null;
@@ -311,7 +312,7 @@ class GameScene extends Phaser.Scene {
 
   setupColliders() {
     const p = this.player;
-    const oneWay = (o, tile) => (o.t ? o.t.drop <= 0 : true) && o.body.velocity.y >= 0 && (o.body.prev.y + o.body.height) <= tile.pixelY + 4;
+    const oneWay = (o, tile) => !this.planksOff && (o.t ? o.t.drop <= 0 : true) && o.body.velocity.y >= 0 && (o.body.prev.y + o.body.height) <= tile.pixelY + 4;
     // One-way surfaces resolve first so walking off a plank onto level solid
     // ground never snags on the solid tile's side face.
     this.physics.add.collider(p, this.oneway, null, oneWay);
@@ -378,6 +379,7 @@ class GameScene extends Phaser.Scene {
     this.senseEnv();
     p.update(dt);
     this.denyPerch(dt);
+    this.updatePlanks(dt);
     this.updateEnv(dt);
     this.updateLanterns(dt);
     if (this.waves) this.updateWaves(dt);
@@ -586,12 +588,12 @@ class GameScene extends Phaser.Scene {
     if (sw.kind === 'side') { sw.img.setAngle(0).setFlipX(sw.dir < 0); }
     else { sw.img.setFlipX(false).setAngle(sw.kind === 'up' ? -90 : 90); }
   }
-  // Standing on a plank right above a boss it cannot reach is no way to win: the plank gives way after a moment
+  // Standing on a plank right above a boss it cannot reach is no way to win: the planks warn, then give way (startPlankDrop)
   denyPerch(dt) {
     const p = this.player, b = this.boss;
     if (!b || !b.alive || !b.fighting || p.state === 'dead' || !p.grounded || p.y > b.y - 10 || Math.abs(p.x - b.x) > 64 || !this.isOneWayAt(p.x, p.body.bottom + 2)) { this.perchT = 0; return; }
     this.perchT = (this.perchT || 0) + dt;
-    if (this.perchT > 0.9) { this.perchT = 0; p.t.drop = 0.3; p.body.velocity.y = 60; this.fx.dust(p.x, p.body.bottom, 4); }
+    if (this.perchT > 0.9) { this.perchT = 0; this.startPlankDrop(1.6); }
   }
   // Is solid ground in a straight line from (x, y) to the body?
   wallBetween(x, y, body) {
@@ -1239,39 +1241,82 @@ class GameScene extends Phaser.Scene {
     this.pickups.push(pk);
     this.fx.ring(x, this.arena.floor - 16, pk.color, 50, 700, 3);
   }
-  // The floor flashes red under a visible countdown (3, 2, 1) and "!" marks before the cells fall away
-  collapseFloor() {
-    const g = this.add.graphics().setDepth(31), total = 2.8;
-    const cells = this.collapseCells, xs = cells.map(c => c.x * TILE + TILE / 2);
-    const cx = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : this.player.x, top = Math.min(...cells.map(c => c.y * TILE));
-    const num = this.add.text(cx, top - 26, '', { fontFamily: 'monospace', fontSize: '22px', fontStyle: 'bold', color: '#ff4050', stroke: '#000000', strokeThickness: 4 }).setOrigin(0.5).setDepth(32);
-    const marks = [];
-    for (let x = Math.min(...xs); x <= Math.max(...xs); x += TILE * 4) {
-      marks.push(this.add.text(x, top - 6, '!', { fontFamily: 'monospace', fontSize: '14px', fontStyle: 'bold', color: '#ffe040', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5).setDepth(32));
+  // Cells flash red under a visible countdown (3, 2, 1) and "!" marks, then onDone runs. perRun: one countdown and mark over
+  // each separate run of cells (planks), thin flashes of height h; otherwise one countdown over the middle (a whole floor).
+  warnCells(cells, total, onDone, { perRun = false, h = TILE } = {}) {
+    const g = this.add.graphics().setDepth(31);
+    const labels = [], style = (size, color, stroke) => ({ fontFamily: 'monospace', fontSize: size + 'px', fontStyle: 'bold', color, stroke: '#000000', strokeThickness: stroke });
+    if (perRun) {
+      const rows = {};
+      cells.forEach(c => { (rows[c.y] || (rows[c.y] = [])).push(c.x); });
+      Object.entries(rows).forEach(([y, xs]) => {
+        xs.sort((p, q) => p - q);
+        let start = xs[0], prev = xs[0];
+        const flush = (end) => labels.push({ x: (start + end) / 2 * TILE + TILE / 2, y: y * TILE - 16, t: this.add.text(0, 0, '', style(16, '#ff4050', 3)).setOrigin(0.5).setDepth(32) });
+        for (let i = 1; i <= xs.length; i++) { if (i === xs.length || xs[i] !== prev + 1) { flush(prev); if (i < xs.length) start = xs[i]; } if (i < xs.length) prev = xs[i]; }
+      });
+    } else {
+      const xs = cells.map(c => c.x * TILE + TILE / 2), top = Math.min(...cells.map(c => c.y * TILE));
+      labels.push({ x: (Math.min(...xs) + Math.max(...xs)) / 2, y: top - 26, t: this.add.text(0, 0, '', style(22, '#ff4050', 4)).setOrigin(0.5).setDepth(32) });
+      for (let x = Math.min(...xs); x <= Math.max(...xs); x += TILE * 4) labels.push({ x, y: top - 6, mark: true, t: this.add.text(0, 0, '!', style(14, '#ffe040', 3)).setOrigin(0.5).setDepth(32) });
     }
-    let e = 0;
+    let e = 0, lastN = -1;
     Sfx.play('telegraph');
-    this.fx.shake(total * 1000, 0.004);
+    if (!perRun) this.fx.shake(total * 1000, 0.004);
     const ev = this.time.addEvent({
       delay: 50, loop: true, callback: () => {
         e += 0.05;
         const left = Math.max(0, total - e), n = Math.ceil(left);
-        if (n !== num.getData('n')) { num.setData('n', n); num.setText('! ' + n + ' !'); if (n > 0) Sfx.play('telegraph'); }
+        if (n !== lastN) { lastN = n; if (n > 0) Sfx.play('telegraph'); }
         g.clear();
         const fast = left < 1 ? 0.07 : 0.12;
-        if (Math.floor(e / fast) % 2 === 0) { g.fillStyle(0xff3040, 0.55); cells.forEach(c => g.fillRect(c.x * TILE, c.y * TILE, TILE, TILE)); }
-        marks.forEach((m, i) => m.setY(top - 6 - Math.abs(Math.sin(e * 8 + i)) * 4));
+        if (Math.floor(e / fast) % 2 === 0) { g.fillStyle(0xff3040, 0.55); cells.forEach(c => g.fillRect(c.x * TILE, c.y * TILE, TILE, h)); }
+        labels.forEach((l, i) => {
+          l.t.setPosition(l.x, l.y - (l.mark || perRun ? Math.abs(Math.sin(e * 8 + i)) * 4 : 0));
+          if (!l.mark) l.t.setText('! ' + n + ' !');
+          else l.t.setText('!');
+        });
       },
     });
-    this.time.delayedCall(total * 1000, () => {
-      ev.remove(); g.destroy(); num.destroy(); marks.forEach(m => m.destroy());
-      cells.forEach(c => {
+    this.time.delayedCall(total * 1000, () => { ev.remove(); g.destroy(); labels.forEach(l => l.t.destroy()); onDone(); });
+  }
+  collapseFloor() {
+    this.warnCells(this.collapseCells, 2.8, () => {
+      this.collapseCells.forEach(c => {
         this.solid.removeTileAt(c.x, c.y);
         if (Math.random() < 0.5) this.fx.debris(c.x * TILE + 8, c.y * TILE + 8, 0xaaa6b8, 3);
       });
       Sfx.play('break');
       this.fx.shake(300, 0.012);
     });
+  }
+  // Anti-camping in a boss fight: standing on the planks too long makes them blink red under a countdown, then fade to
+  // ghosts that let you fall through for a few seconds
+  updatePlanks(dt) {
+    const p = this.player, fight = this.bossStarted && this.boss && this.boss.alive && !this.transitioning;
+    if (!fight || this.planksBusy) { if (!fight) this.plankStand = 0; return; }
+    this.plankCD = Math.max(0, (this.plankCD || 0) - dt);
+    const onPlank = p.grounded && p.state !== 'dead' && this.oneway.getTileAtWorldXY(p.x, p.body.bottom + 2);
+    this.plankStand = onPlank ? (this.plankStand || 0) + dt : 0;
+    if (this.plankStand < 4) return;
+    this.startPlankDrop(2);
+  }
+  startPlankDrop(total) {
+    if (this.planksBusy || this.plankCD > 0) return;
+    const cells = [];
+    this.oneway.forEachTile(t => { if (t.index >= 0) cells.push({ x: t.x, y: t.y }); });
+    if (!cells.length) return;
+    this.planksBusy = true; this.plankStand = 0;
+    this.warnCells(cells, total, () => {
+      this.planksOff = true;
+      this.oneway.setAlpha(0.18);
+      Sfx.play('break');
+      this.time.delayedCall(3500, () => {
+        this.planksOff = false;
+        this.oneway.setAlpha(1);
+        this.planksBusy = false; this.plankCD = 5;
+      });
+    }, { perRun: true, h: 6 });
   }
   restoreFloor() {
     this.time.delayedCall(1500, () => this.collapseCells.forEach(c => this.solid.putTileAt(T.COLLAPSE, c.x, c.y)));
