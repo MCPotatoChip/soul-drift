@@ -46,7 +46,12 @@ class MenuScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ helpers
-  clear() { this.layer.list.forEach(c => this.tweens.killTweensOf(c)); this.layer.removeAll(true); }
+  clear() {
+    // The map's pulse tween outlives the map view: kill it before its circle is destroyed, or it throws every frame
+    if (this.mapPulse) { this.tweens.killTweensOf(this.mapPulse); this.mapPulse = null; }
+    this.mapDrag = null;
+    this.layer.list.forEach(c => this.tweens.killTweensOf(c)); this.layer.removeAll(true);
+  }
   txt(x, y, s, size = 22, color = INK, o = {}) {
     const t = this.add.text(x, y, s, Object.assign({ fontFamily: o.display ? FONT_DISPLAY : FONT_BODY, fontSize: size + 'px', color, fontStyle: o.bold ? '700' : o.display ? '800' : 'normal', wordWrap: o.wrap ? { width: o.wrap } : undefined, lineSpacing: 4 }, o.style || {}));
     if (o.origin !== undefined) t.setOrigin(...[].concat(o.origin));
