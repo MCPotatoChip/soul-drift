@@ -84,7 +84,7 @@ class Boss extends Enemy {
     // Never leave the room: a boss that ends up below the floor (or inside it) is set back on it
     if (this.fighting && !this.cfg.fly && this.body.bottom > this.arena.floor + 6) { this.body.reset(Phaser.Math.Clamp(this.x, this.arena.left + 8, this.arena.right - 8), this.arena.floor - this.body.height / 2); this.body.setVelocity(0, 0); }
     if (!this.fighting) { this.body.setVelocityX(0); return; }
-    if (this.ai) this.ai.tick(dt * GS.diff().bossSpeed);
+    if (this.ai) this.ai.tick(dt * GS.diff().bossSpeed * (this.tempo || 1));
     this.checkPhase && this.checkPhase();
   }
   // The player has barely moved for a while (hiding on a ledge, waiting by a wall)
@@ -534,12 +534,13 @@ class BoneSnake {
 // second half sends the bait itself after you.
 class GrandFisher extends Boss {
   constructor(scene, x, feet) {
-    super(scene, x, feet, 'fisher', { id: 'fisher', hp: 320, dmg: 1, drop: 20, bw: 46, bh: 56, kind: 'fisher', frame: 'idle0', frameFeet: 84, burst: 0x2a1e18 });
+    super(scene, x, feet, 'fisher', { id: 'fisher', hp: 240, dmg: 1, drop: 20, bw: 46, bh: 56, kind: 'fisher', frame: 'idle0', frameFeet: 84, burst: 0x2a1e18 });
     this.telePose = 'windup';
     this.introPose = 'roar';
     this.introLine = '"You can see it, can\'t you? My pretty little lure."';
     this.lineColor = '#ffd0d0';
     this.walkSpeed = 60; this.prefer = 80; this.patience = 3.5;
+    this.tempo = 0.85;   // gentler for new players, on every difficulty
     this.anim('idle');
   }
   defaultPose() { return this.buried ? 'burrow' : Math.abs(this.body.velocity.x) > 15 ? 'walk' : 'idle'; }
@@ -711,10 +712,11 @@ class LureDecoy extends Enemy {
 // ---------------------------------------------------------------------------
 class Menos extends Boss {
   constructor(scene, x, feet) {
-    super(scene, x, feet, 'menos', { id: 'menos', hp: 340, dmg: 1, drop: 20, bw: 40, bh: 100, kind: 'menos', frame: 'idle0', frameFeet: 120 });
+    super(scene, x, feet, 'menos', { id: 'menos', hp: 250, dmg: 1, drop: 20, bw: 40, bh: 100, kind: 'menos', frame: 'idle0', frameFeet: 120 });
     this.telePose = 'crouch';
     this.introPose = 'cero';
     this.walkSpeed = 34; this.prefer = 70; this.patience = 4; this.pause = 0.6;
+    this.tempo = 0.85;
     this.anim('idle');
     this.orb = scene.add.image(x, this.y, 'cero_orb').setDepth(29).setVisible(false);
   }
