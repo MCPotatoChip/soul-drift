@@ -99,7 +99,9 @@ function startGame() {
         if (ROOMS[room].boss) { GS.data.bosses[ROOMS[room].boss] = false; GS.data.cleared = false; }   // fight him again
         const s0 = this.scene; s0.transitioning = false; s0.goTo(room, { spawn: 'rest' });
         this.step(40);
-        let g = this.scene, p = g.player; const boss = g.boss;
+        let g = this.scene, p = g.player;
+        if (room === 'kar_study') { GS.data.bosses.urahara = false; GS.data.quests.urahara = 2; g.startUraharaFight(g.interactables.find(it => it.info && it.info.name === 'Kisuke Urahara')); this.step(30); }
+        const boss = g.boss;
         if (!p) return { room, err: 'no player' };
         let spot = g.pxW / 2;
         if (boss) {   // far from every door and lock, like bossTest
