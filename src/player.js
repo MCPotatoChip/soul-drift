@@ -28,6 +28,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.awayT = 0;
     this.graceT = 0;
     this.lastSafe = { x, y: feetY };
+    this.safeTrail = [];
     this.wasGrounded = true;
     this.swingAlt = false;
     this.healBase = 0; this.healProg = 0;
@@ -730,6 +731,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const solidSafe = (x) => { const t = s.solid.getTileAtWorldXY(x, y); return (t && t.collides && t.index !== T.COLLAPSE) || !!s.oneway.getTileAtWorldXY(x, y); };
     if (solidSafe(b.left + 1) && solidSafe(b.right - 1) && !s.nearHazard(b.center.x, b.bottom - 6)) {
       this.lastSafe = { x: b.center.x, y: b.bottom };
+      // A trail of the ground walked, so a spike respawn can step back to a spot far from the spikes
+      const tr = this.safeTrail, last = tr[tr.length - 1];
+      if (!last || Math.abs(last.x - this.lastSafe.x) + Math.abs(last.y - this.lastSafe.y) >= 20) { tr.push(this.lastSafe); if (tr.length > 60) tr.shift(); }
     }
   }
 }

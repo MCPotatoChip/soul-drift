@@ -5,9 +5,8 @@
 // progress lives in GS so nothing resets between rooms.
 // ---------------------------------------------------------------------------
 
-// Held (continuous) actions and the input flag each one drives
-const HELD_ACTIONS_INPUT = { left: 'left', right: 'right', up: 'up', down: 'down', jump: 'jumpH', attack: 'attackH', heal: 'healH', konso: 'konsoH', burst: 'burstH' };
-const HELD_ACTIONS = Object.keys(HELD_ACTIONS_INPUT);
+// How far (px) from any spike a respawn spot must be, so a held direction cannot carry you back in
+const SAFE_CLEAR = 144;
 
 class GameScene extends Phaser.Scene {
   constructor() { super('game'); }
@@ -31,7 +30,6 @@ class GameScene extends Phaser.Scene {
     this.interactables = []; this.pickups = []; this.platforms = []; this.shards = [];
     this.doors = []; this.lockCells = []; this.collapseCells = []; this.bankaiCells = []; this.hazards = [];
     this.hinted = {};
-    this.inputLock = 0;
     this.carryP = null; this.lastP = new Set();
     this.slow = null; this.lookT = 0;
     this.applyTimeScale(1);
@@ -355,8 +353,6 @@ class GameScene extends Phaser.Scene {
     i.bankaiP = C.inSet('bankai', P); i.maskP = C.inSet('mask', P);
     i.interactP = C.inSet('interact', P); i.upP = C.inSet('up', P);
     i.mapP = C.inSet('map', P); i.invP = C.inSet('inventory', P); i.pauseP = C.inSet('pause', P);
-    // Held keys do not count while the post-respawn lock runs (see hazardRespawn)
-    if (this.inputLock > 0) for (const a of HELD_ACTIONS) i[HELD_ACTIONS_INPUT[a]] = false;
   }
 
   // ------------------------------------------------------------------ loop
@@ -367,7 +363,6 @@ class GameScene extends Phaser.Scene {
       if (this.slow.t <= 0) { this.slow = null; this.applyTimeScale(1); }
     }
     dt *= this.tscale;
-    if (this.inputLock > 0) this.inputLock -= dt;
     this.readInput();
     if (this.frozen) return;
     if (this.hitStopT > 0) {
@@ -498,6 +493,28 @@ class GameScene extends Phaser.Scene {
   nearHazard(x, y) {
     for (const dx of [-14, 0, 14]) if (this.isSpikeAt(x + dx, y) || this.isSpikeAt(x + dx, y + 10)) return true;
     return false;
+  }
+  // Horizontal distance (px) from x to the nearest spike within a band reaching a little above y and well below it
+  // (a pit's spikes lie far under its rim), capped at `cap`
+  spikeClearance(x, y, cap = SAFE_CLEAR) {
+    const tx = Math.floor(x / TILE), ty0 = Math.floor((y - 24) / TILE), ty1 = Math.floor((y + 192) / TILE), n = Math.ceil(cap / TILE);
+    let best = cap;
+    for (let dx = -n; dx <= n; dx++) for (let ty = ty0; ty <= ty1; ty++) {
+      if (this.hazLayer.getTileAt(tx + dx, ty)) best = Math.min(best, Math.max(0, Math.abs(dx) * TILE - TILE / 2));
+    }
+    return best;
+  }
+  // Where a spike (or sand) respawn puts you: the newest spot of the trail you walked that is well clear of
+  // spikes and pits, so holding a direction cannot carry you straight back in; failing that, the clearest spot
+  respawnSpot() {
+    const p = this.player, trail = p.safeTrail || [];
+    let best = null, bc = -1;
+    for (let i = trail.length - 1; i >= 0; i--) {
+      const c = this.spikeClearance(trail[i].x, trail[i].y);
+      if (c >= SAFE_CLEAR) return this.validSafe(trail[i]);
+      if (c > bc) { best = trail[i]; bc = c; }
+    }
+    return this.validSafe(best || p.lastSafe);
   }
   countEnemies(kind) { return this.enemies.filter(e => e.alive && e.kind === kind).length; }
 
@@ -1032,14 +1049,11 @@ class GameScene extends Phaser.Scene {
     this.hitStop(0.12);
     this.cameras.main.fadeOut(160, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      const s = this.validSafe(p.lastSafe);
+      const s = this.respawnSpot();
       p.placeFeet(s.x, s.y);
       p.body.setAllowGravity(true);
       p.state = 'normal';
       p.t.invuln = 1.0;
-      // Held keys are ignored for half a second after landing, so holding toward the spikes
-      // cannot walk the player straight back into them
-      this.inputLock = 0.5;
       this.cameras.main.fadeIn(220, 0, 0, 0);
       this.respawning = false;
     });

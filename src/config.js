@@ -116,8 +116,8 @@ const FORGE = [
 const FORMS = {
   zangetsu: { name: 'Zangetsu', jp: '斬月', cd: 1, dmg: 1, reach: 1, rei: 1, tint: 0xffffff,
     desc: 'The blade as it first came to you. Balanced in reach, speed and weight.' },
-  odachi: { name: 'Ōdachi', jp: '大太刀', cd: 1.3, dmg: 1.35, reach: 1.3, rei: 1.15, tint: 0xbfe0ff,
-    desc: 'A great blade forged long. Slow, heavy strikes that reach far and land hard.', how: 'Forged by the swordsmith in Rukongai.' },
+  odachi: { name: 'Ōdachi', jp: '大太刀', cd: 1.45, dmg: 1.3, reach: 1.2, rei: 1.05, tint: 0xbfe0ff,
+    desc: 'A great blade forged long. Slow, heavy strikes that reach far: each lands harder than a plain blade, but they come less often.', how: 'Forged by the swordsmith in Rukongai.' },
   kodachi: { name: 'Kodachi', jp: '小太刀', cd: 0.68, dmg: 0.7, reach: 0.85, rei: 0.8, tint: 0xffd890,
     desc: 'A short blade for close work. Quick strikes that hit softer and come one after another.', how: 'Earned in the Study Room under Urahara\'s shop.' },
 };
