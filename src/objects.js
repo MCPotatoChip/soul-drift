@@ -14,7 +14,9 @@ function bodyRect(b) { return new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.hei
 // Phaser requests the next frame only after the update returns, so one uncaught error freezes the game until it is
 // reloaded. Where a fault can be set aside (one foe, one boss attack, one frame), it is noted here instead of thrown.
 // The test helpers in main.js (SD.errors) see it too.
+const FAULT_COUNTS = {};
 function reportFault(where, err) {
+  if ((FAULT_COUNTS[where] = (FAULT_COUNTS[where] || 0) + 1) > 5) return;   // a fault that repeats every frame is said five times, not sixty a second
   console.error('Soul Drift: fault in ' + where, err);
   if (typeof window !== 'undefined' && window.SD && window.SD.errors) window.SD.errors.push(where + ': ' + String(err && err.stack || err).split('\n').slice(0, 4).join(' | '));
 }
