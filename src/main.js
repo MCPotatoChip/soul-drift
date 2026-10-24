@@ -142,28 +142,44 @@ function startGame() {
     // Enter every room by each of its doors, its rest gate and its start, step a moment, and list what is wrong: no player,
     // a player inside a wall, or an error. (end_boss door 2 is the rift wall, solid until the Hollow within falls: skipped.)
     sweepRooms(frames = 40) {
-      const orig = this.game.scene.render, bad = [];
+      const orig = this.game.scene.render, bad = [], needsBroken = [], keep = JSON.stringify(GS.data.broken);
       this.game.scene.render = () => {};
+      // returns what is wrong with arriving this way, or null. A door in the floor of a cracked shaft (hm_1 door 3) only
+      // exists once the cracks are broken from above, so it fails with every seal and crack intact.
+      const arrive = (room, e) => {
+        const s = this.scene; s.transitioning = false; s.scene.restart(Object.assign({ room }, e)); this.step(3);
+        const g = this.scene, p = g.player;
+        if (!p) return 'no player';
+        if ((e.spawn === 'rest' && !g.restGate) || (e.spawn === 'start' && !g.startPos)) return 'skip';
+        this.step(frames);
+        const g2 = this.scene, p2 = g2.player;   // (a room can send you on at once if the way out is right there)
+        if (!p2 || !p2.body || g2.roomId !== room) return `left the room within ${frames} frames`;
+        const b = p2.body;
+        return [[b.left + 1, b.top + 1], [b.right - 1, b.top + 1], [b.left + 1, b.bottom - 1], [b.right - 1, b.bottom - 1]].some(([x, y]) => g2.isSolidAt(x, y)) ? 'inside a wall' : null;
+      };
+      const breakAll = () => {
+        GS.data.broken = {};
+        Object.keys(ROOMS).forEach(id => ROOMS[id].tiles.forEach((row, y) => [...row].forEach((c, x) => { if ('XGOD'.includes(c)) GS.markBroken(id, x, y); })));
+      };
       try {
         this.errors.length = 0; let n = 0;
         for (const room of Object.keys(ROOMS)) {
           const entries = Object.keys(ROOMS[room].doors).map(door => ({ door })).concat([{ spawn: 'rest' }, { spawn: 'start' }]);
           for (const e of entries) {
-            if (room === 'end_boss' && e.door === '2') continue;
-            const s = this.scene; s.transitioning = false; s.scene.restart(Object.assign({ room }, e)); this.step(3);
-            const g = this.scene, p = g.player;
-            if (!p) { bad.push(`${room} ${JSON.stringify(e)}: no player`); continue; }
-            if ((e.spawn === 'rest' && !g.restGate) || (e.spawn === 'start' && !g.startPos)) continue;
+            if (room === 'end_boss' && e.door === '2') continue;   // the rift wall: solid until the Hollow within has fallen
+            let why = arrive(room, e);
+            if (why === 'skip') continue;
             n++;
-            this.step(frames);
-            const g2 = this.scene, p2 = g2.player;   // (a room can send you on at once if the way out is right there)
-            if (!p2 || !p2.body || g2.roomId !== room) { bad.push(`${room} ${JSON.stringify(e)}: left the room within ${frames} frames`); continue; }
-            const b = p2.body, inWall = [[b.left + 1, b.top + 1], [b.right - 1, b.top + 1], [b.left + 1, b.bottom - 1], [b.right - 1, b.bottom - 1]].some(([x, y]) => g2.isSolidAt(x, y));
-            if (inWall) bad.push(`${room} ${JSON.stringify(e)}: inside a wall`);
+            if (why) {
+              const sealed = GS.data.broken; breakAll();
+              const again = arrive(room, e);
+              GS.data.broken = sealed;
+              (again ? bad : needsBroken).push(`${room} ${JSON.stringify(e)}: ${why}${again ? ` (and ${again} with every seal and crack broken)` : ''}`);
+            }
           }
         }
-        return { entries: n, bad, errors: this.errors.splice(0, 5) };
-      } finally { this.game.scene.render = orig; }
+        return { entries: n, bad, needsBroken, errors: this.errors.splice(0, 5) };
+      } finally { this.game.scene.render = orig; GS.data.broken = JSON.parse(keep); }
     },
     // Fight a boss with a scripted player who does nothing but walk up and swing (never dodges, never heals, never
     // casts). Health is topped up after every blow, so what comes back is how fast the sword alone ends the fight
