@@ -235,7 +235,9 @@ const REGIONS = {
 };
 
 // What the ground sounds like underfoot in each region
-const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand', stu: 'dirt', rei: 'crystal', fkt: 'stone' };
+// A room that draws its own backdrop and tiles in place of its region's (the throne of the Soul King is a dark void full of eyes)
+const BACKDROPS = { palace_throne: 'void' };
+const REGION_SURFACE = { kar: 'stone', ruk: 'dirt', sei: 'stone', sok: 'dirt', hm: 'sand', end: 'crystal', dan: 'ether', for: 'sand', stu: 'dirt', rei: 'crystal', fkt: 'stone', void: 'crystal' };
 
 
 // notches: health fractions where the fight changes phase (drawn on the boss bar). jp: the name in Japanese.

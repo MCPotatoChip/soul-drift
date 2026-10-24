@@ -108,10 +108,12 @@ class GameScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ build
   buildBackground() {
-    const r = this.region;
+    const r = BACKDROPS[this.roomId] || this.region;
     this.bgFactors = BG_FACTORS;
     this.bgLayers = BG_FACTORS.map((_, i) => this.add.tileSprite(VIEW_W / 2, VIEW_H / 2, VIEW_W, VIEW_H, `bg_${r}_${i}`)
       .setOrigin(0).setScrollFactor(0).setDepth(-10 + i));
+    // the eyes of the void open and close: each layer breathes on its own beat
+    if (r === 'void') this.bgLayers.slice(1).forEach((l, i) => this.tweens.add({ targets: l, alpha: { from: 1, to: 0.55 }, duration: 1700 + i * 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' }));
   }
 
   buildMap() {
@@ -120,7 +122,7 @@ class GameScene extends Phaser.Scene {
     const H = rows.length, W = Math.max(...rows.map(r => r.length));
     this.W = W; this.H = H; this.pxW = W * TILE; this.pxH = H * TILE;
     const map = this.make.tilemap({ tileWidth: TILE, tileHeight: TILE, width: W, height: H });
-    const ts = map.addTilesetImage('tiles_' + this.region, 'tiles_' + this.region, TILE, TILE, 0, 0);
+    const ts = map.addTilesetImage('tiles_' + (BACKDROPS[this.roomId] || this.region), 'tiles_' + (BACKDROPS[this.roomId] || this.region), TILE, TILE, 0, 0);
     this.map = map;
     this.hazLayer = map.createBlankLayer('haz', ts).setDepth(4);
     this.solid = map.createBlankLayer('solid', ts).setDepth(5);

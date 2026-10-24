@@ -465,15 +465,16 @@ STYLES.aizen_w = variant(STYLES.aizen_h, { wings6: '#ecebf4', wings6Edge: '#8a5a
   skin: '#e8e4f0', hair: '#16121c', hairHi: '#3a3046', hairShade: '#08060c', hairStyle: 'mane', mane: '#16121c' });
 // Yhwach, father of the Quincy: a long black mane, a moustache, a black coat lined white, a broad sword of reishi
 STYLES.yhwach = {
-  skin: '#e0c4a4', skinShade: '#b09478', eye: '#c8202c', brow: '#100e14', mustache: '#100e14', beard: null,
-  hair: '#16131c', hairHi: '#3a3446', hairShade: '#08060c', hairStyle: 'wild',
-  robe: '#16151c', robeHi: '#2e2c38', robeShade: '#0a090e', inner: '#e8e8f0', sash: '#e8e8f0',
-  hakama: '#1a1920', hakamaShade: '#0c0b10', hakamaHi: '#2e2c38', tabi: '#0c0b10', sandal: '#0c0b10',
-  coat: { col: '#121118', hi: '#2c2a36', lining: '#e8eaf2' }, legLen: 11, torsoLen: 11, carry: 'hand', anims: BOSS_ANIMS,
+  skin: '#dcb490', skinShade: '#a47c5e', eye: '#1a1216', sclera: '#e8dccc', brow: '#0c0a0e', mustache: '#0c0a0e', heavyMustache: '#0c0a0e', beard: null,
+  brand: '#5a3a30', heavyLid: '#6a4a3c',
+  hair: '#0e0c12', hairHi: '#2e2a38', hairShade: '#050407', hairStyle: 'yhwach',
+  robe: '#14131a', robeHi: '#2a2834', robeShade: '#08070b', inner: '#f0f0f6', sash: '#1c1b24', collar: '#f2f2f8', collarShade: '#b4b4c4', brooch: '#e8e8f0',
+  hakama: '#14131a', hakamaShade: '#08070b', hakamaHi: '#2a2834', tabi: '#08070b', sandal: '#08070b', bulk: 0.8,
+  coat: { col: '#100f16', hi: '#2a2834', lining: '#f0f0f6' }, legLen: 11, torsoLen: 11, carry: 'hand', anims: BOSS_ANIMS,
   weapon: { type: 'broad', blade: '#bfe0ff', edge: '#ffffff', guard: '#8ab4e8', hilt: '#16151c', hiltShade: '#3a3846', len: 20, smear: '#8ac8ff70' },
 };
 // The Almighty: the coat turns red-lined, eyes open everywhere, the blade goes dark
-STYLES.yhwach_a = variant(STYLES.yhwach, { eye: '#ff2a3c', eyes: '#ff2a3c', sclera: '#0a0a0e', skin: '#d4b898',
+STYLES.yhwach_a = variant(STYLES.yhwach, { eye: '#ff2a3c', eyes: '#ff2a3c', sclera: '#0a0a0e', skin: '#d0a888',
   coat: { col: '#0a090e', hi: '#26222e', lining: '#c8202c' }, inner: '#c8202c', sash: '#c8202c',
   weapon: variant(STYLES.yhwach.weapon, { blade: '#2a2836', edge: '#ff3a50', guard: '#c8202c', smear: '#ff2a3c70' }) });
 
@@ -810,6 +811,18 @@ function drawHair(pen, st, sx, hy, sway) {
       tri([-2, -11], [1, -12], [-4 + sway, -14]);
       pen.line(sx - 2, hy - 12, sx + 1, hy - 12, L);
       break;
+    case 'yhwach': {   // black hair swept back from a high brow, one lock down each side of the face, the rest falling past the shoulders
+      pen.limb(sx - 3, hy - 9, sx - 8 + sway * 1.4, hy + 14, 6.5, 3.5, H);
+      pen.limb(sx - 2, hy - 9, sx - 5 + sway, hy + 8, 4.5, 2.5, S);
+      pen.line(sx - 4, hy - 7, sx - 8 + sway * 1.4, hy + 12, S);
+      pen.ellipse(sx - 0.5, hy - 9.2, 4.8, 2.0, H);
+      pen.poly([[sx - 1, hy - 9], [sx + 3, hy - 9], [sx + 1, hy - 8]], H);   // a shallow widow's peak over a high brow
+      pen.line(sx - 2, hy - 8, sx - 2, hy - 5, H);                            // a lock down the near side of the face
+      pen.line(sx + 4, hy - 9, sx + 4, hy - 7, H);                            // and one at the front
+      tri([-4, -9], [-3, -10], [-9 + sway, -6], S);
+      pen.line(sx - 2, hy - 11, sx + 2, hy - 11, L);
+      break;
+    }
     case 'horns':
       if (st.mane) { pen.limb(sx - 3, hy - 9, sx - 9 + sway, hy + 2, 4, 2, st.mane); pen.line(sx - 4, hy - 7, sx - 9 + sway, hy + 1, S); }
       pen.ellipse(sx - 0.5, hy - 8.5, 4, 2.5, H);
@@ -862,6 +875,9 @@ function drawHead(pen, st, sx, sy, P) {
     }
     if (st.beard) { pen.rect(sx, hy - 3, 4, 2, st.beard); pen.px(sx + 1, hy - 1, st.beard); pen.px(sx + 2, hy - 1, st.beard); }
     if (st.mustache) { pen.line(sx + 1, hy - 3, sx + 4, hy - 3, st.mustache); pen.px(sx + 4, hy - 2, st.mustache); pen.px(sx + 2, hy - 2, st.mustache); }
+    if (st.heavyMustache) { pen.px(sx, hy - 3, st.heavyMustache); pen.px(sx + 5, hy - 3, st.heavyMustache); pen.px(sx + 4, hy - 4, st.heavyMustache); pen.px(sx + 3, hy - 2, st.heavyMustache); }
+    if (st.brand) { pen.px(sx + 1, hy - 5, st.brand); pen.px(sx + 3, hy - 5, st.brand); }   // dark scars across the face
+    if (st.heavyLid) { pen.px(sx + 2, hy - 7, st.heavyLid); pen.px(sx + 3, hy - 7, st.heavyLid); }
     if (st.eyes) { pen.px(sx + 2, hy - 7, st.eyes); pen.px(sx + 4, hy - 6, st.eyes); pen.px(sx + 1, hy - 5, st.eyes); }   // the Almighty: more eyes than a face should hold
   }
   drawHair(pen, st, sx, hy, P.sway || 0);
@@ -1003,6 +1019,13 @@ function drawHumanoid(pen, st, P) {
     pen.px(sx - 9 + sway * 2, sy + 6, '#b4c0c8');
   }
 
+  if (st.collar) {   // a tall white collar standing up on both sides of the neck, a white shirt in the V of the coat
+    pen.poly([[sx - 4, sy - 4], [sx - 1, sy], [sx - 4, sy + 3]], st.collar);
+    pen.poly([[sx + 3, sy - 4], [sx + 6, sy - 3], [sx + 4, sy + 3], [sx + 1, sy]], st.collar);
+    pen.poly([[sx - 1, sy], [sx + 3, sy], [sx + 2, sy + 4], [sx + 1, sy + 4]], st.collar);
+    pen.px(sx + 6, sy - 3, st.collarShade || st.collar);
+  }
+  if (st.brooch) { pen.rect(sx + 3, sy + 5, 2, 2, st.brooch); pen.px(sx + 3, sy + 5, '#ffffff'); }
   drawHead(pen, st, sx, sy, P);
   if (wpn.mode === 'hand') drawWeapon(pen, st.weapon, fh, wpn.angle, sway);
   drawArm(pen, st, { x: sx + 2, y: sy + 1 }, fh, false);

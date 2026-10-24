@@ -9,9 +9,9 @@ function approach(v, target, delta) {
   return v;
 }
 
-// The palace is white: pale light and ADD-blended glow vanish against it. There, pale colours are drawn as dark ink and
+// The palace halls are white: pale light and ADD-blended glow vanish against it. There, pale colours are drawn as dark ink and
 // faint fills are firmed up, so every telegraph and projectile reads.
-function inkOn(scene) { return !!scene && scene.region === 'rei'; }
+function inkOn(scene) { return !!scene && scene.region === 'rei' && !BACKDROPS[scene.roomId]; }
 function ink(scene, c) {
   if (!inkOn(scene) || c === undefined || c === null) return c;
   const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
