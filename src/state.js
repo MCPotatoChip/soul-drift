@@ -382,7 +382,8 @@ const GS = {
     total += FORM_ORDER.length; have += FORM_ORDER.filter(f => d.forms && d.forms[f]).length;
     total += QUEST_ORDER.length; have += QUEST_ORDER.filter(q => d.quests[q] === 2).length;
     UPGRADE_ORDER.forEach(u => { total += UPGRADES[u].max; have += Math.min(UPGRADES[u].max, (d.upgrades && d.upgrades[u]) || 0); });
-    const bonus = STORY_BOSSES.filter(b => BOSSES[b].bonus && d.bosses[b]).length;
+    // the point beyond 100%: Yhwach, found at the end of the Grand Trial, beaten in the trial or in a duel
+    const rush = d.rush || {}, bonus = (rush.wins || (rush.single && rush.single[RUSH_SECRET])) ? 1 : 0;
     return Math.floor(have / total * 100) + (have >= total ? bonus : 0);
   },
 };
