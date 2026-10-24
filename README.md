@@ -130,13 +130,13 @@ Ichigo's story, roughly: a night in Karakura Town, the road into Soul Society, t
   - Every boss weighs its attacks by distance rather than choosing by it, rarely repeats itself, picks the attacks that reach you if you stand still, and comes to you when you keep away
   - The music climbs with each phase: a faster pulse, then a bass line, then a trembling high string
 - **Boss difficulty, easiest to hardest** (measured with `SD.duelTest`: a scripted player that swings and steps back from wind-ups, no healing, no Kidō; "blows taken" is how many hits it ate before the boss fell, at the plain edge. Base health in brackets; each forge level adds a third of it):
-  1. Menos Grande (250, acts 15% slower): measured before the cut, 63 blows. Big, slow, telegraphed
-  2. Renji Abarai (440): 94
-  3. Grand Fisher (240, acts 15% slower): measured before the cut, 104. Burrows, so staying still is punished
-  4. Grimmjow (600): 123
-  5. Kenpachi (640, takes a quarter less from every blow): 166
-  6. Byakuya (560): 169. The petals are what hurt
-  7. Kisuke Urahara (640, optional): about 170. Fewer blows in melee, many more at range
+  1. Grand Fisher (160, acts 20% slower): about 55 blows with the reactive bot. Burrows, so staying still is punished
+  2. Menos Grande (260, acts 10% slower): about 60. Big, slow, telegraphed
+  3. Renji Abarai (620, acts 8% faster): 112
+  4. Kenpachi (640, optional, takes a quarter less from every blow): 166 (older measure)
+  5. Byakuya (560): 147. The petals are what hurt
+  6. Kisuke Urahara (640, optional): about 170 (older measure). Fewer blows in melee, many more at range
+  7. Grimmjow (840, acts 10% faster): about 190
   8. Yammy Llargo (860, optional): 241. Never staggered, slow and heavy
   9. Aaroniero (600, optional): 245
   10. Ulquiorra (680, optional): about 260, and hard to reach once he takes flight
