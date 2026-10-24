@@ -84,6 +84,7 @@ def add_rooms(R, Grid):
     g.put(6, 18, 'R')
     g.rect(40, 2, 40, 18, 'X')                       # a Kido seal across the road to the Menos
     g.rect(24, 14, 28, 14, '=').rect(35, 12, 39, 12, '=')
+    g.put(37, 11, 'w')                               # Reiatsu Flow, on the upper plank (it had no pickup: 100% was out of reach)
     g.rect(46, 19, 47, 19, 'O').rect(44, 20, 49, 21, '.').put(45, 21, 'o')
     g.put(14, 18, 'e').put(20, 18, 'e').put(42, 18, 'g').put(52, 18, 'j')
     R['ruk_ravine_edge'] = dict(name='Ravine Edge', region='ruk', pos=[0, 0], doors={}, upgrades=['flow'], tiles=g.rows())
