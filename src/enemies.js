@@ -17,7 +17,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, (fy - cfg.bh / 2) / this.height);
     this.body.setSize(cfg.bw, cfg.bh).setOffset((this.width - cfg.bw) / 2, fy - cfg.bh);
     this.body.reset(x, feetY - cfg.bh * sc / 2);
-    this.hp = this.maxHp = Math.round(cfg.hp * GS.hpMul());
+    this.hp = this.maxHp = Math.max(1, Math.round(cfg.hp * GS.hpMul() * GS.foeHpMul(cfg.kind)));
     this.dmg = cfg.dmg ?? 1;
     this.drop = Math.round((cfg.drop ?? 2) * GS.dropMul());
     this.kbRes = cfg.kb ?? 1;
@@ -140,9 +140,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
   telegraph(color) { this.tintState = color; if (this.flashT <= 0) this.refreshTint(); this.warn(color !== 0x8080a0); }
   untelegraph() { this.tintState = 0; if (this.flashT <= 0) this.refreshTint(); this.warn(false); }
-  // Bold attack warnings (an assist setting): a mark over the head for as long as a wind-up lasts
+  // Attack warnings (on Easy): a mark over the head for as long as a wind-up lasts
   warn(on) {
-    this.warnOn = on && Settings.get('warnings') && this.alive;
+    this.warnOn = on && GS.diff().warn && this.alive;
     if (this.warnOn && !this.warnMark) this.warnMark = this.scene.add.image(this.x, this.y, 'warn_mark').setDepth(32);
     if (this.warnMark) { this.warnMark.setVisible(this.warnOn); this.updateWarn(); }
   }

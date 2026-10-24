@@ -46,7 +46,7 @@ class GameScene extends Phaser.Scene {
     this.promptTarget = null; this.respawning = false;
     this.lanterns = []; this.barriers = { gold: [], blue: [] }; this.litT = 0; this.litTick = 0;
     this.pressure = null; this.pressureT = 0; this.waves = null; this.duel = null; this.checkT = 1;
-    this.waveSpotCache = null; this.arenaFloor = null; this.uraharaNpc = null; this.sealHint = 0;
+    this.waveSpotCache = null; this.arenaFloor = null; this.uraharaNpc = null; this.sealHint = 0; this.riftCells = null;
 
     this.enemyGroup = this.add.group();
     this.platformGroup = this.add.group();
@@ -78,8 +78,11 @@ class GameScene extends Phaser.Scene {
     });
 
     if (GS.rush) {
-      // a trial: no area titles, and the fight begins as soon as you arrive (a hidden boss waits to be found)
-      if (this.boss && !this.boss.waitsForReveal) this.time.delayedCall(800, () => { if (!this.bossStarted && this.boss.alive) this.startBoss(); });
+      // a trial: no area titles, and the fight begins as soon as you arrive (a hidden boss waits to be found).
+      // Urahara has no arena of his own: in a trial he steps out in the Study Room at once.
+      const uraNpc = this.roomId === 'kar_study' && GS.rush.list[GS.rush.i] === 'urahara' && this.interactables.find(it => it.info && it.info.name === 'Kisuke Urahara');
+      if (uraNpc) this.time.delayedCall(800, () => { if (!this.bossStarted && !this.transitioning) this.startUraharaFight(uraNpc); });
+      else if (this.boss && !this.boss.waitsForReveal) this.time.delayedCall(800, () => { if (!this.bossStarted && this.boss.alive) this.startBoss(); });
     } else if (GS.run.region !== this.region) {
       GS.run.region = this.region;
       this.game.events.emit('area', { name: REGIONS[this.region].name, sub: REGIONS[this.region].sub, kanji: REGIONS[this.region].kanji });
@@ -205,6 +208,9 @@ class GameScene extends Phaser.Scene {
           break;
         }
         case 'Z': new Portal(this, cx, y * TILE + 8); break;
+        case 'z':   // a wall that tears open once the Hollow within has fallen (never in a trial)
+          if (!d.bosses.final || GS.rush) { this.solid.putTileAt(T.LOCK, x, y); (this.riftCells || (this.riftCells = [])).push({ x, y }); }
+          break;
         case 'n': this.uid(x, y); new Gillian(this, cx, feet); break;
         case 'o': {
           const key = `${room}:o${cnt.o++}`;
@@ -286,6 +292,8 @@ class GameScene extends Phaser.Scene {
     this.player = new Player(this, x, feet);
     this.player.facing = facing;
     if (vy) this.player.body.velocity.y = vy;
+    // a Senkaimon Burst that went through the door keeps flying, until it meets a wall
+    if (e.burst && door && (door.edge === 'left' || door.edge === 'right')) this.player.enterBurst(door.edge === 'left' ? 1 : -1);
     if (e.wake && e.spawn === 'rest') this.player.startWake();
     this.player.lastSafe = (door && (door.edge === 'top' || door.edge === 'bottom')) ? this.validSafe({ x, y: feet }) : { x, y: feet };
   }
@@ -428,9 +436,7 @@ class GameScene extends Phaser.Scene {
     this.slow = { t: ms / 1000 };
     this.applyTimeScale(scale);
   }
-  // k is on top of the game speed chosen in the assist settings
   applyTimeScale(k) {
-    k *= Settings.get('speed');
     this.tscale = k;
     this.physics.world.timeScale = 1 / k;
     this.tweens.timeScale = k;
@@ -555,6 +561,7 @@ class GameScene extends Phaser.Scene {
       const res = e.hit(GS.slashDamage() * p.dmgMul(), dirX, { kind: sw.kind, slash: true });
       if (res === 'hit') {
         p.landedHit();
+        if (!sw.counted) { sw.counted = true; GS.comboHit(); }
         GS.addReiatsu(COMBAT.reiatsuPerHit * (GS.sealOn('harvest') ? 1.5 : 1) * p.formReiatsu(), true);
         if (GS.run.maskOn) GS.run.hollow += COMBAT.hollowPerHit;
         this.hitStop(0.045);
@@ -734,6 +741,7 @@ class GameScene extends Phaser.Scene {
         const first = !e.uid || !GS.data.konsoed[e.uid];
         if (e.uid) GS.data.konsoed[e.uid] = true;
         if (first) GS.addReiatsu(33 + (GS.sealOn('recall') ? 11 : 0));
+        else if (GS.sealOn('recall')) GS.addReiatsu(11);
         this.rememberMemory(e.kind);
         this.fx.motes(e.x, e.y, 0xbfe6ff, 16);
         this.fx.ring(e.x, e.y, 0xbfe6ff, 24, 350);
@@ -1128,9 +1136,16 @@ class GameScene extends Phaser.Scene {
     d.bosses[boss.id] = true;
     if (boss.id === 'urahara') this.uraharaWon();
     if (boss.id === 'final') {
-      d.cleared = true;
       GS.save();
-      this.time.delayedCall(2400, () => this.finishGame());
+      this.time.delayedCall(1700, () => (this.lockedCells || []).forEach(c => this.solid.removeTileAt(c.x, c.y)));
+      this.time.delayedCall(2600, () => this.aizenSpeaks());
+      return;
+    }
+    if (boss.id === 'aizen') {
+      d.cleared = true;
+      GS.rememberClear(d);
+      GS.save();
+      this.time.delayedCall(2600, () => this.finishGame());
       return;
     }
     d.sealSlots += 1;
@@ -1193,6 +1208,35 @@ class GameScene extends Phaser.Scene {
   setDarkness(a) {
     if (a > 0) this.dark.setVisible(true);
     this.tweens.add({ targets: this.dark, alpha: a, duration: 800, onComplete: () => { if (a <= 0) this.dark.setVisible(false); } });
+  }
+  // The Hollow within has fallen, and someone has been watching all along. The west wall tears open onto
+  // the false Karakura, where Aizen waits (end_aizen).
+  aizenSpeaks() {
+    if (!this.sys.isActive()) return;
+    this.setDarkness(0.35);
+    Sfx.play('boss');
+    this.fx.shake(600, 0.006);
+    this.startDialog('Sōsuke Aizen', [
+      'Slow applause echoes across the Inner World, from somewhere that should not exist.',
+      '"Splendid. You have tamed the Hollow within. I have watched you grow since the night Rukia Kuchiki gave you her power."',
+      '"Grand Fisher. The Sōkyoku. Las Noches. Did you never wonder why every road lay open in front of you? I arranged all of it."',
+      '"Come. Step through, and stand where I stand. Let us see whether my experiment is finished."',
+    ], () => this.openRift(), { texture: { key: 'aizen' } });
+  }
+  openRift() {
+    const cells = this.riftCells || [];
+    this.riftCells = [];
+    cells.forEach(c => {
+      this.solid.removeTileAt(c.x, c.y);
+      this.fx.burst(c.x * TILE + 8, c.y * TILE + 8, 0x16141c, 4);
+      this.fx.motes(c.x * TILE + 8, c.y * TILE + 8, 0x8ab8e8, 3);
+    });
+    Sfx.play('break'); Sfx.play('door');
+    this.fx.shake(500, 0.012);
+    this.fx.flash(0x0a0a10, 300, 0.5);
+    this.setDarkness(REGIONS[this.region].dark);
+    this.toast('A Garganta tears open in the west wall. Aizen waits on the other side.');
+    GS.save();
   }
   finishGame() {
     this.cameras.main.fadeOut(1600, 255, 255, 255);
@@ -1437,17 +1481,24 @@ class GameScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ the trials of the palace
-  bossRoom(id) { return Object.keys(ROOMS).find(r => ROOMS[r].boss === id); }
+  // Urahara has no arena: in a trial he fights in the Study Room
+  bossRoom(id) { return id === 'urahara' ? 'kar_study' : Object.keys(ROOMS).find(r => ROOMS[r].boss === id); }
+  rushEntry(id) { return id === 'urahara' ? { spawn: 'start' } : { spawn: 'rush' }; }
   // mode 'gauntlet' (every boss in order) or 'single' (one boss); bind: the bindings chosen
   startTrial(mode, list, bind) {
     GS.startRush(mode, list, bind);
     this.transitioning = false;
-    this.goTo(this.bossRoom(list[0]), { spawn: 'rush' });
+    this.goTo(this.bossRoom(list[0]), this.rushEntry(list[0]));
   }
   rushNext() {
     const r = GS.rush, done = r.i;
     r.i++;
-    if (r.i >= r.list.length) { this.time.delayedCall(2800, () => this.finishTrial(true)); return; }
+    if (r.i >= r.list.length) {
+      // the Grand Trial is not over when the last name falls: someone has followed you up to the palace
+      if (r.mode === 'gauntlet' && !r.secret) { r.secret = true; this.time.delayedCall(2400, () => this.yhwachArrives()); return; }
+      this.time.delayedCall(2800, () => this.finishTrial(true));
+      return;
+    }
     const rest = r.mode === 'gauntlet' && RUSH_RESTS.includes(done);
     this.time.delayedCall(2000, () => {
       if (!this.sys.isActive() || !GS.rush) return;
@@ -1463,8 +1514,26 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(rest ? 4600 : 3600, () => {
       if (!this.sys.isActive() || !GS.rush) return;
       this.transitioning = false;
-      this.goTo(this.bossRoom(r.list[r.i]), { spawn: 'rush' });
+      this.goTo(this.bossRoom(r.list[r.i]), this.rushEntry(r.list[r.i]));
     });
+  }
+  // After the last boss of the Grand Trial: the sky over the palace goes dark, and Yhwach comes for the Soul King
+  yhwachArrives() {
+    if (!this.sys.isActive() || !GS.rush) return;
+    GS.data.hp = GS.data.maxHp;
+    this.setDarkness(0.6);
+    this.fx.flash(0x0a0a10, 600, 0.7);
+    this.fx.shake(900, 0.01);
+    Sfx.play('roar'); Sfx.play('boss');
+    this.startDialog('Yhwach', [
+      'The last echo of the trial fades. Then every light goes out at once, and the sky fills with eyes.',
+      '"So you are the one who carried every power to the end. The Shinigami, the Hollow, and the Quincy blood your mother gave you."',
+      '"I gave that blood to the world. I have come to take it back. Kneel, my son, or be taken with the rest."',
+    ], () => {
+      this.toast('Your wounds close. Something waits at the Soul King\'s throne.');
+      this.transitioning = false;
+      this.goTo(this.bossRoom(RUSH_SECRET), { spawn: 'rush' });
+    }, { texture: { key: 'yhwach' } });
   }
   // The trial is over. Won as a whole: the true ending. Won as a duel: back to the palace. Lost: the same.
   finishTrial(won) {
@@ -1632,7 +1701,7 @@ class GameScene extends Phaser.Scene {
       return;
     }
     const [to, toDoor] = this.def.doors[door.id];
-    this.goTo(to, { door: toDoor });
+    this.goTo(to, { door: toDoor, burst: p.state === 'burst' });
   }
   goTo(room, entry = {}) {
     if (this.transitioning) return;
@@ -1724,11 +1793,12 @@ class GameScene extends Phaser.Scene {
     this.game.events.emit('died');
     Music.setBoss(false);
     this.transitioning = true;
-    const r = GS.rush, reached = r.i, total = r.list.length;
+    const r = GS.rush, reached = r.i, total = r.list.length, secret = r.secret;
     this.time.delayedCall(1300, () => {
       GS.endRush(false);
       GS.data.hp = GS.data.maxHp;
-      this.game.events.emit('toast', total > 1 ? `The trial ends at ${reached + 1} of ${total}. The altar will be there when you are ready.` : 'The duel is lost. The altar will be there when you are ready.');
+      this.game.events.emit('toast', secret ? 'Yhwach takes back what he gave. The altar will be there when you are ready.'
+        : total > 1 ? `The trial ends at ${reached + 1} of ${total}. The altar will be there when you are ready.` : 'The duel is lost. The altar will be there when you are ready.');
       this.cameras.main.fadeOut(700, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ room: 'palace', spawn: 'rest', wake: true }));
     });

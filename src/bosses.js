@@ -17,7 +17,7 @@ class Boss extends Enemy {
     this.isBoss = true;
     this.id = cfg.id;
     // A sharper Zanpakutō (forge levels) means a tougher boss, so the upgrades do not turn fights into a formality
-    this.hp = this.maxHp = Math.round(this.maxHp * GS.bossHpMul() * (Settings.get('bossHard') ? 1.35 : 1));
+    this.hp = this.maxHp = Math.round(this.maxHp * GS.bossHpMul() * GS.diff().bossHp);
     this.fighting = false;
     this.invulnerable = true;
     this.kbRes = 0;
@@ -82,7 +82,7 @@ class Boss extends Enemy {
     for (const h of this.hazards) h.tick(dt);
     this.hazards = this.hazards.filter(h => !h.dead);
     if (!this.fighting) { this.body.setVelocityX(0); return; }
-    if (this.ai) this.ai.tick(Settings.get('bossHard') ? dt * 1.12 : dt);
+    if (this.ai) this.ai.tick(dt * GS.diff().bossSpeed);
     this.checkPhase && this.checkPhase();
   }
   // The player has barely moved for a while (hiding on a ledge, waiting by a wall)
@@ -296,6 +296,11 @@ class Boss extends Enemy {
     return r;
   }
   bind(t) { super.bind(Math.min(t * 0.3, 1.2)); }
+  // Run a second attack alongside the one in progress (it is a hazard: a phase change ends it too)
+  aside(gen) {
+    const co = new Co(gen);
+    this.hazards.push({ tick(dt) { co.tick(dt); this.dead = co.done; }, destroy() { this.dead = true; } });
+  }
   // A phase change cancels whatever attack was running, including its damage boxes and hazards
   setScript(gen) {
     this.ai = new Co(gen);
@@ -377,6 +382,16 @@ class Boss extends Enemy {
         fx.dust(x, y, 30);
         fx.debris(x, y, 0xe0d8c0, 16);
         wisps(8);
+        break;
+      case 'aizen':   // Kyōka Suigetsu breaks for the last time: glass, and a violet light going out
+        for (let i = 0; i < 4; i++) s.time.delayedCall(i * 200, () => fx.shatter(x, y - 4, [0xf4f0ff, 0xb048d8, 0xe0d0ff, 0x6a3c1c], 30, 120 + i * 30, 60, 1600));
+        fx.ring(x, y, 0xb048d8, 140, 1000, 4);
+        wisps(14, 0xe0c0ff);
+        break;
+      case 'yhwach':   // every eye closes at once
+        fx.shatter(x, y, [0x0a0a10, 0xc8202c, 0x8ac8ff, 0xffffff], 50, 130, -30, 1900);
+        for (let i = 0; i < 4; i++) s.time.delayedCall(i * 220, () => fx.ring(x, y, i % 2 ? 0xc8202c : 0x8ac8ff, 50 + i * 36, 600, 3));
+        wisps(16, 0x8ac8ff);
         break;
       case 'final':   // a mirror breaks: glass in every direction, and a long white silence
         for (let i = 0; i < 3; i++) s.time.delayedCall(i * 220, () => fx.shatter(x, y - 4, [0xffffff, 0xbfe6ff, 0x7fd4ff, 0xc8202c], 30, 130 + i * 30, 70, 1500));
@@ -1784,7 +1799,7 @@ class HollowIchigo extends Duelist {
       { name: 'ceroSweep', w: 2.2, phase: 2, range: [100, 700], cd: 5, punish: true },
       { name: 'mirrorStep', w: 2.4, phase: 2, cd: 3 },
       { name: 'tensaFlurry', w: 2.5, phase: 3, cd: 4, punish: true },
-      { name: 'kingsSpire', w: 2.4, phase: 3, cd: 6, punish: true },
+      { name: 'jujisho', w: 2.4, phase: 3, cd: 6, punish: true },
       { name: 'hollowNova', w: 2.6, phase: 4, cd: 5 },
       { name: 'finalStorm', w: 2.2, phase: 4, cd: 8, punish: true },
     ];
@@ -1931,37 +1946,34 @@ class HollowIchigo extends Duelist {
       yield* this.dashSlash(620, 0.3, 0xc8202c);
     }
   }
-  // Black blades of reishi rise across the whole floor from the middle out, leaving one gap
-  *kingsSpire() {
-    this.setPose('raise', 1.8);
-    Sfx.play('wave');
-    const g = this.gfx, a = this.arena, p = this.player;
-    // the gap opens near where you are standing, so there is always somewhere to be
-    const gap = Phaser.Math.Clamp(p.x + Phaser.Math.Between(-30, 30), a.left + 40, a.right - 40);
-    const cols = [];
-    for (let x = a.left + 14; x < a.right - 10; x += 34) if (Math.abs(x - gap) > 34) cols.push({ x, t: Math.abs(x - this.x) / 380 });
-    const lead = 0.7 / this.spd, fired = new Set();
-    let e = 0;
-    while (e < lead + 1.6) {
+  // Getsuga Jūjishō: two crescents crossed into an X that crawls across the room. Its arms cover the floor and the air
+  // above your head; the only way through is the hole where they cross, or over the top of it.
+  *jujisho() {
+    this.face();
+    yield* this.tele(0.5, 0xff4050, 'windup');
+    const s = this.scene, f = this.facing, a = this.arena, g = this.under;
+    s.fx.floatText(this.x, this.y - 30, '"Getsuga... Jūjishō!"', '#ff9090');
+    this.setPose('strike', 0.4);
+    Sfx.play('wave'); Sfx.play('hado');
+    const H = 120, cy = a.floor - 40;
+    let x = this.x + f * 24, e = 0;
+    while (x > a.left - 40 && x < a.right + 40 && e < 3) {
       e += this.dt;
+      x += f * 210 * this.spd * this.dt;
       g.clear();
-      for (const c of cols) {
-        const until = c.t + lead - e;
-        if (until > 0) g.fillStyle(0x15141b, 0.25 + 0.45 * Math.min(1, 1 - until / lead)).fillRect(c.x - 7, a.floor - 5, 14, 5);
-        if (until > 0 && until < lead) g.lineStyle(1, 0xc8202c, 0.5).lineBetween(c.x, a.floor - 130, c.x, a.floor - 6);
-        if (until <= 0 && !fired.has(c)) {
-          fired.add(c);
-          this.scene.addHurt(c.x - 7, a.floor - 120, 14, 120, 1, 0.3);
-          const img = this.scene.add.image(c.x, a.floor, 'giantblade').setOrigin(0.5, 1).setDepth(17).setScale(1.1, 0.1).setTint(0x30303c);
-          this.scene.tweens.add({ targets: img, scaleY: 1.5, duration: 90, ease: 'Back.out', yoyo: true, hold: 180, onComplete: () => img.destroy() });
-          if (fired.size % 3 === 0) Sfx.play('slash');
-        }
+      for (const sgn of [-1, 1]) {
+        const x1 = x - 26, y1 = cy - sgn * H / 2, x2 = x + 26, y2 = cy + sgn * H / 2;
+        g.lineStyle(12, 0xc8202c, 0.35).lineBetween(x1, y1, x2, y2);
+        g.lineStyle(5, 0x16141c, 1).lineBetween(x1, y1, x2, y2);
+        g.lineStyle(2, 0xff4050, 1).lineBetween(x1, y1, x2, y2);
+        // the arms hurt, the crossing (where you can slip through) does not
+        s.beamHit(x1, y1, x + (x1 - x) * 0.35, cy + (y1 - cy) * 0.35, 5, 1);
+        s.beamHit(x2, y2, x + (x2 - x) * 0.35, cy + (y2 - cy) * 0.35, 5, 1);
       }
-      if (fired.size >= cols.length) break;
       yield 0;
     }
     g.clear();
-    yield 0.45;
+    yield 0.3;
   }
   // The air bursts: shock waves along the floor to both sides, a second one over the first's heels
   *hollowNova() {
@@ -2042,9 +2054,10 @@ class Urahara extends Duelist {
       { name: 'shakkaho', w: 2.6, range: [100, 700], punish: true, cd: 3 },
       { name: 'sokatsui', w: 2, range: [140, 700], cd: 4 },
       { name: 'benihimeWave', w: 2.4, range: [80, 500], cd: 3.5, punish: true },
-      { name: 'rikujo', w: 1.8, cd: 8, punish: true },
-      { name: 'crimsonRain', w: 2.4, phase: 2, cd: 6, punish: true },
-      { name: 'akahimeWeb', w: 2.2, phase: 2, cd: 6 },
+      { name: 'shibari', w: 1.8, range: [60, 500], cd: 8, punish: true },
+      { name: 'kamisori', w: 2.4, phase: 2, range: [60, 600], cd: 5, punish: true },
+      { name: 'juzutsunagi', w: 2.2, phase: 2, cd: 7 },
+      { name: 'chikasumi', w: 1.6, phase: 2, cd: 11, when() { return !(this.shieldT > 0); } },
     ];
   }
   // Hadō #31: a volley of red fireballs, aimed anew each time
@@ -2074,73 +2087,99 @@ class Urahara extends Duelist {
     fan.forEach(vy => new EnemyShot(s, this.x + f * 16, this.arena.floor - 24, 'getsuga_w', f * 320, vy, { dmg: 1, life: 2.2, w: 16, h: 38, pierce: true, flipX: f < 0, tint: 0xff4a60 }));
     yield 0.6;
   }
-  // Bakudō #61: six rods of light close on where you stand
-  *rikujo() {
-    const p = this.player, cx = p.x, cy = p.body.center.y, g = this.gfx;
-    this.setPose('cast', 1.1);
-    Sfx.play('bakudo');
+  // Shibari Benihime: a net of red light thrown where you stand. Caught in it, you are held for a moment, and he comes for you.
+  *shibari() {
+    this.face();
+    yield* this.tele(0.35, 0xff6070, 'cast');
+    const s = this.scene, g = this.gfx, p = this.player;
+    const tx = p.x, ty = p.body.center.y, ox = this.x + this.facing * 12, oy = this.y - 6;
+    const T = 0.42 / this.spd;
+    Sfx.play('whip');
     let e = 0;
-    const T = 0.8 / this.spd;
     while (e < T) {
       e += this.dt;
-      const k = e / T, r = 70 - 52 * k;
+      const k = e / T, x = ox + (tx - ox) * k, y = oy + (ty - oy) * k - Math.sin(Math.PI * k) * 26, r = 6 + 22 * k;
       g.clear();
-      for (let i = 0; i < 6; i++) {
-        const a = i / 6 * Math.PI * 2 + k * 0.6, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
-        g.fillStyle(0xffd75e, 0.5 + 0.5 * k).fillRect(x - 2, y - 9, 4, 18);
-      }
-      g.lineStyle(1, 0xffd75e, 0.3 + 0.4 * k).strokeCircle(cx, cy, r);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI; g.lineStyle(1, 0xff4060, 0.8).lineBetween(x + Math.cos(a) * r, y + Math.sin(a) * r, x - Math.cos(a) * r, y - Math.sin(a) * r); }
+      g.lineStyle(1, 0xffb0c0, 0.7).strokeCircle(x, y, r);
       yield 0;
     }
     g.clear();
-    this.scene.fx.ring(cx, cy, 0xffd75e, 24, 300, 3);
-    if (Math.hypot(p.x - cx, p.body.center.y - cy) < 22 && p.state !== 'dead' && p.state !== 'dash') {
-      p.bindStun(0.9);
-      this.scene.fx.chain(cx - 18, cy, cx + 18, cy);
-      yield 0.25;
-      yield* this.flashStep(0xffc0d8, 0.25);
+    s.fx.ring(tx, ty, 0xff4060, 30, 300, 2);
+    if (Math.hypot(this.player.x - tx, this.player.body.center.y - ty) < 30 && this.player.state !== 'dead' && this.player.state !== 'dash') {
+      this.player.bindStun(0.8);
+      s.fx.chain(tx - 20, ty - 8, tx + 20, ty + 8); s.fx.chain(tx - 20, ty + 8, tx + 20, ty - 8);
+      yield 0.2;
+      yield* this.flashStep(0xff6070, 0.22);
     }
     yield 0.3;
   }
-  *flashCut() {
-    yield* this.flashStep(0xffd0d8, this.phase >= 2 ? 0.22 : 0.3);
-    if (this.phase >= 2) yield* this.flashStep(0xff6070, 0.2);
-  }
-  // Red columns burst from the floor across your side of the room, one after another
-  *crimsonRain() {
-    this.setPose('raise', 1.4);
+  // Kamisori Benihime: a spray of red razor crescents, fanned up from the blade
+  *kamisori() {
+    this.face();
+    yield* this.tele(0.4, 0xff6070, 'windup');
+    const s = this.scene, f = this.facing, base = this.aimAt(this.x, this.y - 4);
+    this.setPose('strike', 0.3);
     Sfx.play('wave');
-    const g = this.gfx, a = this.arena, p = this.player, cols = [];
-    for (let i = -3; i <= 3; i++) {
-      const x = Phaser.Math.Clamp(p.x + i * 38 + Phaser.Math.Between(-10, 10), a.left + 8, a.right - 8);
-      if (i !== 0 && i !== 1) cols.push({ x, t: Math.abs(i) * 0.12 });
+    for (let i = 0; i < 5; i++) {
+      const a = base + (i - 2) * 0.16;
+      new EnemyShot(s, this.x + f * 12, this.y - 4, 'getsuga_w', Math.cos(a) * 300, Math.sin(a) * 300, { dmg: 1, life: 1.6, w: 10, h: 18, rotate: true, tint: 0xff4a60, scale: 0.55, pierce: true });
     }
-    cols.push({ x: p.x, t: 0.6 });
-    const lead = 0.6 / this.spd, fired = new Set();
+    s.fx.ring(this.x + f * 12, this.y, 0xff4060, 22, 240, 2);
+    yield 0.55;
+  }
+  // Hiasobi Benihime Juzutsunagi: a string of red beads hung across the room, and then each one bursts, one after another
+  *juzutsunagi() {
+    this.setPose('raise', 1.8);
+    const s = this.scene, g = this.gfx, a = this.arena, p = this.player;
+    s.fx.floatText(this.x, this.y - 30, '"Hiasobi Benihime, Juzutsunagi."', '#ffb0c0');
+    const y0 = Phaser.Math.Clamp(p.body.center.y, a.top + 30, a.floor - 14), dir = p.x > this.x ? 1 : -1;
+    const beads = [];
+    for (let x = this.x + dir * 30; x > a.left + 6 && x < a.right - 6; x += dir * 30) beads.push({ x, y: y0 + Math.sin(beads.length * 1.3) * 18 });
+    Sfx.play('charge');
     let e = 0;
-    while (e < lead + 1.2) {
+    const hang = 0.7 / this.spd;
+    while (e < hang + beads.length * 0.09) {
       e += this.dt;
       g.clear();
-      for (const c of cols) {
-        const until = c.t + lead - e;
-        if (until > 0) g.fillStyle(0xff4060, 0.15 + 0.35 * Math.min(1, 1 - until / lead)).fillRect(c.x - 8, a.floor - 6, 16, 6);
-        if (until <= 0 && !fired.has(c)) {
-          fired.add(c);
-          this.scene.addHurt(c.x - 8, a.floor - 100, 16, 100, 1, 0.28);
-          const img = this.scene.add.image(c.x, a.floor, 'giantblade').setOrigin(0.5, 1).setDepth(17).setScale(1, 0.1).setTint(0xff4060);
-          this.scene.tweens.add({ targets: img, scaleY: 1.2, duration: 90, ease: 'Back.out', yoyo: true, hold: 140, onComplete: () => img.destroy() });
-        }
-      }
-      if (fired.size >= cols.length) break;
+      g.lineStyle(1, 0xff6070, 0.5);
+      for (let i = 0; i + 1 < beads.length; i++) g.lineBetween(beads[i].x, beads[i].y, beads[i + 1].x, beads[i + 1].y);
+      beads.forEach((b, i) => {
+        const at = hang + i * 0.09;
+        if (e < at) g.fillStyle(0xff4060, 0.55 + 0.4 * Math.abs(Math.sin(e * 18 + i))).fillCircle(b.x, b.y, 4);
+        else if (!b.done) { b.done = true; s.addHurt(b.x - 16, b.y - 16, 32, 32, 1, 0.12); s.fx.burst(b.x, b.y, 0xff4060, 10); s.fx.ring(b.x, b.y, 0xffb0c0, 20, 200, 2); if (i % 2 === 0) Sfx.play('hit'); }
+      });
       yield 0;
     }
     g.clear();
     yield 0.35;
   }
-  // Benihime's red light: two Cero-wide beams, one after the other
-  *akahimeWeb() {
-    yield* this.cero([0xff2a50, 0xff6a80, 0xffe0e4], 0.6, 0.35, 9);
-    yield* this.cero([0xff2a50, 0xff6a80, 0xffe0e4], 0.45, 0.35, 9);
+  // Chikasumi no Tate: a six-sided shield of blood mist. Bolts and crescents die on it; a blade gets through.
+  *chikasumi() {
+    this.setPose('cast', 0.5);
+    Sfx.play('bakudo');
+    this.shieldT = 4.5;
+    this.scene.fx.floatText(this.x, this.y - 30, '"Chikasumi no Tate."', '#ffb0c0');
+    yield 0.4;
+  }
+  blocks(dirX, o) {
+    if (!(this.shieldT > 0) || !o.spell) return false;
+    this.scene.fx.ring(this.x, this.y, 0xff4060, 26, 220, 2);
+    Sfx.play('clang');
+    return true;
+  }
+  afterTick(dt) {
+    super.afterTick(dt);
+    if (this.shieldT > 0) {
+      this.shieldT -= dt;
+      const g = this.under, r = 24 + Math.sin(this.clock * 6) * 1.5;
+      g.clear();
+      if (this.shieldT > 0) g.lineStyle(2, 0xff4060, 0.25 + 0.25 * Math.min(1, this.shieldT)).strokePoints([0, 1, 2, 3, 4, 5].map(i => ({ x: this.x + Math.cos(i * Math.PI / 3) * r, y: this.y + Math.sin(i * Math.PI / 3) * r })), true);
+    }
+  }
+  *flashCut() {
+    yield* this.flashStep(0xffd0d8, this.phase >= 2 ? 0.22 : 0.3);
+    if (this.phase >= 2) yield* this.flashStep(0xff6070, 0.2);
   }
   checkPhase() {
     if (this.phase === 1 && this.hp <= this.maxHp * 0.5) { this.phase = 2; this.setScript(this.shikai()); }
@@ -2493,7 +2532,554 @@ class Yammy extends Duelist {
   }
 }
 
+// ---------------------------------------------------------------------------
+// An Aizen that is not there: Kyōka Suigetsu's illusion. It casts no shadow, cannot hurt you, and breaks like
+// glass at a touch of the blade.
+class AizenIllusion extends Enemy {
+  constructor(boss, x, feet, pose = 'idle') {
+    super(boss.scene, x, feet, boss.sheet, { hp: 1, dmg: 0, drop: 0, bw: 12, bh: 26, kind: 'illusion', frame: 'idle0', frameFeet: HF.FEET });
+    this.boss = boss; this.harmless = true; this.summoned = true;
+    this.body.setAllowGravity(false);
+    this.facing = boss.facing;
+    this.anim(pose);
+  }
+  get contactDamage() { return 0; }
+  think() { this.body.setVelocity(this.dashV || 0, 0); }
+  die() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.body.enable = false;
+    const s = this.scene;
+    s.fx.shatter(this.x, this.y, [0xf4f0ff, 0xe0d0ff, 0xb048d8], 22, 90, 40, 900);
+    Sfx.play('clang');
+    this.destroy();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sōsuke Aizen, at the end of the story, in the false Karakura. Kyōka Suigetsu shows you an Aizen who is not there
+// (the real one always casts a shadow), Hadō #90 closes a black coffin around you, and one raised finger stops any
+// blade (Kidō and Getsuga still reach him). At 60% the Hōgyoku takes him: Senjū Kōten Taihō, two coffins at once.
+// At 30% six wings, and the air.
+class Aizen extends Duelist {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, { id: 'aizen', key: 'aizen', hp: 1500, drop: 0, kind: 'aizen', bh: 26, auraTint: 0xb048d8 });
+    this.walkSpeed = 72; this.prefer = 120; this.patience = 2.6; this.pause = 0.4; this.spd = 1.1;
+    this.introLine = '"Since when were you under the impression that you were looking at me?"';
+    this.lineColor = '#e0d0ff';
+    this.shade = scene.add.graphics().setDepth(14);
+  }
+  defaultPose() { return this.flying ? 'jump' : super.defaultPose(); }
+  moveList() {
+    return [
+      { name: 'feint', w: 3, range: [0, 520] },
+      { name: 'combo', w: 2, range: [0, 80], maxPhase: 2 },
+      { name: 'mirror', w: 2.2, cd: 10, punish: true, maxPhase: 2 },
+      { name: 'kurohitsugi', w: 2.4, cd: 5, punish: true },
+      { name: 'oneFinger', w: 2, range: [0, 160], cd: 7, maxPhase: 2 },
+      { name: 'senju', w: 2.6, phase: 2, cd: 5, punish: true },
+      { name: 'feathers', w: 3, phase: 3, range: [60, 700] },
+      { name: 'descend', w: 2.5, phase: 3, punish: true, cd: 3 },
+    ];
+  }
+  // The shadow on the floor under the real one: the tell that tells Kyōka Suigetsu's images apart
+  afterTick(dt) {
+    super.afterTick(dt);
+    const g = this.shade;
+    g.clear();
+    if (this.alive && this.alpha > 0.5 && this.arena) {
+      const h = Math.max(0, this.arena.floor - this.body.bottom), w = Math.max(6, 20 - h * 0.08);
+      g.fillStyle(0x07070b, Math.max(0.15, 0.5 - h * 0.002)).fillEllipse(this.x, this.arena.floor - 1, w, 4);
+    }
+  }
+  // flying (the last form): drift above and beside the player between moves
+  *closeIn() {
+    if (this.flying) yield* this.flyTo(this.player.x - this.player.facing * 70, this.player.y - 60, 0.8);
+    else yield* this.feint();
+  }
+  *breathe(t = this.pause) {
+    if (!this.flying) { yield* super.breathe(t); return; }
+    let e = t / this.spd;
+    while (e > 0) { e -= this.dt; this.hover(this.player.x + (this.x < this.player.x ? -120 : 120), this.player.y - 80, 170); yield 0; }
+  }
+  hover(tx, ty, sp) {
+    const b = this.body, dx = tx - this.x, dy = Math.max(this.arena.top + 20, Math.min(this.arena.floor - 60, ty)) - this.y, d = Math.hypot(dx, dy) || 1;
+    const v = Math.min(sp, d * 3);
+    b.velocity.x += (dx / d * v - b.velocity.x) * Math.min(1, this.dt * 4);
+    b.velocity.y += (dy / d * v - b.velocity.y) * Math.min(1, this.dt * 4);
+    this.face();
+  }
+  *flyTo(tx, ty, maxT = 1) {
+    let t = maxT;
+    while (t > 0 && Math.hypot(tx - this.x, ty - this.y) > 14) { t -= this.dt; this.hover(tx, ty, 340); yield 0; }
+  }
+  illusions() { return this.scene.enemies.filter(e => e instanceof AizenIllusion && e.alive); }
+  clearIllusions() { this.illusions().forEach(e => e.die()); }
+  cleanup() { super.cleanup(); this.chanting = false; this.guarding = false; if (this.scene) this.clearIllusions(); }
+
+  // Kyōka Suigetsu: an Aizen runs at you from the front (no shadow: he is not there), and the real one cuts from behind
+  *feint() {
+    const s = this.scene, p = this.player, a = this.arena;
+    const fx = Phaser.Math.Clamp(p.x + p.facing * 150, a.left + 16, a.right - 16);
+    const ill = new AizenIllusion(this, fx, this.flying ? p.body.bottom : a.floor, 'windup');
+    ill.facing = Math.sign(p.x - fx) || -p.facing;
+    if (this.flying) ill.body.reset(fx, p.y);
+    s.fx.afterimage(ill, 0xe0d0ff, 0.4, 200);
+    // the real one fades out where he stood
+    this.setAlpha(0.1); this.invulnerable = true;
+    Sfx.play('dash');
+    yield 0.42 / this.spd;
+    ill.anim('dash'); ill.dashV = ill.facing * 420;
+    let t = 0.32;
+    while (t > 0 && ill.alive) { t -= this.dt; if (Math.random() < 0.6) s.fx.afterimage(ill, 0xe0d0ff, 0.35, 160); yield 0; }
+    if (ill.alive) ill.die();
+    // and the cut comes from the other side
+    let tx = p.x - p.facing * 40;
+    if (tx < a.left + 10 || tx > a.right - 10) tx = p.x + p.facing * 40;
+    this.setAlpha(1); this.invulnerable = false;
+    yield* this.blink(tx, this.flying ? p.y : this.floorY());
+    if (this.flying) this.body.setVelocity(0, 0);
+    yield* this.tele(0.26, 0xe0d0ff);
+    this.slashBox(40, 28, 0.12, 0xe0d0ff, 1.3);
+    yield 0.4 / this.spd;
+  }
+  // Complete hypnosis: four of him stand in a row, all chanting. Only one casts a shadow. Strike him before the
+  // incantation ends, or the full Hadō #90 falls on you.
+  *mirror() {
+    const s = this.scene, a = this.arena, span = a.right - a.left;
+    const xs = Phaser.Utils.Array.Shuffle([0.14, 0.38, 0.62, 0.86].map(k => a.left + span * k));
+    yield* this.blink(xs[0], this.floorY());
+    this.face();
+    s.fx.floatText(this.x, this.y - 32, '"Shatter, Kyōka Suigetsu."', '#e0d0ff');
+    xs.slice(1).forEach(x => { const ill = new AizenIllusion(this, x, a.floor, 'cast'); ill.faceTo(this.player.x); s.fx.afterimage(ill, 0xe0d0ff, 0.5, 300); });
+    this.setPose('cast', 3);
+    this.chanting = true; this.mirrorHit = false;
+    Sfx.play('charge');
+    const g = this.gfx, T = 2.4 / this.spd;
+    let e = 0;
+    while (e < T && !this.mirrorHit) {
+      e += this.dt;
+      g.clear();
+      for (const o of [this].concat(this.illusions())) g.lineStyle(1, 0xb048d8, 0.3 + 0.5 * (e / T)).strokeCircle(o.x, o.y, 30 - 18 * (e / T));
+      yield 0;
+    }
+    g.clear();
+    this.chanting = false;
+    this.clearIllusions();
+    if (this.mirrorHit) {
+      s.fx.floatText(this.x, this.y - 30, '"...Well seen."', '#e0d0ff');
+      this.setPose('hurt', 0.7);
+      yield 0.7;
+      return;
+    }
+    yield* this.kurohitsugi(true);
+  }
+  // Hadō #90 Kurohitsugi: a black box follows you, then holds still; its walls rise and the lid comes down. Be out of
+  // it before it seals (over the walls while they are low, or out through the side). In full incantation, it is larger
+  // and costs two masks.
+  *kurohitsugi(full = false, second = false) {
+    const s = this.scene, g = second ? this.under : this.gfx, a = this.arena;
+    if (!second) {
+      this.setPose('cast', 1.6);
+      s.fx.floatText(this.x, this.y - 30, full ? '"Seep forth, the crest of turbidity... Hadō #90."' : '"Hadō #90. Kurohitsugi."', '#e0d0ff');
+    }
+    const W = full ? 100 : 76, H = full ? 96 : 78, floor = a.floor;
+    let cx = Phaser.Math.Clamp(this.player.x + (second ? this.player.facing * 90 : 0), a.left + W / 2, a.right - W / 2), e = 0;
+    const follow = (second ? 0.35 : 0.6) / this.spd, close = 0.55 / this.spd;
+    Sfx.play('bakudo');
+    if (this.phase >= 2 && !second && !full) s.time.delayedCall(250, () => { if (this.alive && this.phase >= 2) this.aside(this.kurohitsugi(false, true)); });
+    while (e < follow) {
+      e += this.dt;
+      if (!second) cx = Phaser.Math.Clamp(cx + (this.player.x - cx) * Math.min(1, this.dt * 7), a.left + W / 2, a.right - W / 2);
+      g.clear();
+      g.lineStyle(1, 0x16141c, 0.5 + 0.4 * Math.abs(Math.sin(e * 20))).strokeRect(cx - W / 2, floor - H, W, H);
+      g.lineStyle(1, 0xb048d8, 0.6).strokeRect(cx - W / 2 + 2, floor - H + 2, W - 4, H - 4);
+      yield 0;
+    }
+    e = 0;
+    const p = this.player;
+    while (e < close) {
+      e += this.dt;
+      const k = e / close, wh = H * k, lid = (H - 10) * k;
+      g.clear();
+      g.lineStyle(1, 0xb048d8, 0.7).strokeRect(cx - W / 2, floor - H, W, H);
+      g.fillStyle(0x0a0a10, 0.92).fillRect(cx - W / 2, floor - wh, 7, wh).fillRect(cx + W / 2 - 7, floor - wh, 7, wh).fillRect(cx - W / 2, floor - H, W, Math.max(2, lid * 0.25));
+      // the rising walls hurt: you leave over them or not at all
+      const pr = bodyRect(p.body);
+      for (const wx of [cx - W / 2, cx + W / 2 - 7]) if (wh > 6 && Phaser.Geom.Intersects.RectangleToRectangle(pr, new Phaser.Geom.Rectangle(wx, floor - wh, 7, wh))) p.takeDamage(1, cx);
+      yield 0;
+    }
+    // sealed: spears of black through the box
+    g.clear();
+    g.fillStyle(0x0a0a10, 0.95).fillRect(cx - W / 2, floor - H, W, H);
+    s.addHurt(cx - W / 2 + 4, floor - H + 4, W - 8, H - 4, full ? 2 : 1, 0.14);
+    s.fx.shake(300, 0.012);
+    Sfx.play('break'); Sfx.play('slash');
+    for (let i = 0; i < 6; i++) s.fx.impact(cx + Phaser.Math.Between(-W / 3, W / 3), floor - Phaser.Math.Between(10, H - 10), i % 2 ? 1 : -1, 0x16141c, 6, 30);
+    if (!second) yield 0.18;
+    g.clear();
+    s.fx.burst(cx, floor - H / 2, 0x16141c, 26);
+    s.fx.ring(cx, floor - H / 2, 0xb048d8, W * 0.7, 400, 2);
+    yield 0.35;
+  }
+  // One finger. Strike him while it is raised and the blade stops dead, and he cuts you back the same instant.
+  // Kidō and the Getsuga still reach him. Left alone, it ends in a push of force (Hadō #1, Shō).
+  *oneFinger() {
+    this.face();
+    const s = this.scene;
+    this.body.setVelocity(0, 0);
+    this.setPose('guardIdle', 1.8);
+    if (!this.fingerSaid) { this.fingerSaid = true; s.fx.floatText(this.x, this.y - 30, '"One finger will do."', '#e0d0ff'); }
+    s.fx.ring(this.x + this.facing * 10, this.y - 10, 0xffffff, 10, 300, 2);
+    this.guarding = true; this.countered = false;
+    let t = 1.6 / this.spd;
+    while (t > 0 && !this.countered) {
+      t -= this.dt;
+      if (Math.random() < 0.3) s.fx.motes(this.x + this.facing * 10, this.y - 10, 0xffffff, 1);
+      yield 0;
+    }
+    this.guarding = false;
+    if (this.countered) {
+      yield 0.06;
+      this.face();
+      this.slashBox(44, 30, 0.12, 0xe0d0ff, 1.4);
+      yield 0.45 / this.spd;
+      return;
+    }
+    s.fx.ring(this.x, this.y, 0xe0d0ff, 50, 300, 3);
+    s.addHurt(this.x - 46, this.y - 30, 92, 46, 1, 0.12);
+    Sfx.play('wave');
+    yield 0.4;
+  }
+  blocks(dirX, o) {
+    if (!this.guarding || o.spell) return false;
+    this.countered = true;
+    this.scene.fx.spark(this.x + this.facing * 10, this.y - 8, 0xffffff, 10);
+    Sfx.play('clang');
+    this.scene.hitStop(0.08);
+    return true;
+  }
+  hit(dmg, dirX, o = {}) {
+    const r = super.hit(dmg, dirX, o);
+    if (r === 'hit' && this.chanting) this.mirrorHit = true;
+    return r;
+  }
+  // Hadō #91 Senjū Kōten Taihō: a crown of lights hangs over the room; each one, in turn, fires at where you stand
+  *senju() {
+    const s = this.scene, a = this.arena, g = this.gfx, n = 7 + this.phase;
+    this.setPose('raise', 2);
+    s.fx.floatText(this.x, this.y - 30, '"Hadō #91. Senjū Kōten Taihō."', '#e0d0ff');
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push({ x: a.left + (i + 0.5) * (a.right - a.left) / n, y: a.top + 12 + Math.sin(i * 1.7) * 10 });
+    Sfx.play('charge');
+    let e = 0;
+    const lead = 0.6 / this.spd, gap = 0.13 / this.spd;
+    while (e < lead + n * gap + 0.05) {
+      e += this.dt;
+      g.clear();
+      pts.forEach((pt, i) => {
+        const at = lead + i * gap;
+        if (e < at) g.fillStyle(0xe0d0ff, 0.4 + 0.5 * Math.abs(Math.sin(e * 16 + i))).fillCircle(pt.x, pt.y, 3 + 2 * Math.min(1, e / lead));
+        else if (!pt.done) {
+          pt.done = true;
+          const p = this.player, ang = Math.atan2(p.body.center.y - pt.y, p.x - pt.x);
+          new EnemyShot(s, pt.x, pt.y, 'needle', Math.cos(ang) * 400, Math.sin(ang) * 400, { dmg: 1, life: 1.6, rotate: true, w: 6, h: 6, tint: 0xe0d0ff, scale: 1.8, pierce: true });
+          s.fx.ring(pt.x, pt.y, 0xe0d0ff, 12, 200, 1);
+          Sfx.play('zap');
+        }
+      });
+      yield 0;
+    }
+    g.clear();
+    yield 0.4;
+  }
+  // Six wings, six feathers of light, one after another
+  *feathers() {
+    this.face();
+    if (this.flying) this.body.setVelocity(0, 0);
+    yield* this.tele(0.35, 0xb048d8, 'cast');
+    for (let i = 0; i < 6; i++) {
+      const ox = this.x - this.facing * 10 + (i % 2 ? 8 : -8), oy = this.y - 10 + (i - 2.5) * 5;
+      const a = this.aimAt(ox, oy) + (i - 2.5) * 0.06;
+      new EnemyShot(this.scene, ox, oy, 'needle', Math.cos(a) * 330, Math.sin(a) * 330, { dmg: 1, life: 2, rotate: true, w: 5, h: 5, tint: 0xf4f0ff, scale: 1.5 });
+      Sfx.play('throw');
+      yield 0.1 / this.spd;
+    }
+    yield 0.4;
+  }
+  // From high above, straight down on where you stand, wings folded: the floor takes the blow and throws it both ways
+  *descend() {
+    const a = this.arena, p = this.player;
+    yield* this.blink(p.x, a.top + 30);
+    this.body.setVelocity(0, 0);
+    const g = this.gfx, x = this.x;
+    let e = 0;
+    while (e < 0.5 / this.spd) { e += this.dt; this.body.setVelocity(0, 0); g.clear(); g.fillStyle(0xb048d8, 0.12 + 0.18 * Math.abs(Math.sin(e * 20))).fillRect(x - 12, this.y, 24, a.floor - this.y); yield 0; }
+    g.clear();
+    this.setPose('dash', 1);
+    const hb = this.scene.addHurt(0, 0, 22, 30, 1, 2, (h) => { h.x = this.x - 11; h.y = this.y - 15; });
+    this.body.setVelocity(0, 700);
+    Sfx.play('dash');
+    yield () => this.y > a.floor - 30 || this.body.blocked.down;
+    hb.t = 0;
+    this.body.setVelocity(0, 0);
+    this.scene.fx.shake(260, 0.012);
+    Sfx.play('break');
+    this.shock(this.x - 12, -1, 0xe0d0ff, 280, 1.2);
+    this.shock(this.x + 12, 1, 0xe0d0ff, 280, 1.2);
+    yield 0.35 / this.spd;
+    yield* this.flyTo(this.x, a.floor - 120, 0.5);
+  }
+  checkPhase() {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.6) { this.phase = 2; this.setScript(this.hogyoku()); }
+    else if (this.phase === 2 && this.hp <= this.maxHp * 0.3) { this.phase = 3; this.setScript(this.ascend()); }
+  }
+  *hogyoku() {
+    yield* this.changeForm('aizen_h', '"The Hōgyoku has chosen me. I have gone beyond Shinigami and Hollow both."', { text: 'HŌGYOKU', color: '#b048d8', small: 'the chrysalis breaks' }, 0xb048d8, '#e0c0ff');
+    this.aura.emitting = true;
+    this.spd = 1.22; this.pause = 0.32;
+    yield* this.brain();
+  }
+  *ascend() {
+    yield* this.changeForm('aizen_w', '"Then I will stand in the heavens alone."', { text: 'TRANSCENDENCE', color: '#ff3a60', small: 'six wings' }, 0xb048d8, '#e0c0ff');
+    this.aura.setParticleTint(0xff3a60);
+    this.flying = true; this.walker = false;
+    this.body.setAllowGravity(false);
+    this.scene.setDarkness(0.4);
+    this.spd = 1.32; this.pause = 0.26;
+    yield* this.flyTo(this.x, this.arena.floor - 120, 1);
+    yield* this.brain();
+  }
+  onDie() { super.onDie(); this.shade.destroy(); }
+}
+
+// ---------------------------------------------------------------------------
+// Yhwach, the father of the Quincy: found only at the end of the Grand Trial, at the Soul King's throne. A broad sword
+// of reishi, Heilig Pfeil (a fan of arrows, then a wall of them with one gap), Schatten (he sinks into a shadow and
+// rises out of the one under you). At 65%, Auswählen: rays of light that take back power (a ray that finds you drains
+// your Reiatsu and ends Bankai and the mask), and Blut Vene, veins of blue that turn a blade aside (Kidō pierces it).
+// At 35%, the Almighty: he sees where you are going, and strikes there.
+class Yhwach extends Duelist {
+  constructor(scene, x, feet) {
+    super(scene, x, feet, { id: 'yhwach', key: 'yhwach', hp: 1900, drop: 0, kind: 'yhwach', bh: 28, scale: 1.08, auraTint: 0x8ac8ff });
+    this.walkSpeed = 62; this.prefer = 110; this.patience = 2.4; this.pause = 0.36; this.spd = 1.2;
+    this.introLine = '"I have seen how this ends, my son. Kneel."';
+    this.lineColor = '#cfe4ff';
+    this.vene = 0;
+  }
+  moveList() {
+    return [
+      { name: 'broadCuts', w: 3, range: [0, 110] },
+      { name: 'heiligPfeil', w: 2.6, range: [100, 700], cd: 3 },
+      { name: 'arrowWall', w: 2.2, cd: 6, punish: true },
+      { name: 'schatten', w: 2, range: [120, 700], cd: 4 },
+      { name: 'auswahlen', w: 2.8, phase: 2, cd: 7, punish: true },
+      { name: 'bluteVene', w: 1.8, phase: 2, cd: 12, when() { return this.vene <= 0; } },
+      { name: 'almightyCut', w: 3, phase: 3, cd: 2.2 },
+      { name: 'eyes', w: 2.6, phase: 3, cd: 6, punish: true },
+    ];
+  }
+  // Where the player will be: the Almighty reads the next fraction of a second (only once he has it)
+  future(t = 0.35) {
+    const p = this.player, k = this.phase >= 3 ? t : 0;
+    return { x: Phaser.Math.Clamp(p.x + p.body.velocity.x * k, this.arena.left + 12, this.arena.right - 12), y: p.body.center.y + Math.min(0, p.body.velocity.y) * k * 0.5 };
+  }
+  afterTick(dt) {
+    super.afterTick(dt);
+    if (this.vene > 0) {
+      this.vene -= dt;
+      if (Math.random() < dt * 20) this.scene.fx.motes(this.x + Phaser.Math.Between(-8, 8), this.y + Phaser.Math.Between(-14, 12), 0x8ac8ff, 1);
+      if (this.vene <= 0) { this.armor = 1; this.untelegraph(); }
+    }
+  }
+  // Three heavy cuts of the broad sword, each throwing a blue wave along the floor
+  *broadCuts() {
+    yield* this.walkToward(56, 0.8, this.walkSpeed * 1.5);
+    const n = this.phase >= 2 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const at = this.future(0.25);
+      this.faceTo(at.x);
+      yield* this.tele(i ? 0.24 : 0.4, 0x8ac8ff, 'windup');
+      this.body.setVelocityX(this.facing * 120);
+      this.slashBox(58, 40, 0.14, 0xbfe0ff, 2);
+      if (i === n - 1) this.shock(this.x + this.facing * 30, this.facing, 0x8ac8ff, 280, 1.2);
+      yield 0.16;
+      this.body.setVelocityX(0);
+      yield 0.1 / this.spd;
+    }
+    yield 0.35;
+  }
+  // Heilig Pfeil: a bow of light, and five arrows fanned at you (at where you are going, once he is the Almighty)
+  *heiligPfeil() {
+    this.face();
+    this.setPose('cast', 0.8);
+    const s = this.scene, g = this.gfx, ox = this.x + this.facing * 12, oy = this.y - 6;
+    let e = 0;
+    Sfx.play('charge');
+    while (e < 0.45 / this.spd) { e += this.dt; g.clear(); g.lineStyle(2, 0x8ac8ff, 0.8).beginPath().arc(ox, oy, 12, -1.2 + (this.facing < 0 ? Math.PI : 0), 1.2 + (this.facing < 0 ? Math.PI : 0)).strokePath(); yield 0; }
+    g.clear();
+    const at = this.future(0.3), base = Math.atan2(at.y - oy, at.x - ox);
+    for (let i = 0; i < 5; i++) {
+      const a = base + (i - 2) * 0.09;
+      new EnemyShot(s, ox, oy, 'needle', Math.cos(a) * 470, Math.sin(a) * 470, { dmg: 1, life: 1.6, rotate: true, w: 5, h: 5, tint: 0x8ac8ff, scale: 1.6 });
+    }
+    Sfx.play('zap');
+    yield 0.45;
+  }
+  // A wall of arrows rises at the far end of the room and crosses all of it. There is one gap: be in it.
+  *arrowWall() {
+    const s = this.scene, a = this.arena, g = this.gfx, waves = this.phase >= 2 ? 2 : 1;
+    this.setPose('raise', 1.5);
+    for (let wv = 0; wv < waves; wv++) {
+      const fromLeft = this.player.x > (a.left + a.right) / 2, x0 = fromLeft ? a.left + 8 : a.right - 8, dir = fromLeft ? 1 : -1;
+      const rows = 7, step = 18, gap = Phaser.Math.Between(0, 2) * 2;   // the gap is on the floor, at jump height, or high
+      const ys = [];
+      for (let r = 0; r < rows; r++) if (r !== gap && r !== gap + 1) ys.push(a.floor - 10 - r * step);
+      let e = 0;
+      const T = 0.8 / this.spd;
+      Sfx.play('telegraph');
+      while (e < T) { e += this.dt; g.clear(); ys.forEach(y => g.fillStyle(0x8ac8ff, 0.3 + 0.6 * (e / T)).fillRect(x0 - 4, y - 1, 8, 2)); yield 0; }
+      g.clear();
+      ys.forEach(y => new EnemyShot(s, x0, y, 'needle', dir * 360, 0, { dmg: 1, life: 2.6, rotate: true, w: 8, h: 4, tint: 0xbfe0ff, scale: 1.6, passWalls: true }));
+      Sfx.play('zap');
+      yield 0.55 / this.spd;
+    }
+    yield 0.3;
+  }
+  // Schatten: he sinks into his shadow; a pool spreads under you, and he rises out of it with the sword
+  *schatten() {
+    const s = this.scene, a = this.arena, g = this.gfx;
+    s.fx.burst(this.x, this.body.bottom - 4, 0x0a0a10, 16);
+    this.setAlpha(0); this.invulnerable = true;
+    Sfx.play('dash');
+    let px = this.player.x, e = 0;
+    const T = 0.65 / this.spd;
+    while (e < T) {
+      e += this.dt;
+      if (e < T * 0.6) px += (this.player.x - px) * Math.min(1, this.dt * 6);
+      g.clear(); g.fillStyle(0x0a0a10, 0.4 + 0.4 * (e / T)).fillEllipse(px, a.floor - 2, 20 + 40 * (e / T), 8);
+      yield 0;
+    }
+    g.clear();
+    this.body.reset(Phaser.Math.Clamp(px, a.left + 10, a.right - 10), this.floorY());
+    this.setAlpha(1); this.invulnerable = false;
+    this.face();
+    this.setPose('strike', 0.3);
+    s.addHurt(this.x - 20, a.floor - 70, 40, 70, 1, 0.16);
+    s.fx.burst(this.x, a.floor - 4, 0x0a0a10, 20);
+    s.fx.slashArc(this.x, this.y - 10, this.facing, 0x8ac8ff, 1.6);
+    Sfx.play('slash');
+    yield 0.45;
+  }
+  // Auswählen: thin rays of light fall from the sky, and whatever they touch is taken back. A ray that finds you costs a
+  // mask, drains your Reiatsu, and ends Bankai and the mask.
+  *auswahlen() {
+    const s = this.scene, a = this.arena, g = this.gfx, p = this.player;
+    this.setPose('raise', 2.4);
+    if (!this.ausSaid) { this.ausSaid = true; s.fx.floatText(this.x, this.y - 34, '"Auswählen. I take back what I gave."', '#cfe4ff'); }
+    for (let wv = 0; wv < 2; wv++) {
+      const xs = [];
+      const at = this.future(0.5).x;
+      xs.push(at);
+      for (let i = 1; i <= 3; i++) for (const sg of [-1, 1]) xs.push(at + sg * i * (wv ? 58 : 76));
+      const cols = xs.filter(x => x > a.left + 8 && x < a.right - 8);
+      let e = 0;
+      const T = 0.85 / this.spd;
+      Sfx.play('charge');
+      while (e < T) { e += this.dt; g.clear(); cols.forEach(x => { g.lineStyle(1, 0xcfe4ff, 0.25 + 0.5 * (e / T)).lineBetween(x, a.top, x, a.floor); }); yield 0; }
+      g.clear();
+      Sfx.play('zap');
+      cols.forEach(x => {
+        s.fx.ring(x, a.floor - 6, 0xcfe4ff, 16, 260, 2);
+        const img = s.add.rectangle(x, (a.top + a.floor) / 2, 12, a.floor - a.top, 0xe8f4ff, 0.8).setDepth(17).setBlendMode('ADD');
+        s.tweens.add({ targets: img, alpha: 0, scaleX: 0.2, duration: 380, onComplete: () => img.destroy() });
+        const pr = bodyRect(p.body);
+        if (p.state !== 'dead' && pr.right > x - 7 && pr.left < x + 7 && p.takeDamage(1, x)) this.takeBack();
+      });
+      yield 0.5 / this.spd;
+    }
+    yield 0.3;
+  }
+  takeBack() {
+    const s = this.scene, run = GS.run;
+    GS.addReiatsu(-33);
+    const had = run.bankaiT > 0 || run.maskOn;
+    if (run.bankaiT > 0) { run.bankaiT = 0; run.bankaiCD = this.player.bankaiCooldown(); }
+    if (run.maskOn) { run.maskOn = false; run.maskLock = 6; }
+    s.fx.motes(this.player.x, this.player.y, 0xcfe4ff, 16);
+    s.toast(had ? 'Auswählen tears your power away.' : 'Auswählen drains your Reiatsu.');
+  }
+  // Blut Vene: blue veins across his skin. A blade glances off (a quarter gets through); Kidō and the Getsuga do not.
+  *bluteVene() {
+    this.setPose('charge', 0.7);
+    this.telegraph(0x8ac8ff);
+    Sfx.play('bakudo');
+    this.scene.fx.ring(this.x, this.y, 0x8ac8ff, 34, 400, 3);
+    this.vene = 5;
+    yield 0.5;
+  }
+  hit(dmg, dirX, o = {}) {
+    if (this.vene > 0 && !o.spell) { dmg *= 0.25; this.scene.fx.spark(this.x, this.y, 0x8ac8ff, 4); }
+    return super.hit(dmg, dirX, o);
+  }
+  // The Almighty: he goes to where you are about to be, and is already swinging when you arrive
+  *almightyCut() {
+    const at = this.future(0.42), a = this.arena;
+    const side = Math.sign(this.player.body.velocity.x) || this.player.facing;
+    const tx = Phaser.Math.Clamp(at.x + side * 30, a.left + 10, a.right - 10);
+    yield* this.blink(tx, this.floorY());
+    this.faceTo(at.x);
+    yield* this.tele(0.22, 0xff2a3c);
+    this.slashBox(50, 34, 0.13, 0xff2a3c, 1.7);
+    yield 0.35 / this.spd;
+  }
+  // Eyes open all along the ceiling. Each in turn looks at where you will be, and a red line follows its gaze.
+  *eyes() {
+    const s = this.scene, a = this.arena, g = this.gfx, n = 6;
+    this.setPose('raise', 2.4);
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push({ x: a.left + (i + 0.5) * (a.right - a.left) / n, y: a.top + 16 });
+    for (let i = 0; i < n; i++) {
+      const o = pts[i];
+      const ang = yield* this.lockOn(o, 0.28 / this.spd, 0xff2a3c, { lock: 0.12, width: 6 });
+      // the eye fires where you are heading, not where you were
+      const at = this.future(0.25), a2 = this.phase >= 3 ? Math.atan2(at.y - o.y, at.x - o.x) : ang;
+      yield* this.beam(o.x, o.y, a2, 0.12, 0, 6, 720, [0x6a0a14, 0xff2a3c, 0xffe0e4]);
+      g.fillStyle(0xff2a3c, 1).fillCircle(o.x, o.y, 3);
+    }
+    g.clear();
+    yield 0.35;
+  }
+  checkPhase() {
+    if (this.phase === 1 && this.hp <= this.maxHp * 0.65) { this.phase = 2; this.setScript(this.takeBackPhase()); }
+    else if (this.phase === 2 && this.hp <= this.maxHp * 0.35) { this.phase = 3; this.setScript(this.almighty()); }
+  }
+  *takeBackPhase() {
+    yield* this.changeForm(null, '"You carry my blood. All of it returns to me."', { text: 'AUSWÄHLEN', color: '#8ac8ff', small: 'the father takes back' }, 0x8ac8ff, '#cfe4ff');
+    this.aura.emitting = true;
+    this.scene.setDarkness(0.45);
+    this.spd = 1.3; this.pause = 0.3;
+    yield* this.brain();
+  }
+  *almighty() {
+    this.vene = 0; this.armor = 1;
+    yield* this.changeForm('yhwach_a', '"The Almighty. I have seen every future, and you lose in all of them."', { text: 'THE ALMIGHTY', color: '#ff2a3c', small: 'every eye opens' }, 0xff2a3c, '#ffb0b8');
+    this.aura.setParticleTint(0xff2a3c);
+    this.scene.setDarkness(0.7);
+    // a Bankai that is still burning breaks, as Tensa Zangetsu did
+    if (GS.run.bankaiT > 0) {
+      GS.run.bankaiT = 0; GS.run.bankaiCD = this.player.bankaiCooldown();
+      this.scene.fx.shatter(this.player.x, this.player.y, [0x15141b, 0xc8202c, 0xffffff], 26, 110, 60, 1100);
+      this.scene.toast('He looked at your Bankai, and it broke.');
+      Sfx.play('break');
+    }
+    this.spd = 1.4; this.pause = 0.24;
+    yield* this.brain();
+  }
+}
+
 const BOSS_CLASSES = {
   fisher: GrandFisher, menos: Menos, renji: Renji, kenpachi: Kenpachi, byakuya: Byakuya,
   grimmjow: Grimmjow, vasto: Vasto, ulquiorra: Ulquiorra, espada: Aaroniero, final: HollowIchigo, urahara: Urahara, nnoitra: Nnoitra, yammy: Yammy,
+  aizen: Aizen, yhwach: Yhwach,
 };

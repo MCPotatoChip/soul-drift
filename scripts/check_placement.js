@@ -15,9 +15,12 @@
 //
 //   node scripts/check_placement.js            every room
 //   node scripts/check_placement.js sei_ward   one room
+//   node scripts/check_placement.js --cuts     also list, room by room, the planks that can go (taken away one at a
+//                                              time, so of two planks that stand in for each other one stays)
 //
-// It prints problems only; exit code 1 when there are any (boss arenas are not
-// checked for planks: those are there to dodge on).
+// It prints problems only; exit code 1 when there are any (boss arenas and the Study Room, where Urahara's
+// exercises are fought, are not checked for planks: those are there to dodge on). The rules match place_foes in
+// scripts/build_rooms.py, which puts the foes where this checker wants them.
 // ---------------------------------------------------------------------------
 'use strict';
 const { ROOMS, TILE, ABIL, explore, journey } = require('./check_world.js');
@@ -26,11 +29,12 @@ const GROUND = 'eganiqmxbj';     // foes that walk the floor (the Adjuchas charg
 const FLYING = 'h';              // Lesser Hollow swarms
 const CEILING = 'v';             // Pale Hollows hang from the roof
 const FOES = GROUND + FLYING + CEILING;
-const ENTRY_GROUND = 12;         // tiles a walker keeps from where you appear
-const ENTRY_FLY = 14;            // open-air tiles a swarm keeps (it wakes at 11)
-const APART_GROUND = 5;          // tiles between two foes on the same floor
-const APART_FLY = 6;
+const ENTRY_GROUND = 14;         // tiles (vertical distance counts half again) a walker keeps from where you appear
+const ENTRY_FLY = 16;            // open-air tiles a swarm keeps (it wakes at 11)
+const APART_GROUND = 6;          // tiles between two foes on the same floor
+const APART_ANY = 5;             // tiles between any two foes
 const REACH_FLY = 9;             // a swarm this far from every place you can stand never wakes
+const ARENAS = ['kar_study'];    // rooms whose planks are for fighting on
 
 function cells(rows, set) {
   const out = [];
@@ -48,7 +52,7 @@ function entries(rows) {
       if (x === 0) out.push({ id: ch, x: 2, y });
       else if (x === W - 1) out.push({ id: ch, x: W - 2, y });
       else if (y === 0) out.push({ id: ch, x, y: 2 });
-      else if (y === H - 1) out.push({ id: ch, x, y: H - 4 });
+      else if (y === H - 1) out.push({ id: ch, x, y: H - 6 });   // a door in the floor throws you up into the room
     }
   });
   return out;
@@ -56,7 +60,7 @@ function entries(rows) {
 // Open-air steps from a cell to every other (4-way), for flyers
 function airField(rows, sx, sy) {
   const H = rows.length, W = rows[0].length, dist = new Int32Array(W * H).fill(-1);
-  const open = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !'#XGODQK~'.includes(rows[y][x]);
+  const open = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !'#XGODQK~z'.includes(rows[y][x]);
   if (!open(sx, sy)) return dist;
   const q = [[sx, sy]]; dist[sy * W + sx] = 0;
   while (q.length) {
@@ -69,16 +73,18 @@ function airField(rows, sx, sy) {
   return dist;
 }
 
-// Everything reachable (doors and targets) from every way in, as one string to compare
-function reachKey(rid, A, tiles) {
-  const r = ROOMS[rid], keys = [];
+// How many moves it takes to reach each door and target from each way in: { 'entry>what': moves }
+function reachMap(rid, A, tiles) {
+  const r = ROOMS[rid], out = {};
   for (const e of Object.keys(r.doors).concat(['rest', 'start'])) {
     const res = explore(rid, A, e, { tiles });
     if (!res) continue;
-    keys.push(e + ':' + [...res.doors].sort().join('') + ':' + [...res.hits].map(h => h.kind + h.x + ',' + h.feet).sort().join(';'));
+    for (const [what, d] of res.depth) out[e + '>' + (typeof what === 'string' ? 'door' + what : what.kind + what.x + ',' + what.feet)] = d;
   }
-  return keys.join('|');
+  return out;
 }
+// Taking something away hurts if anything becomes unreachable or takes more moves to reach
+const worse = (base, now) => Object.keys(base).some(k => now[k] === undefined || now[k] > base[k]);
 // Every place you can stand (tiles), from every way in, with every power
 function standCells(rid, A) {
   const out = new Map();
@@ -128,16 +134,16 @@ function checkRoom(rid, first) {
     } else {
       for (const e of ins) {
         const d = Math.hypot(f.x - e.x, (f.y - e.y) * 1.5);
-        if (d < ENTRY_GROUND) problems.push(`foe ${where(f)} is ${d.toFixed(1)} tiles from way in ${e.id}`);
+        if (d < ENTRY_GROUND - 0.01) problems.push(`foe ${where(f)} is ${d.toFixed(1)} tiles from way in ${e.id}`);
       }
     }
   }
   // ---- foes crowded together
   for (let i = 0; i < foes.length; i++) for (let j = i + 1; j < foes.length; j++) {
     const a = foes[i], b = foes[j];
-    const fly = FLYING.includes(a.ch) || FLYING.includes(b.ch);
+    const ground = GROUND.includes(a.ch) && GROUND.includes(b.ch);
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (fly ? d < APART_FLY : (Math.abs(a.y - b.y) <= 2 && Math.abs(a.x - b.x) < APART_GROUND)) problems.push(`foes ${where(a)} and ${where(b)} are ${d.toFixed(1)} tiles apart`);
+    if (d < APART_ANY || (ground && Math.abs(a.y - b.y) <= 2 && Math.abs(a.x - b.x) < APART_GROUND)) problems.push(`foes ${where(a)} and ${where(b)} are ${d.toFixed(1)} tiles apart`);
   }
   // ---- foes out of everyone's way
   for (const f of foes) {
@@ -154,9 +160,10 @@ function checkRoom(rid, first) {
     }
   }
 
-  // ---- planks that do nothing
-  if (!r.boss) {
-    const base = { early: reachKey(rid, early), all: reachKey(rid, all) };
+  // ---- planks that do nothing (with --cuts, each one found is taken away before the next is tried)
+  if (!r.boss && !ARENAS.includes(rid)) {
+    let cur = rows.slice();
+    let base = { early: reachMap(rid, early), all: reachMap(rid, all) };
     for (const p of planks(rows)) {
       // something stands on it, or hangs just above it
       const onIt = [];
@@ -165,17 +172,21 @@ function checkRoom(rid, first) {
         if (ch && !'.#=^'.includes(ch)) onIt.push(ch);
       }
       if (onIt.length) continue;
-      const t = rows.map(row => row.split(''));
+      const t = cur.map(row => row.split(''));
       for (let x = p.x0; x <= p.x1; x++) t[p.y][x] = '.';
       const tiles = t.map(row => row.join(''));
-      const needEarly = reachKey(rid, early, tiles) !== base.early, needAll = reachKey(rid, all, tiles) !== base.all;
-      if (!needEarly && !needAll) problems.push(`plank ${p.ch} x${p.x0}-${p.x1} y${p.y} (${p.x1 - p.x0 + 1} wide) reaches nothing new`);
+      const now = { early: reachMap(rid, early, tiles), all: reachMap(rid, all, tiles) };
+      if (!worse(base.early, now.early) && !worse(base.all, now.all)) {
+        problems.push(`plank ${p.ch} x${p.x0}-${p.x1} y${p.y} (${p.x1 - p.x0 + 1} wide) leads nowhere and shortens no way`);
+        if (CUTS) { cut.push([rid, p.x0, p.x1, p.y]); cur = tiles; base = now; }
+      }
     }
   }
   return problems;
 }
 
-const only = process.argv[2];
+const CUTS = process.argv.includes('--cuts'), cut = [];
+const only = process.argv.slice(2).find(a => !a.startsWith('--'));
 journey();
 const first = journey.first || {};
 let bad = 0;
@@ -187,5 +198,6 @@ for (const rid of only ? [only] : Object.keys(ROOMS)) {
   console.log(rid + (first[rid] ? `  (first visit with ${Object.keys(first[rid]).filter(k => first[rid][k]).join(' ') || 'nothing'})` : ''));
   p.forEach(s => console.log('  ' + s));
 }
+if (CUTS) console.log('\nplanks that can go (room, x0, x1, y):\n' + cut.map(c => '    ' + JSON.stringify(c).replace(/"/g, "'").replace(/^\[/, '(').replace(/\]$/, '),')).join('\n'));
 console.log(bad ? `\n${bad} problem${bad > 1 ? 's' : ''}` : 'no problems');
 process.exit(bad ? 1 : 0);

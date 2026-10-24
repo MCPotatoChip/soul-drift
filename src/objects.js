@@ -478,6 +478,7 @@ class PlayerShot extends Phaser.Physics.Arcade.Image {
         this.hit.add(e);
         const res = e.hit(this.dmg, Math.sign(this.body.velocity.x), { kind: this.kind, spell: true });
         if (res === 'hit') { s.fx.spark(e.x, e.y, 0xffa060); Sfx.play('hit'); if (GS.run.maskOn) GS.run.hollow += 1; }
+        else if (res === 'block') return this.kill(true);   // a shield stops it dead
       }
     }
   }

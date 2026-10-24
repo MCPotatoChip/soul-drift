@@ -169,6 +169,9 @@ const Music = {
     end: { root: 65.4, chord: [0, 7, 12, 16, 19], scale: [0, 2, 4, 7, 9, 12, 14, 16], pad: 'triangle', mel: 'sine', bright: 2400, bpm: 60, density: 0.7 },
     dan: { root: 46.25, chord: [0, 6, 12, 18], scale: [0, 2, 4, 6, 8, 10, 12], pad: 'sawtooth', mel: 'sine', bright: 850, bpm: 50, density: 0.5 },
     for: { root: 43.65, chord: [0, 3, 7, 10], scale: [0, 3, 7, 10, 12], pad: 'triangle', mel: 'triangle', bright: 560, bpm: 42, density: 0.3 },
+    // Fake Karakura: bright, too calm, and a minor second that never resolves
+    fkt: { root: 51.91, chord: [0, 7, 11, 13], scale: [0, 1, 4, 7, 8, 11, 12], pad: 'triangle', mel: 'sine', bright: 2000, bpm: 58, density: 0.45 },
+    rei: { root: 61.74, chord: [0, 7, 12, 16], scale: [0, 2, 4, 7, 9, 12, 14], pad: 'sine', mel: 'triangle', bright: 2200, bpm: 50, density: 0.5 },
   },
 
   // Called once the AudioContext exists (after the first key press or tap)

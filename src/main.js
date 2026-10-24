@@ -38,6 +38,8 @@ function startGame() {
       return room;
     },
     heal() { GS.data.hp = GS.data.maxHp; GS.data.reiatsu = COMBAT.maxReiatsu; },
+    // Blows cost nothing while testing (they still knock you back): SD.god(true), and SD.god(false) after
+    god(on = true) { GS.god = !!on; return GS.god; },
     rich() { GS.data.reishi += 1000; },
     errors: [],
     // Advance the game by hand, n frames of dt ms (testing in a background tab, where frames stall).
@@ -92,7 +94,7 @@ function startGame() {
       GS.data.swordLevel = sword; GS.data.form = form;
       const bossId = room === 'kar_study' ? 'urahara' : ROOMS[room].boss;
       GS.data.bosses[bossId] = false; GS.data.cleared = false;
-      Settings.set('damage', 1);
+      GS.god = false;
       const s0 = this.scene; s0.transitioning = false;
       s0.goTo(room, { spawn: 'rest' });
       this.step(40);
@@ -179,7 +181,7 @@ Controls.onChange(renderKeyLegend);
 const JAPANESE_TEXT = [...new Set((Object.values(ICON_GLYPH).join('') + Object.values(REGIONS).map(r => r.kanji).join('') +
   Object.values(BOSSES).map(b => b.jp).join('') + Object.values(MENU_KANJI).join('') + Object.values(BANNER_KANJI).join('') +
   Object.values(ELITE_TRAITS).map(t => t.jp).join('') + Object.values(FORMS).map(f => f.jp).join('') +
-  Object.values(BINDINGS).map(b => b.jp).join('') + '壱弐参真試旅助記斬魄刀決闘霊王宮勉強部屋' +
+  Object.values(BINDINGS).map(b => b.jp).join('') + Object.values(DIFFICULTY).map(d => d.jp).join('') + '壱弐参真試旅助記斬魄刀決闘霊王宮勉強部屋卍' +
   '霊圧魂の漂流討浦原商店').split(''))].join('');
 
 (function boot() {
