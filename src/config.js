@@ -264,7 +264,7 @@ const BOSSES = {
 };
 // The bosses that count toward completion, the Grand Trial and the single duels
 const STORY_BOSSES = Object.keys(BOSSES).filter(b => !BOSSES[b].secret);
-// bonus bosses are not needed for 100%: beating one adds a point beyond it
+// bonus bosses are not needed for 100% (the extra point beyond it comes from beating Yhwach, see GS.completion)
 const COMPLETION_BOSSES = STORY_BOSSES.filter(b => !BOSSES[b].bonus);
 
 const MEMORIES = {
