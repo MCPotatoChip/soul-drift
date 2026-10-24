@@ -321,7 +321,8 @@ class Boss extends Enemy {
   *changeForm(sheet, line, banner, color, colorHex) {
     this.body.setVelocity(0, 0); this.body.setAllowGravity(true);
     this.invulnerable = true;
-    yield () => this.body.blocked.down;
+    let wait = 2;   // never hang here if he is somehow not standing on anything
+    yield () => this.body.blocked.down || (wait -= this.dt) <= 0;
     const s = this.scene;
     if (line) s.fx.floatText(this.x, this.y - 34, line, colorHex || '#ffffff');
     this.setPose('charge', 1.2);
@@ -2826,7 +2827,8 @@ class Aizen extends Duelist {
     const hb = this.scene.addHurt(0, 0, 22, 30, 1, 2, (h) => { h.x = this.x - 11; h.y = this.y - 15; });
     this.body.setVelocity(0, 700);
     Sfx.play('dash');
-    yield () => this.y > a.floor - 30 || this.body.blocked.down;
+    let fall = 1.5;
+    yield () => this.y > a.floor - 30 || this.body.blocked.down || (fall -= this.dt) <= 0;
     hb.t = 0;
     this.body.setVelocity(0, 0);
     this.scene.fx.shake(260, 0.012);
